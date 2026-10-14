@@ -28,8 +28,10 @@ def _ent(domain, device_class=None):
 
 
 def _num(lo, hi, step, unit=None):
-    return selector.NumberSelector(selector.NumberSelectorConfig(min=lo, max=hi, step=step, unit_of_measurement=unit,
-                                                                 mode=selector.NumberSelectorMode.BOX))
+    cfg = {"min": lo, "max": hi, "step": step, "mode": selector.NumberSelectorMode.BOX}
+    if unit:
+        cfg["unit_of_measurement"] = unit
+    return selector.NumberSelector(selector.NumberSelectorConfig(**cfg))
 
 
 def _sel(options, key):

@@ -1,0 +1,61 @@
+name: Bug report
+description: Something does not work, or the plan looks wrong
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! The **diagnostics file** is the most useful thing you can add: it lets the
+        situation be replayed exactly. Get it at **Settings → Devices & services → Roost →
+        ⋮ → Download diagnostics** and drag it into the field below. It contains no passwords or personal data.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens, and what did you expect?
+      placeholder: "E.g. it stored heat at 22 °C although the evening was cheaper than the afternoon"
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics file
+      description: Drag the downloaded .json file here.
+    validations:
+      required: true
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      placeholder: "2026.10.1"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Roost version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: setup
+    attributes:
+      label: Heat pump, thermostat and heating
+      placeholder: "Weheat Blackbird P80, Honeywell Lyric T6 over OpenTherm, floor heating"
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Roost mode
+      options:
+        - Shadow
+        - Active
+        - Off
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log lines (optional)
+      description: Settings → System → Logs, search for "roost".
+      render: text

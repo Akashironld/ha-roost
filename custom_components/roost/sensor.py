@@ -54,7 +54,7 @@ class SetpointSensor(RoostEntity, SensorEntity):
         if p:
             attrs["start"] = datetime.fromtimestamp(m.plan_at - m.plan_at % 3600, tz=dt_util.UTC).isoformat() if m.plan_at else None
             attrs["plan"] = [[h.sp, round(h.t_end, 1), round(h.kwh, 2), round(h.price * 100, 1)] for h in p.hours]
-            attrs["day_hours"] = [1 if h.day else 0 for h in m.plan_hours]
+            attrs["day_hours"] = [1 if h.day else 0 for h in m.plan_hours[:len(p.hours)]]
             attrs["cost_24h"] = round(p.cost, 2)
             attrs["steady_cost_24h"] = round(p.baseline_cost, 2)
             attrs["kwh_24h"] = round(p.kwh, 1)

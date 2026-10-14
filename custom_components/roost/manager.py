@@ -434,7 +434,7 @@ class RoostManager:
     async def _async_plan(self, now: datetime) -> None:
         self._planning = True
         try:
-            e = self._energy(now, 24)
+            e = self._energy(now, 36)                 # plan 36 h, show 24: the end of the horizon does not distort what is shown
             room = self.room()
             if e is None or room is None:
                 self.reason = "no price" if e is None else "no room temperature"

@@ -142,7 +142,9 @@ def _end_value(sim: Simulator, hours: list[HourIn], comfort: float):
 
 
 def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn], t_now: float, e_now: float,
-         sp_now: float | None) -> Plan:
+         sp_now: float | None, report: int = 24) -> Plan:
+    """Plan over all `hours` (give ~36 so the last shown hours are not distorted by the horizon), report the first
+    `report` hours (plan, cost, kWh, saving with the state after `report` hours levelled)."""
     sim = Simulator(house, hp, s)
     sps = s.setpoints()
     NA = len(sps)
@@ -155,6 +157,7 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
     NE = int(e_max / dE) + 1 if use_e else 1
     end = _end_value(sim, hours, s.comfort)
     H = len(hours)
+    end_r = _end_value(sim, hours[:min(report, H)], s.comfort)
 
     # V[i][j][a]: cost-to-go from room index i, storage index j, with setpoint a currently on the thermostat
     V = [[[end(t_lo + i * dT, j * dE)] * NA for j in range(NE)] for i in range(NT)]
@@ -205,7 +208,8 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
     out: list[HourPlan] = []
     total = kwh_tot = 0.0
     min_day = None
-    for k in range(H):
+    R = min(report, H)
+    for k in range(R):
         i = min(NT - 1, max(0, int(round((T - t_lo) / dT))))
         j = min(NE - 1, max(0, int(round(E / dE)))) if NE > 1 else 0
         a = choice[k][i][j][prev]
@@ -219,12 +223,12 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
 
     # the steady thermostat to compare with
     Tb, Eb, base_cost, base_kwh = t_now, e_now, 0.0, 0.0
-    for h in hours:
+    for h in hours[:R]:
         spb = s.comfort if (h.day or s.baseline_night is None) else s.baseline_night
         Tb, Eb, c, e, _q, _ = sim.hour(Tb, Eb, spb, h)
         base_cost += c
         base_kwh += e
-    saving = base_cost - total + end(Tb, Eb) - end(T, E)
+    saving = base_cost - total + end_r(Tb, Eb) - end_r(T, E)
     return Plan(out, total, kwh_tot, base_cost, base_kwh, saving, min_day)
 
 
