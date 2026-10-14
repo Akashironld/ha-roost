@@ -1,3 +1,4 @@
+<p align="center"><img src="assets/icon.png" width="128" alt="Roost logo"></p>
 <h1 align="center">Roost</h1>
 
 <p align="center"><b>Smart heating planner for Weheat heat pumps.</b><br>

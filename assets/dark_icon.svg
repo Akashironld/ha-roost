@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+<defs>
+ <linearGradient id="roof" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fdba74"/><stop offset="1" stop-color="#ea580c"/></linearGradient>
+ <linearGradient id="heat" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#f97316"/><stop offset="1" stop-color="#ef4444"/></linearGradient>
+ <radialGradient id="glow" cx="0.5" cy="0.45" r="0.5"><stop offset="0" stop-color="#fb923c" stop-opacity=".35"/><stop offset="1" stop-color="#fb923c" stop-opacity="0"/></radialGradient>
+ <radialGradient id="bird" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#e2e8f0"/><stop offset="1" stop-color="#94a3b8"/></radialGradient>
+</defs>
+<ellipse cx="128" cy="168" rx="92" ry="62" fill="url(#glow)"/>
+<path d="M36 150 L128 72 L220 150" fill="none" stroke="url(#roof)" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M74 172 q13 -12 26 0 t26 0 t26 0 t26 0" fill="none" stroke="url(#heat)" stroke-width="11" stroke-linecap="round"/>
+<path d="M74 204 q13 -12 26 0 t26 0 t26 0 t26 0" fill="none" stroke="url(#heat)" stroke-width="11" stroke-linecap="round" opacity=".75"/>
+<path d="M104 52 L84 40 L90 58 Z" fill="#94a3b8"/>
+<ellipse cx="124" cy="52" rx="30" ry="22" fill="url(#bird)"/>
+<ellipse cx="132" cy="60" rx="17" ry="12" fill="#fb923c"/>
+<circle cx="150" cy="36" r="15" fill="url(#bird)"/>
+<path d="M163 34 L178 39 L163 43 Z" fill="#f59e0b"/>
+<circle cx="154" cy="33" r="3.6" fill="#ffffff"/><circle cx="155" cy="33" r="1.8" fill="#0f172a"/>
+<path d="M120 72 L117 80 M132 72 L130 80" stroke="#94a3b8" stroke-width="4" stroke-linecap="round"/>
+</svg>
