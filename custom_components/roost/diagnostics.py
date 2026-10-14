@@ -19,4 +19,5 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: RoostCo
         "plan": [h.as_dict() for h in p.hours] if p else None, "hours": [vars(h) for h in m.plan_hours],
         "saving_days": m.saving_days, "hour_log": m.hour_log[-30:], "weheat_hours_imported": len(m._weheat_hours),
         "pv_k": m.pv_k, "load_profile": m.load_profile, "following": m.following, "issues": sorted(m.health.issues),
+        "check": m.check, "ready_to_steer": m.ready, "still_missing": m.ready_missing, "correction_kw": m.corr_kw, "correction_hours": m.corr_n,
     }

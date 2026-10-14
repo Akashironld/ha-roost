@@ -86,6 +86,7 @@ show_chart: true
 | `sensor.roost_heating_cost_today` | heat pump electricity for space heating × the price of each hour |
 | `sensor.roost_house_model_error` | how well the learned house model predicts a day (°C); the house's numbers in the attributes |
 | `sensor.roost_weheat_import` | status of the Weheat history import |
+| `sensor.roost_plan_accuracy` | nightly self-check: how close the plan comes to the room 6 hours ahead (°C); the horizons, heat and electricity against the meters, readiness to steer, the correction and the learned response in the attributes |
 | `binary_sensor.roost_paused_changed_by_hand`, `binary_sensor.roost_heat_pump_follows_the_thermostat` | |
 | `button.roost_learn_now`, `button.roost_import_history_from_weheat` | |
 

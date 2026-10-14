@@ -186,6 +186,9 @@
       },
       "weheat_import": {
         "name": "Weheat import"
+      },
+      "plan_accuracy": {
+        "name": "Plan accuracy"
       }
     },
     "binary_sensor": {
@@ -245,6 +248,17 @@
     "learning_failed": {
       "title": "{name}: learning failed",
       "description": "Roost could not learn from the history this time. It keeps using the previous model. The log has the details."
+    },
+    "ready_for_active": {
+      "title": "{name}: ready to steer the heat pump",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Switch to active",
+            "description": "Roost has checked its plan against the last {days} days: with the setpoints that were really on the thermostat it predicts the room {rmse} °C close 6 hours ahead, over {hours} heating hours, and the heat pump follows the thermostat.\n\nSubmit to let Roost steer the thermostat (mode active). You can go back to shadow at any time with the Roost mode selector."
+          }
+        }
+      }
     }
   },
   "services": {

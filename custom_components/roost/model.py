@@ -85,6 +85,9 @@ class HourRow:
     T_out_sensor: float | None = None   # the heat pump's own outdoor reading
     dhw_s: float = 0.0            # seconds of hot water / legionella in the hour
     heating_s: float = 0.0        # seconds of space heating in the hour
+    sp: float | None = None       # room setpoint on the thermostat (mean over the hour)
+    T_th: float | None = None     # the thermostat's own room reading
+    room_sensor: bool = False     # T comes from a separate room sensor (not the thermostat)
 
 
 def within(p: dict) -> bool:

@@ -17,7 +17,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RoostConfigEntry, async_
     m = entry.runtime_data
     async_add_entities([SetpointSensor(m), SavingNext24hSensor(m), SavingYesterdaySensor(m), SavingMonthSensor(m),
                         CostTodaySensor(m), EnergyTodaySensor(m), EnergyValueSensor(m), HouseModelSensor(m), HeatPumpModelSensor(m),
-                        ImportSensor(m)])
+                        ImportSensor(m), PlanAccuracySensor(m)])
 
 
 def _cur(hass) -> str:
@@ -221,7 +221,42 @@ class HeatPumpModelSensor(RoostEntity, SensorEntity):
     def extra_state_attributes(self):
         p = self.mgr.pump
         return {"alpha": p.alpha, "beta": p.beta, "gamma": p.gamma, "outdoor_sensor_bias": p.bias,
-                "max_output_kw_at_0": round(p.pmax(0.0), 1), "max_output_kw_at_10": round(p.pmax(10.0), 1), "hours": p.hours, "source": p.source}
+                "max_output_kw_at_0": round(p.pmax(0.0), 1), "max_output_kw_at_10": round(p.pmax(10.0), 1), "hours": p.hours, "source": p.source,
+                **_response(p)}
+
+
+def _response(p) -> dict:
+    """How the unit responds to the thermostat, and its hot water hours."""
+    now = dt_util.now()
+    today = [p.dhw_share(now.weekday(), h) for h in range(24)]
+    return {"demand_share_of_loss": p.a, "demand_kw_per_degree": p.k, "heats_towards_setpoint_plus": round(p.offset, 1),
+            "follows_per_hour": p.follow, "thermostat_reads_vs_room": p.th_diff, "lowest_output_kw": p.q_min or None,
+            "cop_while_cycling": p.cyc, "response_hours": p.resp_hours, "response_error_kwh": p.resp_error, "response_source": p.resp_source,
+            "hot_water_hours_today": [h for h, x in enumerate(today) if x >= 0.2], "hot_water_weeks": p.dhw_weeks}
+
+
+class PlanAccuracySensor(RoostEntity, SensorEntity):
+    """How close the plan comes to what happens: the room 6 hours ahead (°C, root mean square), from the nightly
+    replay of the last days with the setpoints that were really on the thermostat."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_suggested_display_precision = 2
+    _attr_icon = "mdi:target"
+
+    def __init__(self, mgr) -> None:
+        super().__init__(mgr, "plan_accuracy")
+
+    @property
+    def native_value(self):
+        return self.mgr.check.get("rmse_6h")
+
+    @property
+    def extra_state_attributes(self):
+        m = self.mgr
+        return {**{k: v for k, v in m.check.items()}, "ready_to_steer": m.ready, "still_missing": m.ready_missing,
+                "correction_kw": m.corr_kw, "correction_hours": m.corr_n, **_response(m.pump)}
 
 
 class ImportSensor(RoostEntity, SensorEntity):

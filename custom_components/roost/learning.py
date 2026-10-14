@@ -60,7 +60,7 @@ async def async_rows(mgr: "RoostManager") -> tuple[list, dict]:
     ids: dict[str, str] = {}
     if conf.get(CONF_ROOM):
         ids["room"] = conf[CONF_ROOM]
-    for role in ("thermostat_room", "outdoor", *ENERGY_ROLES):
+    for role in ("thermostat_room", "thermostat_setpoint", "outdoor", *ENERGY_ROLES):
         if mgr.ent.get(role):
             ids[role] = mgr.ent[role]
     if conf.get(CONF_PV_POWER):
@@ -86,6 +86,8 @@ async def async_rows(mgr: "RoostManager") -> tuple[list, dict]:
             v["dhw_e"] = v["elec_dhw"]
         if "outdoor" in v:
             v["sensor_out"] = v["outdoor"]
+        if "thermostat_setpoint" in v and history.BAD_LOW < v["thermostat_setpoint"] < history.BAD_HIGH:
+            v["sp"] = v["thermostat_setpoint"]
         if "room" in v and not (history.BAD_LOW < v["room"] < history.BAD_HIGH):
             del v["room"]
 

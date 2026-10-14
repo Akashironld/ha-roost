@@ -1,6 +1,6 @@
 /* Roost card - served by the roost integration. */
 (() => {   // own scope: safe if the file is loaded twice as a classic script (legacy frontend + a manual resource)
-const CARD_VERSION = "0.1.2";
+const CARD_VERSION = "0.2.0";
 
 // Plain ES2017 on purpose (no ?. / ??), ASCII only (\u escapes): wall tablets often run an older browser.
 const nn = (a, b) => (a === null || a === undefined ? b : a);
@@ -9,7 +9,7 @@ const DEG = "\u00b0C";
 const T = {
   en: { title: "Roost", room: "Room", thermostat: "Thermostat", planned: "Planned", next24: "Next 24 hours",
         setpoint: "setpoint", expected: "room expected", price: "tariff", guessed: "estimated", uses: "plan uses", comfort: "comfort hours", now: "now",
-        night: "night", saving24: "expected saving", month: "this month", yesterday: "yesterday", vs: "vs steady",
+        night: "night", saving24: "expected saving", month: "this month", yesterday: "yesterday", vs: "vs steady", accuracy: "plan error 6 h", ready: "ready to steer",
         active: "ACTIVE", shadow: "SHADOW", off: "OFF", paused: "PAUSED", scrub: "slide over the graph",
         stored: "stored", unavailable: "Not available", pick: "Pick the 'Planned setpoint' sensor of the Roost integration.",
         noplan: "no plan yet", heating: "heat pump heating", e_entity: "Sensor", e_title: "Title", e_language: "Language",
@@ -17,7 +17,7 @@ const T = {
         e_show_footer: "Saving", e_compact: "Compact (e.g. a wall tablet)" },
   nl: { title: "Roost", room: "Kamer", thermostat: "Thermostaat", planned: "Gepland", next24: "Komende 24 uur",
         setpoint: "setpoint", expected: "kamer verwacht", price: "tarief", guessed: "geschat", uses: "rekent met", comfort: "comforturen", now: "nu",
-        night: "nacht", saving24: "verwachte besparing", month: "deze maand", yesterday: "gisteren", vs: "t.o.v. vast",
+        night: "nacht", saving24: "verwachte besparing", month: "deze maand", yesterday: "gisteren", vs: "t.o.v. vast", accuracy: "planfout 6 u", ready: "klaar om te sturen",
         active: "ACTIEF", shadow: "MEEKIJKEN", off: "UIT", paused: "GEPAUZEERD", scrub: "schuif over de grafiek",
         stored: "opgeslagen", unavailable: "Niet beschikbaar", pick: "Kies de sensor 'Gepland setpoint' van de integratie Roost.",
         noplan: "nog geen plan", heating: "warmtepomp stookt", e_entity: "Sensor", e_title: "Titel", e_language: "Taal",
@@ -268,6 +268,11 @@ class RoostCard extends HTMLElement {
     if (sy && !isNaN(parseFloat(sy.state))) bits.push(`${this._t("yesterday")} <b>${this._money(parseFloat(sy.state))}</b>`);
     if (sm && !isNaN(parseFloat(sm.state))) bits.push(`${this._t("month")} <b>${this._money(parseFloat(sm.state))}</b>`);
     if (a.cost_24h !== undefined) bits.push(`24 h ${this._money(a.cost_24h)} (${this._t("vs")} ${this._money(a.steady_cost_24h)})`);
+    const acc = this._sib("plan_accuracy");          // nightly self-check: the room 6 hours ahead
+    if (acc && !isNaN(parseFloat(acc.state))) {
+      bits.push(`${this._t("accuracy")} <b>\u00b1${this._num(parseFloat(acc.state), 2)} ${DEG}</b>` +
+        (acc.attributes.ready_to_steer && a.mode === "shadow" ? ` \u00b7 <b class="ok">${this._t("ready")}</b>` : ""));
+    }
     return bits.length ? `<div class="foot">${bits.join(" \u00b7 ")}</div>` : "";
   }
 
@@ -316,7 +321,7 @@ class RoostCard extends HTMLElement {
       .l.price.guess { opacity: .2; }
       .l.band { height: 8px; background: var(--rc-band); opacity: .25; }
       .foot { font-size: 12px; color: var(--secondary-text-color); margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--divider-color); }
-      .foot b { color: var(--primary-text-color); }
+      .foot b { color: var(--primary-text-color); } .foot b.ok { color: var(--success-color, #30a46c); }
     </style>`;
   }
 }

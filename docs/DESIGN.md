@@ -113,7 +113,11 @@ like the *Weheat 200 L* profile in Hot Water Shower Time. Bias of the heat pump'
 read high in the sun.
 
 **Thermostat behaviour** (the important part for OpenTherm): it heats on the room error only and does not know the
-floor; heat goes into the floor first. The planner models that (it is what makes floor heating overshoot), and limits
+floor; heat goes into the floor first. Learned in v0.2 (response.py) from the Weheat logs, which carry the setpoint and
+the thermostat's own reading per hour: demand = a·loss + k·(setpoint + offset − thermostat reading), the output
+following with a delay (author's Lyric T6 + P80: a 0.9, k 1 kW/°C, offset +0.3, 35 %/h; the thermostat reads 0.8 °C
+below the room sensor). An on/off model (gap closed within the hour) overestimated the unit's response ~20-fold.
+The search stays static (fast); for a slow unit its plan is polished with the real delay (planner.polish). The planner models that (it is what makes floor heating overshoot), and limits
 `setpoint ≤ room + max_above_room` (default 1.0 °C) so the water stays lukewarm.
 
 ## 6. Energy value per hour

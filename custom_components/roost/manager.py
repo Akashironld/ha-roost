@@ -19,7 +19,7 @@ from homeassistant.helpers.event import async_track_state_change_event, async_tr
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from . import control, heatpump, history, model, planner, series, value, weather as om
+from . import check, control, heatpump, history, model, planner, response, series, value, weather as om
 from .const import (
     CONF_BASELINE_NIGHT, CONF_BATTERY_KW, CONF_BATTERY_KWH, CONF_BATTERY_POWER, CONF_BATTERY_RESERVE, CONF_BATTERY_SOC,
     CONF_COMFORT, CONF_DAY_FROM, CONF_DAY_MIN, CONF_DAY_TO, CONF_EXPORT_PRICE, CONF_GRID_POWER, CONF_GRID_PREFERENCE,
@@ -32,6 +32,9 @@ from .reasons import Reason
 from .weheat_api import WeheatUnavailable, async_fetch_history, heat_pump_id
 
 _LOGGER = logging.getLogger(__name__)
+DHW_STATES = ("dhw", "legionella_prevention")
+DHW_WEEKS = 8                 # hot water profile from the last weeks
+WEHEAT_FIELDS = 2             # 2: the import includes the setpoint per hour
 NOT_FOLLOWING_MIN = 45
 ROOM_SILENT_MIN = 30
 
@@ -98,6 +101,13 @@ class RoostManager:
         self._planning = False
         self._learning = False
         self.importing = False
+        self.check: dict = {}                       # nightly self-check (check.self_check)
+        self.ready: bool = False
+        self.ready_missing: list[str] = []
+        self.corr_kw, self.corr_n = 0.0, 0           # correction from the last hours (check.correction)
+        self._acc_hour: int | None = None           # the current hour: seconds on hot water, heat for the house
+        self._dhw_acc = 0.0
+        self._heat_acc = 0.0
 
     # ------------------------------------------------------------ config
     @property
@@ -138,6 +148,8 @@ class RoostManager:
         self.pv_k = data.get("pv_k")
         self.load_profile = data.get("load_profile")
         self.price_seen = {e: {int(k): v for k, v in d.items()} for e, d in (data.get("price_seen") or {}).items()}
+        self.check = data.get("check") or {}
+        self.ready, self.ready_missing = check.readiness(self.check, None) if self.check else (False, [])
         self._weheat_hours = {int(k): v for k, v in (hist.get("weheat") or {}).items()}
         self._weather_hist = {int(k): tuple(v) for k, v in (hist.get("weather") or {}).items()}
         self._unsubs.append(async_track_time_interval(self.hass, self._async_tick, timedelta(seconds=TICK_SECONDS)))
@@ -148,7 +160,10 @@ class RoostManager:
     async def _async_first_run(self) -> None:
         await self._async_seed_prices()
         await self._async_tick(None, force_plan=True)
-        if self.conf.get(CONF_IMPORT_ON_SETUP) and not self.import_info.get("done"):
+        if self.import_info.get("done") and self.import_info.get("fields", 1) < WEHEAT_FIELDS:
+            # imported by an older version: read again, now with the setpoint per hour (needed for the response)
+            self.hass.async_create_background_task(self.async_import(WEHEAT_IMPORT_DAYS), f"{DOMAIN} weheat import")
+        elif self.conf.get(CONF_IMPORT_ON_SETUP) and not self.import_info.get("done"):
             self.hass.async_create_background_task(self.async_import(WEHEAT_IMPORT_DAYS), f"{DOMAIN} weheat import")
         elif self.house.source != "learned":
             self.hass.async_create_background_task(self.async_learn(), f"{DOMAIN} first learning")
@@ -172,7 +187,8 @@ class RoostManager:
             "mode": self.mode, "house": self.house.as_dict(), "pump": self.pump.as_dict(), "control": self.mem.as_dict(),
             "storage_e": round(self.storage_e, 3), "learn": self.learn_info, "import": self.import_info,
             "hour_log": self.hour_log[-60:], "saving_days": dict(sorted(self.saving_days.items())[-62:]),
-            "pv_k": self.pv_k, "load_profile": self.load_profile, "price_seen": self._price_seen_recent()})
+            "pv_k": self.pv_k, "load_profile": self.load_profile, "price_seen": self._price_seen_recent(),
+            "check": self.check})
 
     def _price_seen_recent(self) -> dict[str, dict[str, float]]:
         cut = time.time() - 3 * 86400
@@ -214,6 +230,7 @@ class RoostManager:
     async def async_set_mode(self, mode: str) -> None:
         self.mode = mode
         self.mem.virtual_sp = None
+        self._issue_ready()
         await self.async_save()
         await self._async_tick(None, force_plan=True)
 
@@ -395,6 +412,7 @@ class RoostManager:
                 self._resolve_weheat()
             await self._async_weather()
             self._track_storage(t)
+            self._track_hour(t)
             self._count_cost(now)
             self._log_hour(now)
             self._check_health(t)
@@ -445,7 +463,8 @@ class RoostManager:
         if room is None or sp is None or wx is None or not self.plan_hours:
             return
         h = self.plan_hours[0]
-        self.hour_log.append({"ts": hour, "T": round(room, 2), "E": round(self.storage_e, 2), "sp": sp, "t_out": wx[0], "rad": wx[1],
+        self.hour_log.append({"ts": hour, "T": round(room, 2), "E": round(self.storage_e, 2), "sp": sp, "sp_t": self.thermostat_sp(),
+                              "t_out": wx[0], "rad": wx[1],
                               "wind": wx[2] if wx[2] is not None else 3.5, "p_grid": h.p_grid, "p_own": h.p_own, "own": h.own_kw,
                               "day": self.is_day(dt_util.as_local(now))})
         self.hour_log = self.hour_log[-60:]
@@ -478,8 +497,12 @@ class RoostManager:
                 wx = (t_out - self.pump.bias, 0.0, 3.5)
             last = wx
             loc = dt_util.as_local(datetime.fromtimestamp(base + i * 3600, tz=timezone.utc))
+            dhw = self.pump.dhw_share(loc.weekday(), loc.hour)
+            if i == 0 and self.pump_state() in DHW_STATES:
+                dhw = max(dhw, 0.5)                     # making hot water right now
             out.append(planner.HourIn(t_out=wx[0], wind=wx[2] if wx[2] is not None else 3.5, rad=wx[1] or 0.0, p_grid=p.p_grid,
-                                      p_own=p.p_own, own_kw=p.own_kw, day=self.is_day(loc), hour=loc.hour))
+                                      p_own=p.p_own, own_kw=p.own_kw, day=self.is_day(loc), hour=loc.hour, dhw=dhw,
+                                      extra_kw=check.fade(self.corr_kw, i)))
         return out
 
     async def _async_plan(self, now: datetime) -> None:
@@ -492,16 +515,19 @@ class RoostManager:
                 return
             inp, ev = e
             prices = value.planner_prices(inp, ev)
+            self.corr_kw, self.corr_n = check.correction(self.hour_log, self.house, self.pump, now.timestamp())
             hours = self._hours_ahead(now, prices)
             if not hours:
                 self.reason = Reason("no_weather")
                 return
             s = self.settings()
-            p = await self.hass.async_add_executor_job(planner.plan, self.house, self.pump, s, hours, room, self.storage_e, self.thermostat_sp())
+            w_now = self._kw(self.ent.get("power_out")) if self.pump_state() == "heating" else 0.0
+            p = await self.hass.async_add_executor_job(planner.plan, self.house, self.pump, s, hours, room, self.storage_e,
+                                                       self.thermostat_sp(), 24, w_now)
             self.plan, self.plan_hours, self.plan_at = p, hours, now.timestamp()
             self.plan_tariff = list(inp.import_price)
             self.plan_guess = list(self._price_guess.get(self.conf.get(CONF_IMPORT_PRICE)) or [])
-            self.reason = planner.explain(p, hours, room, s)
+            self.reason = planner.explain(p, hours, room, s, self.pump, self.house)
         finally:
             self._planning = False
 
@@ -539,15 +565,55 @@ class RoostManager:
         self._notify()
 
     # ------------------------------------------------------------ health (repairs)
-    def _issue(self, key: str, active: bool) -> None:
+    def _issue(self, key: str, active: bool, fixable: bool = False, placeholders: dict | None = None) -> None:
         iid = f"{self.entry.entry_id}_{key}"
         if active and key not in self.health.issues:
-            ir.async_create_issue(self.hass, DOMAIN, iid, is_fixable=False, severity=ir.IssueSeverity.WARNING,
-                                  translation_key=key, translation_placeholders={"name": self.entry.title})
+            ir.async_create_issue(self.hass, DOMAIN, iid, is_fixable=fixable, severity=ir.IssueSeverity.WARNING,
+                                  translation_key=key, data={"entry_id": self.entry.entry_id} if fixable else None,
+                                  translation_placeholders={"name": self.entry.title, **(placeholders or {})})
             self.health.issues.add(key)
         elif not active and key in self.health.issues:
             ir.async_delete_issue(self.hass, DOMAIN, iid)
             self.health.issues.discard(key)
+
+    def _issue_ready(self) -> None:
+        """Tell the user once the self-check says Roost can steer (only while in shadow mode; the user decides)."""
+        rmse = self.check.get("rmse_6h")
+        self._issue("ready_for_active", self.mode == "shadow" and self.ready, fixable=True,
+                    placeholders={"rmse": f"{rmse:.2f}" if rmse is not None else "?",
+                                  "hours": str(self.check.get("heating_hours", 0)), "days": str(self.check.get("days", 0))})
+
+    def _track_hour(self, t: float) -> None:
+        """Per hour: seconds on hot water (an hour on hot water is not a model error) and the heat delivered to the house
+        (where the unit's output starts in the next hour), for the correction."""
+        hour = int(t // 3600 * 3600)
+        if self._acc_hour != hour:
+            if self._acc_hour is not None:
+                for e in reversed(self.hour_log[-3:]):
+                    if e["ts"] == self._acc_hour:
+                        e["dhw"] = round(min(1.0, self._dhw_acc / 3600), 2)
+                        e["q"] = round(self._heat_acc, 2)
+            self._acc_hour, self._dhw_acc, self._heat_acc = hour, 0.0, 0.0
+        if self._last_tick is None:
+            return
+        dt = min(600.0, max(0.0, t - self._last_tick))
+        state = self.pump_state()
+        if state in DHW_STATES:
+            self._dhw_acc += dt
+        elif state == "heating":
+            self._heat_acc += max(0.0, self._kw(self.ent.get("power_out")) or 0.0) * dt / 3600
+
+    def _dhw_samples(self, rows: list[model.HourRow]) -> list[tuple[int, int, float]]:
+        """(local weekday, local hour, share on hot water) of the last weeks, Weheat logs first."""
+        since = time.time() - DHW_WEEKS * 7 * 86400
+        src = {t: v["dhw_s"] for t, v in self._weheat_hours.items() if t >= since and "dhw_s" in v}
+        if len(src) < 7 * 24:
+            src = {r.ts: r.dhw_s for r in rows if r.ts >= since}
+        out = []
+        for t, secs in src.items():
+            loc = dt_util.as_local(datetime.fromtimestamp(t, tz=timezone.utc))
+            out.append((loc.weekday(), loc.hour, secs / 3600))
+        return out
 
     def _check_health(self, t: float) -> None:
         # the heat pump heats while the thermostat asks for no heat: it is on its own heating curve
@@ -585,7 +651,26 @@ class RoostManager:
 
     # ------------------------------------------------------------ learning
     async def _async_nightly(self, _now: datetime) -> None:
+        await self._async_refresh_weheat()
         await self.async_learn()
+
+    async def _async_refresh_weheat(self) -> None:
+        """The hours since the last import, from Weheat (read-only), so learning and the self-check use the unit's own
+        meters and states. Skipped quietly when the Weheat login is not available."""
+        if not self.import_info.get("done") or not self._weheat_hours or self.importing:
+            return
+        pump, weheat_entry = heat_pump_id(self.hass, self.conf.get(CONF_HEAT_PUMP))
+        if not pump or not weheat_entry:
+            return
+        end = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
+        start = max(end - timedelta(days=30), datetime.fromtimestamp(max(self._weheat_hours) - 3 * 3600, tz=timezone.utc))
+        try:
+            logs, energy = await async_fetch_history(self.hass, weheat_entry, pump, start, end)
+        except Exception as err:  # noqa: BLE001 - learn with what there is
+            _LOGGER.debug("Roost: Weheat refresh skipped: %s", err)
+            return
+        self._weheat_hours.update(history.weheat_hours(logs, energy))
+        await self._async_save_history()
 
     async def async_learn(self) -> None:
         if self._learning:
@@ -596,13 +681,27 @@ class RoostManager:
             rows, extra = await async_rows(self)
             house = await self.hass.async_add_executor_job(model.learn, rows, self.house)
             pump, note = await self.hass.async_add_executor_job(heatpump.learn, rows, self.pump)
+            pump, note_r = await self.hass.async_add_executor_job(response.learn, rows, house.model, pump)
+            note = "; ".join(x for x in (note, note_r) if x)
+            samples = self._dhw_samples(rows)
+            prof = response.dhw_profile(samples)
+            if prof:
+                pump.dhw, pump.dhw_weeks = prof, round(len(samples) / 168, 1)
             self.house, self.pump = house.model, pump
+            self.check = await self.hass.async_add_executor_job(check.self_check, rows, self.house, self.pump)
+            self.check["at"] = dt_util.now().isoformat(timespec="seconds")
+            self.ready, self.ready_missing = check.readiness(self.check, self.following)
+            self._issue_ready()
             if extra.get("pv_k"):
                 self.pv_k = extra["pv_k"]
             if extra.get("load_profile"):
                 self.load_profile = extra["load_profile"]
             self.learn_info = {"at": dt_util.now().isoformat(timespec="seconds"), "house": house.reason, "scores": house.scores,
                                "heat_pump": note, "rows": len(rows), "heating_hours": sum(1 for r in rows if r.Q > 0.3),
+                               "rows_with_setpoint": sum(1 for r in rows if r.sp is not None),
+                               "rows_with_room_sensor": sum(1 for r in rows if r.room_sensor),
+                               "rows_with_thermostat_reading": sum(1 for r in rows if r.T_th is not None),
+                               "last_row": datetime.fromtimestamp(max(r.ts for r in rows), tz=timezone.utc).isoformat() if rows else None,
                                "weheat_hours": sum(1 for r in rows if r.ts in self._weheat_hours)}
             self._issue("learning_failed", False)
         except Exception:  # noqa: BLE001
@@ -636,7 +735,8 @@ class RoostManager:
             self._weheat_hours.update(rows)
             await self._async_save_history()
             first = min(rows) if rows else None
-            self.import_info = {"status": "done", "done": True, "hours": len(rows), "from": first and datetime.fromtimestamp(first, tz=timezone.utc).isoformat(),
+            self.import_info = {"status": "done", "done": True, "fields": WEHEAT_FIELDS, "hours": len(rows),
+                                "from": first and datetime.fromtimestamp(first, tz=timezone.utc).isoformat(),
                                 "to": end.isoformat(), "at": dt_util.now().isoformat(timespec="seconds")}
         except WeheatUnavailable as err:
             self.import_info = {"status": f"waiting for the Weheat login ({err})"}

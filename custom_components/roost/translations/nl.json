@@ -186,6 +186,9 @@
       },
       "weheat_import": {
         "name": "Weheat-import"
+      },
+      "plan_accuracy": {
+        "name": "Plannauwkeurigheid"
       }
     },
     "binary_sensor": {
@@ -245,6 +248,17 @@
     "learning_failed": {
       "title": "{name}: leren mislukt",
       "description": "Roost kon deze keer niet leren uit de historie. Het vorige model blijft in gebruik. Details staan in het logboek."
+    },
+    "ready_for_active": {
+      "title": "{name}: klaar om de warmtepomp te sturen",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Op actief zetten",
+            "description": "Roost heeft zijn plan getoetst aan de laatste {days} dagen: met de setpoints die echt op de thermostaat stonden, voorspelt hij de kamer 6 uur vooruit op {rmse} °C nauwkeurig, over {hours} stookuren, en de warmtepomp volgt de thermostaat.\n\nVerstuur om Roost de thermostaat te laten sturen (modus actief). Terug naar meekijken kan altijd met de modus-keuze van Roost."
+          }
+        }
+      }
     }
   },
   "services": {

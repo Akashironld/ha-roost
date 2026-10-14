@@ -7,6 +7,15 @@ COP = alpha + beta * T_sensor + gamma * max(0, Q - Q_REF)
 
 Starting values come from a Weheat Blackbird P80 (2,313 winter hours of the author's unit); a few hundred hours of
 the user's own data take over (ridge pull towards the start values, weight ~200 hours).
+
+The model also holds how the unit responds to the thermostat and when it makes hot water (learned in response.py).
+An OpenTherm thermostat modulates: the heat asked for is about the house's loss plus a gain per degree the thermostat's
+own reading is below the setpoint, and the unit follows that demand with a delay:
+    demand = a · loss + k · (setpoint + offset − thermostat reading),  thermostat reading = room + th_diff
+    output moves towards the demand by `follow` of the gap per hour (1 = at once)
+    q_min         lowest steady heat output; below it the unit cycles, at cyc × the COP
+    dhw           share of each hour of the week (Monday 00:00 first, local time) spent on hot water: no space heating
+Without learned values (k None) it is a thermostat that closes a gap within the hour: k = C per hour, no delay.
 """
 from __future__ import annotations
 
@@ -44,6 +53,19 @@ class HeatPumpModel:
     bias: float = 1.0                  # heat pump outdoor sensor minus weather service, at night (°C)
     hours: int = 0                     # heating hours behind the COP fit
     source: str = "profile"
+    # response to the thermostat (learned in response.py)
+    a: float = 1.0                     # share of the house's loss the demand follows
+    k: float | None = None             # kW per °C below the setpoint; None: the house's C per hour (closes a gap in an hour)
+    offset: float = 0.0                # the unit heats towards setpoint + offset (°C, in the thermostat's reading)
+    follow: float = 1.0                # share of the gap between output and demand closed per hour
+    th_diff: float = 0.0               # thermostat reading minus the room sensor (°C)
+    q_min: float = 0.0                 # lowest steady heat output (kW); 0 = unknown
+    cyc: float = 1.0                   # COP factor while cycling below q_min
+    resp_hours: int = 0
+    resp_error: float | None = None    # kWh per hour over 6 hours, heat output predicted against measured
+    resp_source: str = "default"
+    dhw: list[float] | None = None     # 168 values: share of the hour on hot water, Monday 00:00 first (local time)
+    dhw_weeks: float = 0.0
 
     @classmethod
     def for_profile(cls, name: str) -> "HeatPumpModel":
@@ -68,6 +90,17 @@ class HeatPumpModel:
 
     def pmax(self, t_out: float) -> float:
         return max(self.pmax_lo, min(self.pmax_hi, self.pmax_a + self.pmax_b * t_out))
+
+    def demand(self, loss_net: float, sp: float, room: float, C: float) -> float:
+        """Heat the thermostat asks for (kW, not clamped): loss_net = loss − sun − other gains."""
+        k = self.k if self.k is not None else C
+        return self.a * loss_net + k * (sp + self.offset - room - self.th_diff)
+
+    def dhw_share(self, weekday: int, hour: int) -> float:
+        """Expected share of this local hour spent on hot water (weekday 0 = Monday)."""
+        if not self.dhw or len(self.dhw) != 168:
+            return 0.0
+        return self.dhw[(weekday % 7) * 24 + hour % 24]
 
 
 def _solve(A: list[list[float]], b: list[float]) -> list[float] | None:

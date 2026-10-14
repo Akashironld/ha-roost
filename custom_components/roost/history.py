@@ -7,6 +7,7 @@ Per hour, each value from the best source that has it:
 - room temperature: the room sensor chosen in Roost (HA statistics), else the thermostat's reading in the Weheat logs,
   else the thermostat's reading in HA;
 - the heat pump's outdoor reading: Weheat logs, else HA statistics;
+- the room setpoint on the thermostat: Weheat logs (what the unit received), else HA statistics;
 - outdoor temperature, radiation and wind: the weather service (forecast with past days, or the archive).
 """
 from __future__ import annotations
@@ -67,6 +68,7 @@ def weheat_hours(logs: list[dict], energy: list[dict]) -> dict[int, dict]:
         t -= t % 3600
         out.setdefault(t, {}).update({
             "room": _temp(x.get("tRoomAverage")),
+            "sp": _temp(x.get("tRoomTargetAverage")),
             "sensor_out": _outdoor(x.get("tAirInAverage")),
             "heating_s": (_f(x.get("heatPumpStateHeating")) or 0.0) + (_f(x.get("heatPumpStateHeatingDefrost")) or 0.0),
             "dhw_s": sum(_f(x.get(k)) or 0.0 for k in ("heatPumpStateDhw", "heatPumpStateLegionella", "heatPumpStateDhwDefrost")),
@@ -85,7 +87,7 @@ def weheat_hours(logs: list[dict], energy: list[dict]) -> dict[int, dict]:
 
 
 def build_rows(weheat: dict[int, dict], ha: dict[int, dict], weather: dict[int, tuple]) -> list[HourRow]:
-    """ha: {hour ts: {"room", "thermostat_room", "q", "e", "dhw_e", "sensor_out"}} from long-term statistics.
+    """ha: {hour ts: {"room", "thermostat_room", "sp", "q", "e", "dhw_e", "sensor_out"}} from long-term statistics.
     weather: {hour ts: (t_out, radiation kW/m², wind m/s)}."""
     rows: list[HourRow] = []
     for t in sorted(set(weheat) | set(ha)):
@@ -94,8 +96,11 @@ def build_rows(weheat: dict[int, dict], ha: dict[int, dict], weather: dict[int, 
         if wx is None or wx[0] is None:
             continue
         room = h.get("room")
+        th = w.get("room") if w.get("room") is not None else h.get("thermostat_room")     # the thermostat's reading
+        th = th if th is not None and BAD_LOW < th < BAD_HIGH else None
+        sensor = room is not None
         if room is None:
-            room = w.get("room") if w.get("room") is not None else h.get("thermostat_room")
+            room = th
         if room is None or not (BAD_LOW < room < BAD_HIGH):
             continue
         if "q" in w:
@@ -109,5 +114,7 @@ def build_rows(weheat: dict[int, dict], ha: dict[int, dict], weather: dict[int, 
         dhw_s = w.get("dhw_s", 3600.0 if dhw_e > 0.05 else 0.0)
         rows.append(HourRow(ts=t, T=room, T_out=wx[0], Q=q, rad=max(0.0, wx[1] or 0.0), wind=wx[2] if wx[2] is not None else WIND_REF,
                             E=e, T_out_sensor=w.get("sensor_out") if w.get("sensor_out") is not None else h.get("sensor_out"),
-                            dhw_s=dhw_s, heating_s=w.get("heating_s", 0.0)))          # seconds only known from the Weheat logs
+                            dhw_s=dhw_s, heating_s=w.get("heating_s", 0.0),           # seconds only known from the Weheat logs
+                            sp=w.get("sp") if w.get("sp") is not None else h.get("sp"),
+                            T_th=th, room_sensor=sensor))
     return rows

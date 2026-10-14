@@ -1,8 +1,10 @@
 """24-hour plan of thermostat setpoints: dynamic programming over (room temperature × heat stored). Pure Python.
 
 Ported from the author's Node-RED "Warmte-planner" v2.8. Per quarter of an hour:
-- the thermostat heats on the room error only (it does not know the floor): heat output
-  w = min(max output, losses − sun + (setpoint − T) · C / tau) while T < setpoint;
+- the thermostat heats on the room error only (it does not know the floor): the learned response of the unit
+  (heatpump.HeatPumpModel.demand: part of the loss plus a gain per degree below the setpoint), at most the maximum
+  output, none while making hot water. The output follows the demand with the learned delay when the simulation knows
+  the output at the start (the shown plan, the self-check); the search itself takes the demand at once (fast);
 - the heat goes into the storage (floor, water) first and reaches the room with the learned lag — this is why floor
   heating overshoots, and why heat can be stored ahead of an expensive evening;
 - electricity = heat / COP(outdoor, output); own solar (kW available that hour) is paid at its own value, the rest at
@@ -32,6 +34,8 @@ class HourIn:
     own_kw: float = 0.0        # own solar available for the heat pump this hour (kW)
     day: bool = True           # comfort hours
     hour: int = 0              # local hour (for the explanation and the baseline)
+    dhw: float = 0.0           # share of the hour the unit makes hot water (no space heating then)
+    extra_kw: float = 0.0      # correction from the last hours: heat the model missed (+) or had too much (−)
 
 
 @dataclass
@@ -48,7 +52,6 @@ class Settings:
     penalty_soft: float = 0.10     # per °C·hour below the comfort temperature (day)
     penalty_warm: float = 0.03     # per °C·hour above warm_from
     switch_cost: float = 0.05      # per setpoint change
-    tau: float = 1.0               # the thermostat closes a gap in about an hour
     end_factor: float = 0.6        # share of surplus heat after 24 h that still counts
     baseline_night: float | None = None   # baseline thermostat at night (None: same as the day)
 
@@ -95,28 +98,40 @@ class Simulator:
         self.m, self.hp, self.s = house, hp, s
         lag = max(0.0, house.lag)
         self.rel = 1.0 if lag < 1e-6 else 1 - (1 - 1 / (1 + lag)) ** 0.25
+        follow = min(1.0, max(0.01, hp.follow))
+        self.aq = 1 - (1 - follow) ** 0.25          # the unit's delay per quarter of an hour
+        self.w_end = 0.0
+        # the thermostat's demand (heatpump.HeatPumpModel.demand), unpacked: this runs millions of times per plan
+        self.da, self.dk = hp.a, (hp.k if hp.k is not None else house.C)
+        self.d0 = self.dk * (hp.offset - hp.th_diff)
 
-    def hour(self, T: float, E: float, sp: float, h: HourIn):
-        """-> (T_end, E_end, cost, kWh electricity, kWh heat, comfort penalty)"""
-        m, s = self.m, self.s
+    def hour(self, T: float, E: float, sp: float, h: HourIn, w0: float | None = None):
+        """-> (T_end, E_end, cost, kWh electricity, kWh heat, comfort penalty). With w0 (output at the start, kW) the
+        output follows the demand with the unit's delay, and self.w_end holds the output at the end."""
+        m, s, hp = self.m, self.s, self.hp
         He = m.loss(h.wind)
-        pmax = self.hp.pmax(h.t_out)
+        pmax = hp.pmax(h.t_out)
+        share = 1.0 - min(1.0, max(0.0, h.dhw))         # hot water first: no space heating meanwhile
         sun = m.g * h.rad
         cost = kwh = heat = pen = 0.0
         own = h.own_kw * 0.25
         hard = s.day_min if h.day else s.night_min
+        lagged = w0 is not None and self.aq < 1.0
+        w = w0 or 0.0
         for _ in range(4):
-            loss = He * (T - h.t_out) - m.internal
-            w = 0.0
-            if T < sp:
-                w = loss - sun + (sp - T) * m.C / s.tau
-                w = 0.0 if w < 0 else (pmax if w > pmax else w)
+            loss = He * (T - h.t_out) - m.internal - h.extra_kw
+            d = self.da * (loss - sun) + self.dk * (sp - T) + self.d0
+            d = (0.0 if d < 0 else (pmax if d > pmax else d)) * share
+            w = w + self.aq * (d - w) if lagged else d
             E += w * 0.25
             r = E * self.rel
             E -= r
             T += (r + (sun - loss) * 0.25) / m.C
             if w > 0:
-                e = w * 0.25 / self.hp.cop(h.t_out, w)
+                cop = hp.cop(h.t_out, w)
+                if w < hp.q_min:
+                    cop *= hp.cyc                 # below its lowest output the unit cycles on and off
+                e = w * 0.25 / cop
                 eo = e if e < own else own
                 cost += eo * h.p_own + (e - eo) * h.p_grid
                 kwh += e
@@ -127,7 +142,17 @@ class Simulator:
                 pen += (s.comfort - T) * 0.25 * s.penalty_soft
             if T > s.warm_from:
                 pen += (T - s.warm_from) * 0.25 * s.penalty_warm
+        self.w_end = w
         return T, E, cost, kwh, heat, pen
+
+
+def baseline_sp(s: Settings, hp: HeatPumpModel, house: HouseModel, h: HourIn) -> float:
+    """The steady thermostat to compare with: the setpoint that holds the room (not the thermostat's own reading) at
+    the comfort temperature (or the night setting) in this hour's weather, from the unit's learned response."""
+    room = s.comfort if (h.day or s.baseline_night is None) else s.baseline_night
+    k = hp.k if hp.k is not None else house.C
+    loss = house.loss(h.wind) * (room - h.t_out) - house.g * h.rad - house.internal
+    return room + hp.th_diff - hp.offset + (1 - hp.a) * max(0.0, loss) / max(0.1, k)
 
 
 def _end_value(sim: Simulator, hours: list[HourIn], comfort: float):
@@ -142,10 +167,72 @@ def _end_value(sim: Simulator, hours: list[HourIn], comfort: float):
     return value
 
 
+SLOW = 0.67             # a unit closing less of a change per hour than this is planned with its delay (polish)
+BLOCKS = (1, 2, 4)      # polish: try a setpoint for this many hours at once
+
+
+def start_output(sim: Simulator, T: float, sp: float, h: HourIn) -> float:
+    """The unit's output now when it is not measured: what it settles at for this setpoint."""
+    sim.hour(T, 0.0, sp, h)
+    return sim.w_end
+
+
+def polish(sim: Simulator, hours: list[HourIn], t_now: float, e_now: float, w_now: float, sp_now: float | None,
+           starts: list[list[float]], sps: list[float], end, t_lo: float) -> list[float]:
+    """Improve a plan of setpoints with the unit's real delay: from the best start, set blocks of 1, 2 and 4 hours to
+    another setpoint and keep what lowers cost + comfort penalties + changes − the value of the heat left at the end."""
+    s, hp = sim.s, sim.hp
+    H = len(hours)
+
+    def run(seq: list[float], k0: int = 0, state=None):
+        """-> total, states (T, E, w, running total, previous setpoint) at the start of each hour"""
+        T, E, w, tot, prev = state if state else (t_now, e_now, w_now, 0.0, sp_now)
+        states = []
+        for k in range(k0, H):
+            states.append((T, E, w, tot, prev))
+            sp = seq[k]
+            if sp > T + hp.th_diff + s.max_above_room + 1e-9 and sp > s.day_min and sp != prev:
+                tot += 10.0                    # not allowed: too far above what the thermostat reads
+            T, E, c, _e, _q, pen = sim.hour(T, E, sp, hours[k], w)
+            w = sim.w_end
+            tot += c + pen + (s.switch_cost if prev is not None and sp != prev else 0.0)
+            prev = sp
+        return tot - end(T, E), states
+
+    best, best_states = None, None
+    for st in starts:
+        st = list(st[:H]) + [st[-1]] * (H - len(st))
+        v, states = run(st)
+        if best is None or v < best[0]:
+            best, best_states = (v, st), states
+    val, seq = best
+    states = best_states
+    for _ in range(3):
+        improved = False
+        for k in range(H):
+            for L in BLOCKS:
+                if k + L > H:
+                    continue
+                for v in sps:
+                    if all(x == v for x in seq[k:k + L]):
+                        continue
+                    cand = seq[:k] + [v] * L + seq[k + L:]
+                    tot, _ = run(cand, k, states[k])
+                    if tot < val - 1e-6:
+                        val, seq = tot, cand
+                        _, tail = run(seq, k, states[k])
+                        states = states[:k] + tail
+                        improved = True
+        if not improved:
+            break
+    return seq
+
+
 def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn], t_now: float, e_now: float,
-         sp_now: float | None, report: int = 24) -> Plan:
+         sp_now: float | None, report: int = 24, w_now: float | None = None) -> Plan:
     """Plan over all `hours` (give ~36 so the last shown hours are not distorted by the horizon), report the first
-    `report` hours (plan, cost, kWh, saving with the state after `report` hours levelled)."""
+    `report` hours (plan, cost, kWh, saving with the state after `report` hours levelled). w_now: the unit's heat
+    output now (kW); the reported hours then follow the unit's delay."""
     sim = Simulator(house, hp, s)
     sps = s.setpoints()
     NA = len(sps)
@@ -185,7 +272,8 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
         ch = [[[0] * NA for _ in range(NE)] for _ in range(NT)]
         for i in range(NT):
             T0 = t_lo + i * dT
-            allowed = [a for a in range(NA) if sps[a] <= T0 + s.max_above_room or sps[a] <= s.day_min]
+            # at most max_above_room above what the thermostat reads (lukewarm water)
+            allowed = [a for a in range(NA) if sps[a] <= T0 + hp.th_diff + s.max_above_room or sps[a] <= s.day_min]
             for j in range(NE):
                 E0 = j * dE
                 base = {}
@@ -203,52 +291,75 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
                         row_v[prev], row_c[prev] = best, best_a
         V, choice[k] = Vn, ch
 
-    # forward from the real state
+    # the search's choices over the whole horizon, from the real state
     prev = min(range(NA), key=lambda a: abs(sps[a] - sp_now)) if sp_now is not None else NA // 2
+    T, E = t_now, e_now
+    seq: list[float] = []
+    for k in range(H):
+        i = min(NT - 1, max(0, int(round((T - t_lo) / dT))))
+        j = min(NE - 1, max(0, int(round(E / dE)))) if NE > 1 else 0
+        prev = choice[k][i][j][prev]
+        seq.append(sps[prev])
+        T, E, *_ = sim.hour(T, E, sps[prev], hours[k])
+    if hp.follow < SLOW:
+        # a unit that follows the thermostat slowly (OpenTherm, modulating): the search above takes a new setpoint as
+        # working at once, so improve its plan with the real delay (and never end up worse than a steady thermostat)
+        w0 = w_now if w_now is not None else start_output(sim, t_now, sp_now if sp_now is not None else seq[0], hours[0])
+        steady = [round(baseline_sp(s, hp, house, h) * 2) / 2 for h in hours]
+        seq = polish(sim, hours, t_now, e_now, w0, sp_now, [seq, steady], sps, end, t_lo)
+        w_now = w0
+
+    # forward from the real state
     T, E = t_now, e_now
     out: list[HourPlan] = []
     total = kwh_tot = 0.0
     min_day = None
     R = min(report, H)
+    w = w_now
     for k in range(R):
-        i = min(NT - 1, max(0, int(round((T - t_lo) / dT))))
-        j = min(NE - 1, max(0, int(round(E / dE)))) if NE > 1 else 0
-        a = choice[k][i][j][prev]
-        T1, E1, c, e, q, _ = sim.hour(T, E, sps[a], hours[k])
-        out.append(HourPlan(sps[a], T1, e, q, c, hours[k].p_grid))
+        T1, E1, c, e, q, _ = sim.hour(T, E, seq[k], hours[k], w)
+        w = sim.w_end if w is not None else None
+        out.append(HourPlan(seq[k], T1, e, q, c, hours[k].p_grid))
         total += c
         kwh_tot += e
         if hours[k].day:
             min_day = T1 if min_day is None else min(min_day, T1)
-        T, E, prev = T1, E1, a
+        T, E = T1, E1
 
     # the steady thermostat to compare with
     Tb, Eb, base_cost, base_kwh = t_now, e_now, 0.0, 0.0
+    wb = w_now
     for h in hours[:R]:
-        spb = s.comfort if (h.day or s.baseline_night is None) else s.baseline_night
-        Tb, Eb, c, e, _q, _ = sim.hour(Tb, Eb, spb, h)
+        spb = baseline_sp(s, hp, house, h)
+        Tb, Eb, c, e, _q, _ = sim.hour(Tb, Eb, spb, h, wb)
+        wb = sim.w_end if wb is not None else None
         base_cost += c
         base_kwh += e
     saving = base_cost - total + end_r(Tb, Eb) - end_r(T, E)
     return Plan(out, total, kwh_tot, base_cost, base_kwh, saving, min_day)
 
 
-def explain(p: Plan, hours: list[HourIn], room: float, s: Settings) -> Reason:
-    """One line on why the first hour is what it is."""
+def explain(p: Plan, hours: list[HourIn], room: float, s: Settings, hp: HeatPumpModel | None = None,
+            house: HouseModel | None = None) -> Reason:
+    """One line on why the first hour is what it is: the setpoint against the one that would just hold the comfort
+    temperature (the thermostat may read differently from the room sensor, and the unit may heat towards another
+    temperature than the setpoint)."""
     if not p.hours:
         return Reason("no_plan")
     sp = p.first.sp
+    hold = baseline_sp(Settings(comfort=s.comfort), hp, house, hours[0]) if hp and house else s.comfort
+    th = hp.th_diff if hp else 0.0
     prices = [h.p_grid for h in hours[:12]]
     now = hours[0].p_grid
     cheap = now <= sorted(prices)[len(prices) // 3]
     dear = now >= sorted(prices)[(2 * len(prices)) // 3]
-    if hours[0].own_kw >= 0.5 and sp > s.comfort:
+    if hours[0].own_kw >= 0.5 and sp > hold + 0.25:
         return Reason("store_solar", {"sp": sp})
-    if sp > s.comfort and cheap:
+    if sp > hold + 0.25 and cheap:
         return Reason("store_cheap", {"ct": round(now * 100, 1)})
-    if sp < s.comfort and dear:
+    if sp < hold - 0.25 and dear:
         return Reason("expensive", {"ct": round(now * 100, 1)})
-    if sp <= room - 0.5:
+    if sp <= room + th - 0.5:
         return Reason("warm_enough", {"room": round(room, 1)})
     return Reason("holding", {"sp": sp})
 
@@ -260,7 +371,7 @@ def replay_day(house: HouseModel, hp: HeatPumpModel, s: Settings, entries: list[
     if not entries:
         return None
     hours = [HourIn(t_out=e["t_out"], wind=e.get("wind", 3.5), rad=e.get("rad", 0.0), p_grid=e["p_grid"], p_own=e.get("p_own", e["p_grid"]),
-                    own_kw=e.get("own", 0.0), day=e.get("day", True)) for e in entries]
+                    own_kw=e.get("own", 0.0), day=e.get("day", True), dhw=e.get("dhw", 0.0)) for e in entries]
     sim = Simulator(house, hp, s)
     end = _end_value(sim, hours, s.comfort)
     T0, E0 = entries[0]["T"], entries[0].get("E", 0.0)
@@ -270,7 +381,7 @@ def replay_day(house: HouseModel, hp: HeatPumpModel, s: Settings, entries: list[
         cost += c
     Tb, Eb, base = T0, E0, 0.0
     for h in hours:
-        spb = s.comfort if (h.day or s.baseline_night is None) else s.baseline_night
+        spb = baseline_sp(s, hp, house, h)
         Tb, Eb, c, *_ = sim.hour(Tb, Eb, spb, h)
         base += c
     return cost - end(T, E), base - end(Tb, Eb)
