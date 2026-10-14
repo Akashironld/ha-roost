@@ -47,7 +47,8 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
 
 1. HACS → three dots → *Custom repositories* → add this repository as an *Integration*.
 2. Install **Roost** and restart Home Assistant.
-3. *Settings → Devices & services → Add integration → Roost*: pick the Weheat heat pump, the thermostat and the price,
+3. *Settings → Devices & services → Add integration → Roost*: pick the Weheat heat pump, the thermostat and the price
+   (a dynamic price sensor, or your fixed contract's rate with an optional low rate),
    then (optionally) solar, battery and weather, and your comfort temperatures.
 4. Add the card: *Edit dashboard → Add card → Roost*.
 

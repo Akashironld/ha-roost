@@ -25,6 +25,13 @@ CONF_HOUSE_POWER = "house_power"
 CONF_WEATHER_SOURCE = "weather_source"  # open_meteo | entity
 CONF_WEATHER = "weather_entity"
 CONF_IMPORT_ON_SETUP = "import_weheat_history"
+CONF_PRICE_MODE = "price_mode"          # sensor (dynamic, with a forecast) | fixed (a contract)
+CONF_FIXED_PRICE = "fixed_price"        # per kWh, all in
+CONF_FIXED_LOW_PRICE = "fixed_low_price"  # optional: the low (night/weekend) rate
+CONF_LOW_FROM = "low_from"
+CONF_LOW_TO = "low_to"
+CONF_LOW_WEEKEND = "low_weekend"
+CONF_FIXED_EXPORT_PRICE = "fixed_export_price"  # optional: empty = net metering (export worth the import price)
 
 # comfort and control (options)
 CONF_DAY_FROM = "day_from"
@@ -43,7 +50,9 @@ DEFAULTS = {
     CONF_DAY_FROM: 7, CONF_DAY_TO: 22, CONF_COMFORT: 20.5, CONF_DAY_MIN: 20.0, CONF_NIGHT_MIN: 19.0, CONF_STORE_MAX: 22.5,
     CONF_MAX_ABOVE: 1.0, CONF_MIN_INTERVAL: 60, CONF_PAUSE_HOURS: 2, CONF_BASELINE_NIGHT: 0, CONF_GRID_PREFERENCE: 0.0,
     CONF_GRID_SIGN: "import_positive", CONF_WEATHER_SOURCE: "open_meteo", CONF_BATTERY_RESERVE: 10, CONF_IMPORT_ON_SETUP: True,
+    CONF_PRICE_MODE: "sensor", CONF_LOW_FROM: 23, CONF_LOW_TO: 7, CONF_LOW_WEEKEND: True,
 }
+PRICE_MODES = ["sensor", "fixed"]
 MODES = ["off", "shadow", "active"]
 GRID_SIGNS = ["import_positive", "export_positive"]
 WEATHER_SOURCES = ["open_meteo", "entity"]

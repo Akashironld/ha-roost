@@ -31,7 +31,7 @@ CORR_MAX = 1.0             # kW
 
 
 def _hourin(r: HourRow) -> HourIn:
-    return HourIn(t_out=r.T_out, wind=r.wind, rad=r.rad, p_grid=0.0, p_own=0.0, dhw=min(1.0, r.dhw_s / 3600))
+    return HourIn(t_out=r.T_out, wind=r.wind, rad=r.rad, p_grid=0.0, p_own=0.0, dhw=min(1.0, r.dhw_s / 3600), hour=r.hour)
 
 
 def self_check(rows: list[HourRow], house: HouseModel, hp: HeatPumpModel, days: int = CHECK_DAYS) -> dict:
@@ -113,7 +113,8 @@ def correction(entries: list[dict], house: HouseModel, hp: HeatPumpModel, now_ts
         sp = e.get("sp_t")
         if nxt is None or sp is None or "dhw" not in e:
             continue
-        h = HourIn(t_out=e["t_out"], wind=e.get("wind", 3.5), rad=e.get("rad", 0.0), p_grid=0.0, p_own=0.0, dhw=e["dhw"])
+        h = HourIn(t_out=e["t_out"], wind=e.get("wind", 3.5), rad=e.get("rad", 0.0), p_grid=0.0, p_own=0.0, dhw=e["dhw"],
+                   hour=e.get("hour", -1))
         w0 = (by_ts.get(e["ts"] - 3600) or {}).get("q")      # heat the hour before: where the output starts
         T1 = sim.hour(e["T"], e.get("E", 0.0), float(sp), h, w0)[0]
         kw = (nxt["T"] - T1) * house.C              # °C over one hour × kWh/K = kW

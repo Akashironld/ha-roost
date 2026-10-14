@@ -158,6 +158,20 @@ class HourPrices:
     source: str
 
 
+def fixed_prices(hours: list[tuple[int, int]], normal: float, low: float | None = None, low_from: int = 23, low_to: int = 7,
+                 low_weekend: bool = True) -> list[float]:
+    """A fixed contract per local hour ((weekday 0 = Monday, hour)): the low rate in the low hours (low_from until
+    low_to, through midnight when low_from > low_to) and, if chosen, all weekend; else the normal rate."""
+    out = []
+    for wd, h in hours:
+        if low is None:
+            out.append(normal)
+            continue
+        night = (low_from <= h or h < low_to) if low_from > low_to else (low_from <= h < low_to)
+        out.append(low if night or (low_weekend and wd >= 5) else normal)
+    return out
+
+
 def planner_prices(inp: EnergyInputs, ev: EnergyValue) -> list[HourPrices]:
     """Split each hour for the heat-pump planner: up to `own_kw` at the solar value, the rest at the grid value."""
     n = len(ev.value)

@@ -33,7 +33,7 @@ class HourIn:
     p_own: float               # currency per kWh of own solar this hour (its export value)
     own_kw: float = 0.0        # own solar available for the heat pump this hour (kW)
     day: bool = True           # comfort hours
-    hour: int = 0              # local hour (for the explanation and the baseline)
+    hour: int = -1             # local hour (internal gains per hour of the day; -1: not known)
     dhw: float = 0.0           # share of the hour the unit makes hot water (no space heating then)
     extra_kw: float = 0.0      # correction from the last hours: heat the model missed (+) or had too much (−)
 
@@ -118,8 +118,9 @@ class Simulator:
         hard = s.day_min if h.day else s.night_min
         lagged = w0 is not None and self.aq < 1.0
         w = w0 or 0.0
+        internal = m.internal_at(h.hour)
         for _ in range(4):
-            loss = He * (T - h.t_out) - m.internal - h.extra_kw
+            loss = He * (T - h.t_out) - internal - h.extra_kw
             d = self.da * (loss - sun) + self.dk * (sp - T) + self.d0
             d = (0.0 if d < 0 else (pmax if d > pmax else d)) * share
             w = w + self.aq * (d - w) if lagged else d
@@ -151,7 +152,7 @@ def baseline_sp(s: Settings, hp: HeatPumpModel, house: HouseModel, h: HourIn) ->
     the comfort temperature (or the night setting) in this hour's weather, from the unit's learned response."""
     room = s.comfort if (h.day or s.baseline_night is None) else s.baseline_night
     k = hp.k if hp.k is not None else house.C
-    loss = house.loss(h.wind) * (room - h.t_out) - house.g * h.rad - house.internal
+    loss = house.loss(h.wind) * (room - h.t_out) - house.g * h.rad - house.internal_at(h.hour)
     return room + hp.th_diff - hp.offset + (1 - hp.a) * max(0.0, loss) / max(0.1, k)
 
 
@@ -371,7 +372,7 @@ def replay_day(house: HouseModel, hp: HeatPumpModel, s: Settings, entries: list[
     if not entries:
         return None
     hours = [HourIn(t_out=e["t_out"], wind=e.get("wind", 3.5), rad=e.get("rad", 0.0), p_grid=e["p_grid"], p_own=e.get("p_own", e["p_grid"]),
-                    own_kw=e.get("own", 0.0), day=e.get("day", True), dhw=e.get("dhw", 0.0)) for e in entries]
+                    own_kw=e.get("own", 0.0), day=e.get("day", True), dhw=e.get("dhw", 0.0), hour=e.get("hour", -1)) for e in entries]
     sim = Simulator(house, hp, s)
     end = _end_value(sim, hours, s.comfort)
     T0, E0 = entries[0]["T"], entries[0].get("E", 0.0)

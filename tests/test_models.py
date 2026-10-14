@@ -11,6 +11,7 @@ model = load("model")
 heatpump = load("heatpump")
 history = load("history")
 weather = load("weather")
+sun = load("sun")
 
 DAY0 = 20_000
 
@@ -114,6 +115,61 @@ def test_open_meteo_radiation_shift():
     t10 = 1768471200
     assert w[t10] == (2.5, 0.3, 5.0)      # radiation of 10–11 is reported at 11:00
     assert w[t10 + 7200][1] == 0.2
+
+
+
+LAT, LON = 51.9, 5.7
+
+
+def clear_sky(ts):
+    """A synthetic sunny hour: (t_out, global, wind, direct, diffuse) in kW/m²."""
+    el, _az = sun.position(ts + 1800, LAT, LON)
+    s_ = max(0.0, math.sin(math.radians(el)))
+    return (5.0, 0.8 * s_ + 0.08 * (s_ > 0), 3.5, 0.8 * s_, 0.08 * (s_ > 0))
+
+
+def test_sun_position_and_facade():
+    from datetime import datetime, timezone
+    noon_june = int(datetime(2026, 6, 21, 11, 10, tzinfo=timezone.utc).timestamp())   # ~solar noon at 5.7° E
+    el, az = sun.position(noon_june + 1800, LAT, LON)
+    assert 61 < el < 62 and 175 < az < 185, (el, az)
+    morning = noon_june - 4 * 3600
+    wx = clear_sky(morning)
+    assert sun.effective(morning, wx, LAT, LON, 90.0, 1.0) > sun.effective(morning, wx, LAT, LON, 270.0, 1.0) * 3
+    assert sun.effective(morning, wx, LAT, LON, 135.0, 0.0) == wx[1]                 # vertical 0: global radiation
+    assert sun.effective(morning, wx[:3], LAT, LON, 135.0, 1.0) == wx[1]             # no direct/diffuse: global
+
+
+def test_learning_finds_the_window_facade_and_hourly_gains():
+    """A house with its windows to the south-east and cooking at 18 h: the model finds both."""
+    rnd = random.Random(7)
+    p = dict(TRUE, g=6.0)
+    rows, T, E = [], 20.5, 0.0
+    for d in range(30):
+        for h in range(24):
+            ts = (DAY0 + d) * 86400 + h * 3600
+            wx = clear_sky(ts) if d % 3 else (5.0, 0.1, 3.5, 0.0, 0.1)        # every third day overcast
+            t_out = 3 + 4 * math.sin((h - 9) / 24 * 2 * math.pi)
+            sol = sun.effective(ts, wx, LAT, LON, 135.0, 1.0)
+            cook = 0.8 if h == 18 else 0.0
+            He = p["H"]
+            q = max(0.0, min(6.0, He * (T - t_out) - p["g"] * sol - p["internal"] - cook + (20.5 - T) * p["C"]))
+            T0 = T
+            E += q
+            rel = E / (1 + p["lag"])
+            E -= rel
+            T += (rel + p["g"] * sol + p["internal"] + cook - He * (T - t_out)) / p["C"]
+            rows.append(model.HourRow(ts=ts, T=T0 + rnd.gauss(0, 0.02), T_out=t_out, Q=q, rad=wx[1], wind=3.5, E=q / 3.5))
+    wxs = {}
+
+    def eff(ts, facade, vertical):
+        d = (ts // 86400) - DAY0
+        wx = clear_sky(ts) if d % 3 else (5.0, 0.1, 3.5, 0.0, 0.1)
+        return sun.effective(ts, wx, LAT, LON, facade, vertical)
+    res = model.learn(rows, model.HouseModel(), eff, lambda ts: int(ts % 86400 // 3600))
+    m = res.model
+    assert res.adopted and m.sun_facade in (90.0, 135.0, 180.0) and m.sun_vertical >= 0.5, (m.sun_facade, m.sun_vertical, res.scores)
+    assert m.profile and m.profile[18] == max(m.profile) and m.profile[18] > 0.2, m.profile
 
 
 if __name__ == "__main__":

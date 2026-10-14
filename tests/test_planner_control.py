@@ -155,5 +155,14 @@ def test_slots_from_state_changes():
     assert series.hourly(sl, 0, 3, fill_last=False) == [0.2, 0.2, 0.3]
 
 
+
+def test_fixed_contract_prices():
+    hours = [(0, 22), (0, 23), (1, 3), (1, 7), (5, 12), (6, 18)]       # Monday 22/23 h, Tuesday 3/7 h, Saturday, Sunday
+    assert value.fixed_prices(hours, 0.30, 0.25) == [0.30, 0.25, 0.25, 0.30, 0.25, 0.25]
+    assert value.fixed_prices(hours, 0.30, 0.25, low_weekend=False) == [0.30, 0.25, 0.25, 0.30, 0.30, 0.30]
+    assert value.fixed_prices(hours, 0.30, 0.25, low_from=1, low_to=6, low_weekend=False) == [0.30, 0.30, 0.25, 0.30, 0.30, 0.30]
+    assert value.fixed_prices(hours, 0.28) == [0.28] * 6               # single rate
+
+
 if __name__ == "__main__":
     run_all(dict(globals()))

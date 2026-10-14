@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from functools import partial
 from typing import Any, Callable
@@ -19,13 +19,14 @@ from homeassistant.helpers.event import async_track_state_change_event, async_tr
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from . import check, control, heatpump, history, model, planner, response, series, value, weather as om
+from . import check, comfort, control, heatpump, history, model, planner, response, series, sun, value, weather as om
 from .const import (
     CONF_BASELINE_NIGHT, CONF_BATTERY_KW, CONF_BATTERY_KWH, CONF_BATTERY_POWER, CONF_BATTERY_RESERVE, CONF_BATTERY_SOC,
     CONF_COMFORT, CONF_DAY_FROM, CONF_DAY_MIN, CONF_DAY_TO, CONF_EXPORT_PRICE, CONF_GRID_POWER, CONF_GRID_PREFERENCE,
     CONF_GRID_SIGN, CONF_HEAT_PUMP, CONF_HOUSE_POWER, CONF_IMPORT_ON_SETUP, CONF_IMPORT_PRICE, CONF_MAX_ABOVE,
     CONF_MIN_INTERVAL, CONF_NIGHT_MIN, CONF_PAUSE_HOURS, CONF_PV_FORECAST, CONF_PV_FORECAST_TOMORROW, CONF_PV_POWER,
     CONF_ROOM, CONF_STORE_MAX, CONF_THERMOSTAT, CONF_WEATHER, CONF_WEATHER_SOURCE, DEFAULTS, DOMAIN, HISTORY_DAYS,
+    CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND, CONF_PRICE_MODE,
     LEARN_HOUR, LEARN_MINUTE, PLAN_MINUTES, STORAGE_VERSION, TICK_SECONDS, WEATHER_MINUTES, WEHEAT, WEHEAT_IMPORT_DAYS,
 )
 from .reasons import Reason
@@ -102,6 +103,8 @@ class RoostManager:
         self._learning = False
         self.importing = False
         self.check: dict = {}                       # nightly self-check (check.self_check)
+        self.changes: list[dict] = []               # changes by hand while active: {"ts", "from", "to", "room"}
+        self.suggestion: comfort.Suggestion | None = None
         self.ready: bool = False
         self.ready_missing: list[str] = []
         self.corr_kw, self.corr_n = 0.0, 0           # correction from the last hours (check.correction)
@@ -149,6 +152,7 @@ class RoostManager:
         self.load_profile = data.get("load_profile")
         self.price_seen = {e: {int(k): v for k, v in d.items()} for e, d in (data.get("price_seen") or {}).items()}
         self.check = data.get("check") or {}
+        self.changes = data.get("changes") or []
         self.ready, self.ready_missing = check.readiness(self.check, None) if self.check else (False, [])
         self._weheat_hours = {int(k): v for k, v in (hist.get("weheat") or {}).items()}
         self._weather_hist = {int(k): tuple(v) for k, v in (hist.get("weather") or {}).items()}
@@ -188,7 +192,7 @@ class RoostManager:
             "storage_e": round(self.storage_e, 3), "learn": self.learn_info, "import": self.import_info,
             "hour_log": self.hour_log[-60:], "saving_days": dict(sorted(self.saving_days.items())[-62:]),
             "pv_k": self.pv_k, "load_profile": self.load_profile, "price_seen": self._price_seen_recent(),
-            "check": self.check})
+            "check": self.check, "changes": [c for c in self.changes if c["ts"] > time.time() - 30 * 86400]})
 
     def _price_seen_recent(self) -> dict[str, dict[str, float]]:
         cut = time.time() - 3 * 86400
@@ -201,7 +205,7 @@ class RoostManager:
         now = dt_util.utcnow()
         start = now - timedelta(hours=49)
         for key in (CONF_IMPORT_PRICE, CONF_EXPORT_PRICE):
-            eid = self.conf.get(key)
+            eid = self.conf.get(key) if self.conf.get(CONF_PRICE_MODE) != "fixed" else None
             st = self._state(eid)
             if not eid or st is None:
                 continue
@@ -381,14 +385,44 @@ class RoostManager:
             return [self.pv_k * (self._weather.get(int(base + i * 3600)) or (0, 0, 0))[1] for i in range(hours)]
         return None
 
+    def sun_on_house(self, ts: int, wx: tuple) -> float:
+        """Radiation driving the solar gain in this hour, for the facade the house model learned (sun.effective)."""
+        return sun.effective(ts, wx, self.hass.config.latitude, self.hass.config.longitude, self.house.sun_facade, self.house.sun_vertical)
+
+    def local_hour(self, ts: int) -> int:
+        return dt_util.as_local(datetime.fromtimestamp(ts, tz=timezone.utc)).hour
+
+    def _fixed_series(self, now: datetime, hours: int, key: str) -> list[float] | None:
+        """A fixed contract per hour ahead (normal / low rate), or the fixed export price."""
+        c = self.conf
+        base = int(now.timestamp() // 3600 * 3600)
+        loc = [dt_util.as_local(datetime.fromtimestamp(base + i * 3600, tz=timezone.utc)) for i in range(hours)]
+        if key == CONF_FIXED_EXPORT_PRICE:
+            v = _f(c.get(CONF_FIXED_EXPORT_PRICE))
+            return None if v is None else [v] * hours
+        normal = _f(c.get(CONF_FIXED_PRICE))
+        if normal is None:
+            return None
+        return value.fixed_prices([(x.weekday(), x.hour) for x in loc], normal, _f(c.get(CONF_FIXED_LOW_PRICE)),
+                                  int(c.get(CONF_LOW_FROM, 23)), int(c.get(CONF_LOW_TO, 7)), bool(c.get(CONF_LOW_WEEKEND, True)))
+
     def _energy(self, now: datetime, hours: int) -> tuple[value.EnergyInputs, value.EnergyValue] | None:
         c = self.conf
-        imp = self._price_series(c.get(CONF_IMPORT_PRICE), now, hours)
-        if imp is None:
-            self.sources["price"] = "missing"
-            return None
-        self.sources["price"] = "ok"
-        exp = self._price_series(c.get(CONF_EXPORT_PRICE), now, hours) if c.get(CONF_EXPORT_PRICE) else None
+        if c.get(CONF_PRICE_MODE) == "fixed":
+            imp = self._fixed_series(now, hours, CONF_FIXED_PRICE)
+            exp = self._fixed_series(now, hours, CONF_FIXED_EXPORT_PRICE)
+            self._price_guess[CONF_FIXED_PRICE] = [False] * hours
+            if imp is None:
+                self.sources["price"] = "missing"
+                return None
+            self.sources["price"] = "fixed"
+        else:
+            imp = self._price_series(c.get(CONF_IMPORT_PRICE), now, hours)
+            if imp is None:
+                self.sources["price"] = "missing"
+                return None
+            self.sources["price"] = "ok"
+            exp = self._price_series(c.get(CONF_EXPORT_PRICE), now, hours) if c.get(CONF_EXPORT_PRICE) else None
         surplus = value.solar_export_now(self._kw(c.get(CONF_GRID_POWER)), self._kw(c.get(CONF_BATTERY_POWER)),
                                          self._kw(c.get(CONF_PV_POWER)), c.get(CONF_GRID_SIGN, "import_positive") == "import_positive")
         soc = self._num(c.get(CONF_BATTERY_SOC))
@@ -464,7 +498,7 @@ class RoostManager:
             return
         h = self.plan_hours[0]
         self.hour_log.append({"ts": hour, "T": round(room, 2), "E": round(self.storage_e, 2), "sp": sp, "sp_t": self.thermostat_sp(),
-                              "t_out": wx[0], "rad": wx[1],
+                              "t_out": wx[0], "rad": round(self.sun_on_house(hour, wx), 4), "hour": dt_util.as_local(now).hour,
                               "wind": wx[2] if wx[2] is not None else 3.5, "p_grid": h.p_grid, "p_own": h.p_own, "own": h.own_kw,
                               "day": self.is_day(dt_util.as_local(now))})
         self.hour_log = self.hour_log[-60:]
@@ -500,8 +534,8 @@ class RoostManager:
             dhw = self.pump.dhw_share(loc.weekday(), loc.hour)
             if i == 0 and self.pump_state() in DHW_STATES:
                 dhw = max(dhw, 0.5)                     # making hot water right now
-            out.append(planner.HourIn(t_out=wx[0], wind=wx[2] if wx[2] is not None else 3.5, rad=wx[1] or 0.0, p_grid=p.p_grid,
-                                      p_own=p.p_own, own_kw=p.own_kw, day=self.is_day(loc), hour=loc.hour, dhw=dhw,
+            out.append(planner.HourIn(t_out=wx[0], wind=wx[2] if wx[2] is not None else 3.5, rad=self.sun_on_house(base + i * 3600, wx),
+                                      p_grid=p.p_grid, p_own=p.p_own, own_kw=p.own_kw, day=self.is_day(loc), hour=loc.hour, dhw=dhw,
                                       extra_kw=check.fade(self.corr_kw, i)))
         return out
 
@@ -526,7 +560,7 @@ class RoostManager:
                                                        self.thermostat_sp(), 24, w_now)
             self.plan, self.plan_hours, self.plan_at = p, hours, now.timestamp()
             self.plan_tariff = list(inp.import_price)
-            self.plan_guess = list(self._price_guess.get(self.conf.get(CONF_IMPORT_PRICE)) or [])
+            self.plan_guess = [] if self.conf.get(CONF_PRICE_MODE) == "fixed" else list(self._price_guess.get(self.conf.get(CONF_IMPORT_PRICE)) or [])
             self.reason = planner.explain(p, hours, room, s, self.pump, self.house)
         finally:
             self._planning = False
@@ -561,20 +595,50 @@ class RoostManager:
         if self.mem.last_write and time.time() - self.mem.last_write < 60:
             return                                   # our own change coming back
         self.mem.pause_until = time.time() + self.control_settings().pause_hours * 3600
+        room = self.room()
+        self.changes.append({"ts": round(time.time()), "from": a, "to": b, "room": round(room, 2) if room is not None else None})
         self.hass.async_create_task(self.async_save())
         self._notify()
 
     # ------------------------------------------------------------ health (repairs)
-    def _issue(self, key: str, active: bool, fixable: bool = False, placeholders: dict | None = None) -> None:
+    def _issue(self, key: str, active: bool, fixable: bool = False, placeholders: dict | None = None,
+               translation_key: str | None = None, data: dict | None = None) -> None:
         iid = f"{self.entry.entry_id}_{key}"
         if active and key not in self.health.issues:
             ir.async_create_issue(self.hass, DOMAIN, iid, is_fixable=fixable, severity=ir.IssueSeverity.WARNING,
-                                  translation_key=key, data={"entry_id": self.entry.entry_id} if fixable else None,
+                                  translation_key=translation_key or key,
+                                  data={"entry_id": self.entry.entry_id, "issue": key, **(data or {})} if fixable else None,
                                   translation_placeholders={"name": self.entry.title, **(placeholders or {})})
             self.health.issues.add(key)
         elif not active and key in self.health.issues:
             ir.async_delete_issue(self.hass, DOMAIN, iid)
             self.health.issues.discard(key)
+
+    def _issue_comfort(self) -> None:
+        """A comfort setting suggested from the changes made by hand (comfort.suggest); the user accepts or ignores it."""
+        c = self.conf
+
+        def local(ts: float) -> tuple[str, int]:
+            loc = dt_util.as_local(datetime.fromtimestamp(ts, tz=timezone.utc))
+            return loc.date().isoformat(), loc.hour
+        sug = comfort.suggest(self.changes, local, time.time(), int(c[CONF_DAY_FROM]), int(c[CONF_DAY_TO]),
+                              float(c[CONF_COMFORT]), float(c[CONF_DAY_MIN]))
+        if self.suggestion is not None and (sug is None or sug.as_dict() != self.suggestion.as_dict()):
+            self._issue("comfort", False)
+        self.suggestion = sug
+        if sug is not None:
+            cur = {"comfort": c[CONF_COMFORT], "day_from": c[CONF_DAY_FROM], "day_to": c[CONF_DAY_TO]}[sug.key]
+            fmt = (lambda v: f"{float(v):g}") if sug.key == "comfort" else (lambda v: f"{int(v)}:00")
+            self._issue("comfort", True, fixable=True, translation_key=f"suggest_{sug.kind}", data=sug.as_dict(),
+                        placeholders={"current": fmt(cur), "value": fmt(sug.value), "days": str(sug.days), "count": str(sug.count)})
+
+    async def async_accept_suggestion(self, key: str, value: float) -> None:
+        """The user accepted a suggested comfort setting: store it (the entry reloads) and start counting afresh."""
+        self.changes = []
+        self.suggestion = None
+        await self.async_save()
+        v = int(value) if key in (CONF_DAY_FROM, CONF_DAY_TO) else float(value)
+        self.hass.config_entries.async_update_entry(self.entry, options={**self.entry.options, key: v})
 
     def _issue_ready(self) -> None:
         """Tell the user once the self-check says Roost can steer (only while in shadow mode; the user decides)."""
@@ -679,7 +743,17 @@ class RoostManager:
         try:
             from .learning import async_rows
             rows, extra = await async_rows(self)
-            house = await self.hass.async_add_executor_job(model.learn, rows, self.house)
+            wx_all = {**self._weather_hist, **self._weather}
+            lat, lon = self.hass.config.latitude, self.hass.config.longitude
+
+            def eff(ts: int, facade: float, vertical: float) -> float:
+                wx = wx_all.get(ts)
+                return sun.effective(ts, wx, lat, lon, facade, vertical) if wx else 0.0
+            hours = {r.ts: self.local_hour(r.ts) for r in rows}
+            house = await self.hass.async_add_executor_job(model.learn, rows, self.house, eff, hours.__getitem__)
+            # from here on the rows carry the sun on the learned facade and their local hour
+            hm = house.model
+            rows = [replace(r, rad=eff(r.ts, hm.sun_facade, hm.sun_vertical) if hm.sun_vertical > 0 else r.rad, hour=hours[r.ts]) for r in rows]
             pump, note = await self.hass.async_add_executor_job(heatpump.learn, rows, self.pump)
             pump, note_r = await self.hass.async_add_executor_job(response.learn, rows, house.model, pump)
             note = "; ".join(x for x in (note, note_r) if x)
@@ -692,6 +766,7 @@ class RoostManager:
             self.check["at"] = dt_util.now().isoformat(timespec="seconds")
             self.ready, self.ready_missing = check.readiness(self.check, self.following)
             self._issue_ready()
+            self._issue_comfort()
             if extra.get("pv_k"):
                 self.pv_k = extra["pv_k"]
             if extra.get("load_profile"):

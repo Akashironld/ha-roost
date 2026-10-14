@@ -61,7 +61,7 @@ def windows(rows: list[HourRow], house: HouseModel, hp: HeatPumpModel) -> list[t
         items = []
         for r in hrs:
             He = max(0.02, house.H + house.Hw * (r.wind - WIND_REF))
-            loss = He * (r.T - r.T_out) - house.g * r.rad - house.internal
+            loss = He * (r.T - r.T_out) - house.g * r.rad - house.internal_at(r.hour)
             reading = r.T_th if r.T_th is not None else r.T + hp.th_diff
             items.append((loss, r.sp - reading, min(1.0, r.dhw_s / 3600), hp.pmax(r.T_out), r.Q))
         out.append((before.Q, items))

@@ -13,6 +13,11 @@ Model per hour, the same shape the planner uses (validated on the author's house
     internal  constant gain (kW; may be negative: ventilation, a cold ground floor)
     lag       mean time heat stays in the floor/water before it reaches the room (hours)
 
+Sun: the radiation is the sun on the facade the windows face (sun.py), learned with the rest: every direction from east
+to west, half and fully vertical, and plain global radiation are tried; the one that predicts the test days best wins.
+Internal gains per hour of the day (cooking, people, and a thermostat that reads high in the sun): the mean error per
+local hour after the fit, at half strength and at most 1 kW, kept only when it predicts the test days better.
+
 Fit: the open-loop error of replaying every day from its measured start temperature, PLUS the daily energy balance
 (measured heat against what the model needs to make the measured temperatures). Without the balance the storage C
 comes out about twice too large and the predicted energy use is wrong (found on the author's data, 12-10-2026).
@@ -22,7 +27,8 @@ predicts the last days at least as well as the previous one.
 from __future__ import annotations
 
 import math
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
+from typing import Callable
 
 WIND_REF = 3.5
 PARAMS = ("C", "H", "g", "lag", "internal", "Hw")
@@ -34,6 +40,9 @@ SIGMA_T = 0.7        # typical open-loop error per hour (°C); errors within a d
 SIGMA_BAL = 0.4      # typical daily energy-balance error (kW average)
 TEST_DAYS = 3
 MARGIN = 0.03        # within this, prefer the model with more evidence behind it
+FACADES = (90.0, 135.0, 180.0, 225.0, 270.0)
+VERTICAL = (0.5, 1.0)
+PROFILE_SHRINK, PROFILE_CAP = 0.5, 1.0
 
 
 @dataclass
@@ -49,6 +58,9 @@ class HouseModel:
     days: int = 0
     heating_days: int = 0
     source: str = "default"
+    sun_facade: float = 180.0             # direction the windows face (degrees from north)
+    sun_vertical: float = 0.0             # 0: global radiation; 1: all on that facade
+    profile: list[float] | None = None    # 24 extra internal gains (kW) per local hour
 
     def params(self) -> dict:
         return {k: getattr(self, k) for k in PARAMS}
@@ -63,6 +75,12 @@ class HouseModel:
             if hasattr(m, k):
                 setattr(m, k, v)
         return m
+
+    def internal_at(self, hour: int) -> float:
+        """Internal gain in this local hour (hour < 0: unknown, the constant only)."""
+        if self.profile and 0 <= hour < 24:
+            return self.internal + self.profile[hour]
+        return self.internal
 
     def loss(self, wind: float) -> float:
         return max(0.02, self.H + self.Hw * (wind - WIND_REF))
@@ -88,13 +106,14 @@ class HourRow:
     sp: float | None = None       # room setpoint on the thermostat (mean over the hour)
     T_th: float | None = None     # the thermostat's own room reading
     room_sensor: bool = False     # T comes from a separate room sensor (not the thermostat)
+    hour: int = -1                # local hour of the day (-1: not known)
 
 
 def within(p: dict) -> bool:
     return all(BOUNDS[k][0] <= p[k] <= BOUNDS[k][1] for k in PARAMS)
 
 
-def replay(p: dict, idx: dict[int, HourRow], days: list[int]) -> tuple[float, int, float, int]:
+def replay(p: dict, idx: dict[int, HourRow], days: list[int], extra: Callable[[int], float] | None = None) -> tuple[float, int, float, int]:
     """Per day from 00:00 UTC: start at the measured room temperature, warm the storage up with the 6 hours before,
     then 24 hours with only heat, sun, wind and outdoor temperature. Also the energy balance per day.
     -> (sum of squared °C errors, hours, sum of squared daily balance errors in kW, days)"""
@@ -122,11 +141,12 @@ def replay(p: dict, idx: dict[int, HourRow], days: list[int]) -> tuple[float, in
             E += u.Q
             rel = E / (1 + lag)
             E -= rel
-            T += (rel + g * u.rad + P - He * (T - u.T_out)) / C
+            x = extra(t) if extra else 0.0
+            T += (rel + g * u.rad + P + x - He * (T - u.T_out)) / C
             se += (T - nx.T) ** 2
             n += 1
             q_meas += u.Q
-            q_model += He * ((u.T + nx.T) / 2 - u.T_out) - g * u.rad - P
+            q_model += He * ((u.T + nx.T) / 2 - u.T_out) - g * u.rad - P - x
             t += 3600
         if whole and idx.get(t) is not None:
             sb += ((q_model + C * (idx[t].T - T0) - q_meas) / 24) ** 2
@@ -134,8 +154,8 @@ def replay(p: dict, idx: dict[int, HourRow], days: list[int]) -> tuple[float, in
     return se, n, sb, nb
 
 
-def errors(p: dict, idx: dict[int, HourRow], days: list[int]) -> tuple[float, float, float] | None:
-    se, n, sb, nb = replay(p, idx, days)
+def errors(p: dict, idx: dict[int, HourRow], days: list[int], extra: Callable[[int], float] | None = None) -> tuple[float, float, float] | None:
+    se, n, sb, nb = replay(p, idx, days, extra)
     if not n or not nb:
         return None
     a, b = math.sqrt(se / n), math.sqrt(sb / nb)
@@ -207,31 +227,98 @@ class LearnResult:
     scores: dict = field(default_factory=dict)
 
 
-def learn(rows: list[HourRow], previous: HouseModel) -> LearnResult:
+def residual_profile(p: dict, idx: dict[int, HourRow], days: list[int], local_hour: Callable[[int], int]) -> list[float] | None:
+    """Mean one-hour error of the model per local hour (kW), centred, at half strength, at most PROFILE_CAP."""
+    C, H, g, lag, P, Hw = p["C"], p["H"], p["g"], p["lag"], p["internal"], p["Hw"]
+    per: list[list[float]] = [[] for _ in range(24)]
+    for d in days:
+        E = 0.0
+        for k in range(-6, 24):
+            t = d * 86400 + k * 3600
+            u, nx = idx.get(t), idx.get(t + 3600)
+            if u is None or nx is None:
+                E = 0.0
+                continue
+            He = max(0.02, H + Hw * (u.wind - WIND_REF))
+            E += u.Q
+            rel = E / (1 + lag)
+            E -= rel
+            if k >= 0:
+                per[local_hour(t)].append(C * (nx.T - u.T) - (rel + g * u.rad + P - He * (u.T - u.T_out)))
+    if any(len(x) < 5 for x in per):
+        return None
+    m = [sum(x) / len(x) for x in per]
+    mean = sum(m) / 24
+    return [round(max(-PROFILE_CAP, min(PROFILE_CAP, PROFILE_SHRINK * (v - mean))), 3) for v in m]
+
+
+def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, float], float] | None = None,
+          local_hour: Callable[[int], int] | None = None) -> LearnResult:
+    """eff(ts, facade, vertical): the sun on that facade in that hour (sun.effective), None: global radiation only.
+    local_hour(ts): for the internal gains per hour of the day."""
     rows = [r for r in rows if 5.0 < r.T < 35.0 and -40.0 < r.T_out < 45.0 and r.Q >= 0]
-    idx = {r.ts: r for r in rows}
     days = select_days(rows)
     if len(days) < 7 + TEST_DAYS:
         return LearnResult(previous, False, f"not enough complete days yet ({len(days)}, need {7 + TEST_DAYS})")
     train, test = days[:-TEST_DAYS], days[-TEST_DAYS:]
     centre = previous.params() if previous.source == "learned" else dict(PRIOR)
-    candidate = fit(idx, train, centre)
-    options = [("new", candidate), ("previous", previous.params()), ("default", dict(PRIOR))]
+    cache: dict[tuple, dict[int, HourRow]] = {}
+
+    def idx_for(facade: float, vertical: float) -> dict[int, HourRow]:
+        key = (facade, vertical) if vertical > 0 and eff else (0.0, 0.0)
+        if key not in cache:
+            cache[key] = {r.ts: (replace(r, rad=eff(r.ts, *key)) if key[1] > 0 else r) for r in rows}
+        return cache[key]
+
+    def extra_for(profile: list[float] | None):
+        return (lambda t: profile[local_hour(t)]) if profile and local_hour else None
+
+    # the sun: global radiation, and (with direct/diffuse data) each facade direction, half and fully vertical. Chosen
+    # on alternate weeks (learn on odd, test on even weeks): a few test days are too few to pick a direction
+    odd = [d for d in days if (d // 7) % 2]
+    even = [d for d in days if not (d // 7) % 2]
+    sel_train, sel_test = (odd, even) if len(odd) >= 10 and len(even) >= 10 else (train, test)
+    suns = [(180.0, 0.0)] + ([(f, v) for f in FACADES for v in VERTICAL] if eff else [])
+    tried = []
+    for f, v in suns:
+        ix = idx_for(f, v)
+        p = fit(ix, sel_train, centre) if len(suns) > 1 else None
+        e = errors(p, ix, sel_test) if p and within(p) else None
+        tried.append((e[2] if e else 1e9, f, v))
+    _e, facade, vertical = min(tried, key=lambda x: x[0])
+    candidate = fit(idx_for(facade, vertical), train, centre)
+    ix_new = idx_for(facade, vertical)
+    options = [("new", candidate, ix_new, None),
+               ("previous", previous.params(), idx_for(previous.sun_facade, previous.sun_vertical), previous.profile),
+               ("default", dict(PRIOR), idx_for(180.0, 0.0), None)]
     scores = {}
-    for name, p in options:
-        e = errors(p, idx, test) if within(p) else None
+    for name, p, ix, prof in options:
+        e = errors(p, ix, test, extra_for(prof)) if within(p) else None
         if e:
             scores[name] = e
     if not scores:
         return LearnResult(previous, False, "no test data")
     best = min(v[2] for v in scores.values())
-    choice = next(n for n, _ in options if n in scores and scores[n][2] <= best + MARGIN)
+    choice = next(n for n, *_ in options if n in scores and scores[n][2] <= best + MARGIN)
+    idx = ix_new
     heating = sum(1 for d in days if sum(idx[d * 86400 + h * 3600].Q for h in range(24) if d * 86400 + h * 3600 in idx) >= 5.0)
     rounded = {k: {"temperature": round(v[0], 3), "balance_kw": round(v[1], 3)} for k, v in scores.items()}
+    rounded["sun"] = {f"{f:g}/{v:g}": round(e, 3) for e, f, v in tried if e < 1e9}
+    rounded["sun_chosen"] = f"{facade:g}/{vertical:g}"
     if choice == "new":
         final = fit(idx, days, centre)
-        m = HouseModel(**{k: round(v, 4) for k, v in final.items()}, error_t=round(scores["new"][0], 3),
-                       error_balance=round(scores["new"][1], 3), days=len(days), heating_days=heating, source="learned")
+        err = scores["new"]
+        profile = None
+        if local_hour:
+            p_sel = fit(idx, sel_train, centre)
+            prof = residual_profile(p_sel, idx, sel_train, local_hour)
+            plain, with_prof = errors(p_sel, idx, sel_test), (errors(p_sel, idx, sel_test, extra_for(prof)) if prof else None)
+            if plain and with_prof and with_prof[2] < plain[2]:
+                profile = residual_profile(final, idx, days, local_hour)
+                err = errors(final, idx, test, extra_for(profile)) or err
+        m = HouseModel(**{k: round(v, 4) for k, v in final.items()}, error_t=round(err[0], 3),
+                       error_balance=round(err[1], 3), days=len(days), heating_days=heating, source="learned",
+                       sun_facade=facade, sun_vertical=vertical, profile=profile)
         return LearnResult(m, True, "new model adopted", rounded)
     keep = previous if choice == "previous" else HouseModel()
     keep = HouseModel.from_dict({**keep.as_dict(), "error_t": round(scores[choice][0], 3), "error_balance": round(scores[choice][1], 3)})

@@ -199,7 +199,10 @@ class HouseModelSensor(RoostEntity, SensorEntity):
         return {"heat_loss_w_per_k": round(h.H * 1000), "wind_w_per_k_per_m_s": round(h.Hw * 1000, 1), "storage_kwh_per_k": round(h.C, 1),
                 "floor_lag_h": round(h.lag, 2), "solar_gain_m2": round(h.g, 2), "internal_gain_kw": round(h.internal, 2),
                 "time_constant_h": round(h.time_constant_h), "balance_error_kw": h.error_balance, "days": h.days,
-                "heating_days": h.heating_days, "source": h.source, "learning": self.mgr.learn_info}
+                "heating_days": h.heating_days, "source": h.source,
+                "sun_facade": {90.0: "east", 135.0: "south-east", 180.0: "south", 225.0: "south-west", 270.0: "west"}.get(h.sun_facade, h.sun_facade)
+                if h.sun_vertical > 0 else "horizontal", "sun_on_facade_share": h.sun_vertical,
+                "internal_gain_per_hour_kw": h.profile, "learning": self.mgr.learn_info}
 
 
 class HeatPumpModelSensor(RoostEntity, SensorEntity):

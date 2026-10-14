@@ -9,16 +9,35 @@
           "heat_pump": "Weheat-warmtepomp",
           "thermostat": "Thermostaat die de warmtepomp aanstuurt",
           "room_temperature": "Kamertemperatuursensor (optioneel, beter dan die van de thermostaat)",
-          "import_price": "Stroomprijs (met verwachting)",
+          "price_mode": "Stroomprijs",
+          "import_price": "Stroomprijssensor (met verwachting)",
           "export_price": "Terugleverprijs",
           "import_weheat_history": "Historie van de warmtepomp nu uit Weheat importeren"
         },
         "data_description": {
           "heat_pump": "Het apparaat van de officiële Weheat-integratie. De sensoren worden automatisch gevonden.",
           "thermostat": "Roost verandert alleen de ingestelde temperatuur van deze thermostaat, zoals jij dat ook doet. De warmtepomp moet de thermostaat volgen (niet zijn eigen stooklijn).",
-          "import_price": "Een sensor met prijzen voor de komende uren in de attributen (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Zonder verwachting kost elk uur hetzelfde.",
+          "price_mode": "Dynamisch: een sensor met uurprijzen. Vast: je vult in de volgende stap het tarief van je contract in (en een daltarief als je dat hebt).",
+          "import_price": "Alleen bij een dynamische prijs. Een sensor met prijzen voor de komende uren in de attributen (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Zonder verwachting kost elk uur hetzelfde.",
           "export_price": "Leeg laten bij salderen: teruglevering is dan de afnameprijs waard.",
           "import_weheat_history": "Alleen lezen, via de login van je Weheat-integratie: tot 13 maanden aan uurlogboeken (warmte, stroom, standen), zodat Roost je huis en warmtepomp vanaf dag één kent. Duurt een paar minuten."
+        }
+      },
+      "price": {
+        "title": "Vaste prijs",
+        "data": {
+          "fixed_price": "Prijs per kWh (normaal tarief)",
+          "fixed_low_price": "Daltarief per kWh (optioneel)",
+          "low_from": "Daltarief vanaf",
+          "low_to": "Daltarief tot",
+          "low_weekend": "Hele weekend daltarief",
+          "fixed_export_price": "Terugleverprijs per kWh (optioneel)"
+        },
+        "data_description": {
+          "fixed_price": "Alles inbegrepen: energie, belastingen en btw, zoals op je rekening.",
+          "fixed_low_price": "Leeg laten bij een enkel tarief.",
+          "low_weekend": "Bij veel dubbele meters telt het hele weekend als dal.",
+          "fixed_export_price": "Leeg laten bij salderen: teruglevering is dan de afnameprijs waard."
         }
       },
       "energy": {
@@ -71,7 +90,8 @@
       "comfort_below_min": "De comforttemperatuur moet minstens het dagminimum zijn.",
       "store_below_comfort": "Warmte opslaan moet minstens de comforttemperatuur toestaan.",
       "day_order": "De comforturen moeten eindigen na het begin.",
-      "weather_needed": "Kies een weerentiteit."
+      "weather_needed": "Kies een weerentiteit.",
+      "price_needed": "Kies een prijssensor, of kies een vaste prijs."
     },
     "abort": {
       "already_configured": "Deze warmtepomp is al ingesteld."
@@ -93,13 +113,32 @@
         "data": {
           "thermostat": "Thermostaat die de warmtepomp aanstuurt",
           "room_temperature": "Kamertemperatuursensor (optioneel, beter dan die van de thermostaat)",
-          "import_price": "Stroomprijs (met verwachting)",
+          "price_mode": "Stroomprijs",
+          "import_price": "Stroomprijssensor (met verwachting)",
           "export_price": "Terugleverprijs"
         },
         "data_description": {
           "thermostat": "Roost verandert alleen de ingestelde temperatuur van deze thermostaat, zoals jij dat ook doet. De warmtepomp moet de thermostaat volgen (niet zijn eigen stooklijn).",
-          "import_price": "Een sensor met prijzen voor de komende uren in de attributen (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Zonder verwachting kost elk uur hetzelfde.",
+          "price_mode": "Dynamisch: een sensor met uurprijzen. Vast: je vult in de volgende stap het tarief van je contract in (en een daltarief als je dat hebt).",
+          "import_price": "Alleen bij een dynamische prijs. Een sensor met prijzen voor de komende uren in de attributen (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Zonder verwachting kost elk uur hetzelfde.",
           "export_price": "Leeg laten bij salderen: teruglevering is dan de afnameprijs waard."
+        }
+      },
+      "price": {
+        "title": "Vaste prijs",
+        "data": {
+          "fixed_price": "Prijs per kWh (normaal tarief)",
+          "fixed_low_price": "Daltarief per kWh (optioneel)",
+          "low_from": "Daltarief vanaf",
+          "low_to": "Daltarief tot",
+          "low_weekend": "Hele weekend daltarief",
+          "fixed_export_price": "Terugleverprijs per kWh (optioneel)"
+        },
+        "data_description": {
+          "fixed_price": "Alles inbegrepen: energie, belastingen en btw, zoals op je rekening.",
+          "fixed_low_price": "Leeg laten bij een enkel tarief.",
+          "low_weekend": "Bij veel dubbele meters telt het hele weekend als dal.",
+          "fixed_export_price": "Leeg laten bij salderen: teruglevering is dan de afnameprijs waard."
         }
       },
       "energy": {
@@ -152,7 +191,8 @@
       "comfort_below_min": "De comforttemperatuur moet minstens het dagminimum zijn.",
       "store_below_comfort": "Warmte opslaan moet minstens de comforttemperatuur toestaan.",
       "day_order": "De comforturen moeten eindigen na het begin.",
-      "weather_needed": "Kies een weerentiteit."
+      "weather_needed": "Kies een weerentiteit.",
+      "price_needed": "Kies een prijssensor, of kies een vaste prijs."
     }
   },
   "entity": {
@@ -219,6 +259,12 @@
     }
   },
   "selector": {
+    "price_mode": {
+      "options": {
+        "sensor": "Dynamisch (prijssensor)",
+        "fixed": "Vaste prijs (contract)"
+      }
+    },
     "grid_sign": {
       "options": {
         "import_positive": "Afname is positief",
@@ -256,6 +302,61 @@
           "confirm": {
             "title": "Op actief zetten",
             "description": "Roost heeft zijn plan getoetst aan de laatste {days} dagen: met de setpoints die echt op de thermostaat stonden, voorspelt hij de kamer 6 uur vooruit op {rmse} °C nauwkeurig, over {hours} stookuren, en de warmtepomp volgt de thermostaat.\n\nVerstuur om Roost de thermostaat te laten sturen (modus actief). Terug naar meekijken kan altijd met de modus-keuze van Roost."
+          }
+        }
+      }
+    },
+    "suggest_raise_comfort": {
+      "title": "{name}: overdag iets warmer?",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Comforttemperatuur verhogen",
+            "description": "De afgelopen twee weken is de thermostaat op {days} dagen ({count} keer) met de hand hoger gezet tijdens de comforturen.\n\nVerstuur om de comforttemperatuur van {current} naar {value} °C te verhogen. Negeer dit als het eenmalig was."
+          }
+        }
+      }
+    },
+    "suggest_lower_comfort": {
+      "title": "{name}: overdag iets koeler?",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Comforttemperatuur verlagen",
+            "description": "De afgelopen twee weken is de thermostaat op {days} dagen ({count} keer) met de hand lager gezet tijdens de comforturen.\n\nVerstuur om de comforttemperatuur van {current} naar {value} °C te verlagen — dat bespaart ook energie."
+          }
+        }
+      }
+    },
+    "suggest_earlier_day": {
+      "title": "{name}: comforturen eerder laten beginnen?",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Comforturen eerder laten beginnen",
+            "description": "De afgelopen twee weken is de thermostaat op {days} dagen ({count} keer) met de hand hoger gezet kort voor de comforturen.\n\nVerstuur om de comforturen om {value} te laten beginnen in plaats van {current}."
+          }
+        }
+      }
+    },
+    "suggest_later_day": {
+      "title": "{name}: comforturen later laten eindigen?",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Comforturen later laten eindigen",
+            "description": "De afgelopen twee weken is de thermostaat op {days} dagen ({count} keer) met de hand hoger gezet kort na de comforturen.\n\nVerstuur om de comforturen om {value} te laten eindigen in plaats van {current}."
+          }
+        }
+      }
+    },
+    "suggest_earlier_night": {
+      "title": "{name}: comforturen eerder laten eindigen?",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Comforturen eerder laten eindigen",
+            "description": "De afgelopen twee weken is de thermostaat op {days} dagen ({count} keer) met de hand lager gezet tegen het einde van de comforturen.\n\nVerstuur om de comforturen om {value} te laten eindigen in plaats van {current} — dat bespaart ook energie."
           }
         }
       }

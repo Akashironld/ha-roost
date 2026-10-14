@@ -16,7 +16,8 @@ from .const import (
     CONF_GRID_SIGN, CONF_HEAT_PUMP, CONF_HOUSE_POWER, CONF_IMPORT_ON_SETUP, CONF_IMPORT_PRICE, CONF_MAX_ABOVE,
     CONF_MIN_INTERVAL, CONF_NIGHT_MIN, CONF_PAUSE_HOURS, CONF_PV_FORECAST, CONF_PV_FORECAST_TOMORROW, CONF_PV_POWER,
     CONF_ROOM, CONF_STORE_MAX, CONF_THERMOSTAT, CONF_WEATHER, CONF_WEATHER_SOURCE, DEFAULTS, DOMAIN, GRID_SIGNS, WEATHER_SOURCES,
-    WEHEAT,
+    WEHEAT, CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND,
+    CONF_PRICE_MODE, PRICE_MODES,
 )
 
 
@@ -49,11 +50,29 @@ def basics_schema(first: bool) -> vol.Schema:
         s[vol.Required(CONF_HEAT_PUMP)] = selector.DeviceSelector(selector.DeviceSelectorConfig(integration="weheat"))
     s[vol.Required(CONF_THERMOSTAT)] = _ent("climate")
     s[vol.Optional(CONF_ROOM)] = _ent("sensor", "temperature")
-    s[vol.Required(CONF_IMPORT_PRICE)] = _ent(["sensor", "input_number"])
+    s[vol.Required(CONF_PRICE_MODE, default=DEFAULTS[CONF_PRICE_MODE])] = _sel(PRICE_MODES, "price_mode")
+    s[vol.Optional(CONF_IMPORT_PRICE)] = _ent(["sensor", "input_number"])
     s[vol.Optional(CONF_EXPORT_PRICE)] = _ent(["sensor", "input_number"])
     if first:
         s[vol.Required(CONF_IMPORT_ON_SETUP, default=True)] = selector.BooleanSelector()
     return vol.Schema(s)
+
+
+def price_schema(currency: str) -> vol.Schema:
+    """A fixed contract: one rate, optionally a low rate at night and in the weekend, optionally a fixed export price."""
+    unit = f"{currency}/kWh"
+    return vol.Schema({
+        vol.Required(CONF_FIXED_PRICE): _num(0, 2, 0.001, unit),
+        vol.Optional(CONF_FIXED_LOW_PRICE): _num(0, 2, 0.001, unit),
+        vol.Required(CONF_LOW_FROM, default=DEFAULTS[CONF_LOW_FROM]): _num(0, 23, 1, "h"),
+        vol.Required(CONF_LOW_TO, default=DEFAULTS[CONF_LOW_TO]): _num(0, 23, 1, "h"),
+        vol.Required(CONF_LOW_WEEKEND, default=DEFAULTS[CONF_LOW_WEEKEND]): selector.BooleanSelector(),
+        vol.Optional(CONF_FIXED_EXPORT_PRICE): _num(-1, 2, 0.001, unit),
+    })
+
+
+def _check_price(d: dict) -> dict[str, str]:
+    return {CONF_IMPORT_PRICE: "price_needed"} if d.get(CONF_PRICE_MODE, "sensor") == "sensor" and not d.get(CONF_IMPORT_PRICE) else {}
 
 
 def energy_schema() -> vol.Schema:
@@ -124,15 +143,24 @@ class RoostConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
+            errors = _check_price(user_input)
             if not _check_weheat(self.hass, user_input[CONF_HEAT_PUMP]):
                 errors[CONF_HEAT_PUMP] = "not_weheat"
-            else:
+            elif not errors:
                 await self.async_set_unique_id(user_input[CONF_HEAT_PUMP])
                 self._abort_if_unique_id_configured()
                 self._data.update(_clean(user_input))
+                if user_input.get(CONF_PRICE_MODE) == "fixed":
+                    return await self.async_step_price()
                 return await self.async_step_energy()
         return self.async_show_form(step_id="user", data_schema=self.add_suggested_values_to_schema(basics_schema(True), user_input or {}),
                                     errors=errors)
+
+    async def async_step_price(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            self._data.update(_clean(user_input))
+            return await self.async_step_energy()
+        return self.async_show_form(step_id="price", data_schema=price_schema(self.hass.config.currency or "EUR"))
 
     async def async_step_energy(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
@@ -180,10 +208,23 @@ class RoostOptionsFlow(OptionsFlow):
         self.opts.update(_clean(user_input))
 
     async def async_step_basics(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
         if user_input is not None:
-            self._update(basics_schema(False), user_input)
+            errors = _check_price(user_input)
+            if not errors:
+                self._update(basics_schema(False), user_input)
+                if user_input.get(CONF_PRICE_MODE) == "fixed":
+                    return await self.async_step_price()
+                return await self.async_step_init()
+        return self.async_show_form(step_id="basics", data_schema=self.add_suggested_values_to_schema(basics_schema(False), self.opts),
+                                    errors=errors)
+
+    async def async_step_price(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        schema = price_schema(self.hass.config.currency or "EUR")
+        if user_input is not None:
+            self._update(schema, user_input)
             return await self.async_step_init()
-        return self.async_show_form(step_id="basics", data_schema=self.add_suggested_values_to_schema(basics_schema(False), self.opts))
+        return self.async_show_form(step_id="price", data_schema=self.add_suggested_values_to_schema(schema, self.opts))
 
     async def async_step_energy(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}

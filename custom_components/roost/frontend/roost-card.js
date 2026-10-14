@@ -1,6 +1,6 @@
 /* Roost card - served by the roost integration. */
 (() => {   // own scope: safe if the file is loaded twice as a classic script (legacy frontend + a manual resource)
-const CARD_VERSION = "0.2.0";
+const CARD_VERSION = "0.3.1";
 
 // Plain ES2017 on purpose (no ?. / ??), ASCII only (\u escapes): wall tablets often run an older browser.
 const nn = (a, b) => (a === null || a === undefined ? b : a);
@@ -30,19 +30,19 @@ const T = {
 const WHY = {
   en: { starting: "starting", no_price: "no price", no_room: "no room temperature",
         no_weather: "no weather forecast and no outdoor temperature", no_plan: "no plan", off: "Roost is off",
-        store_solar: "storing heat on own solar (up to {sp} \u00b0C)",
-        store_cheap: "storing heat now ({ct} ct) before more expensive hours",
-        expensive: "expensive hour ({ct} ct): running on stored heat",
-        warm_enough: "warm enough ({room} \u00b0C): no heat needed", holding: "holding {sp} \u00b0C",
+        store_solar: "charging the floor on own solar (up to {sp} \u00b0C)",
+        store_cheap: "charging the floor now ({ct} ct) before more expensive hours",
+        expensive: "expensive hour ({ct} ct): living off the heat in the floor",
+        warm_enough: "warm enough ({room} \u00b0C): no heat needed", holding: "keeping the room at temperature",
         paused: "changed by hand: leaving the thermostat alone for {min} more min",
         already_right: "thermostat already right", wait: "next change allowed in {min} min",
         urgent: "room below the minimum: correcting now", following: "following the plan" },
   nl: { starting: "opstarten", no_price: "geen prijs", no_room: "geen kamertemperatuur",
         no_weather: "geen weersverwachting en geen buitentemperatuur", no_plan: "geen plan", off: "Roost staat uit",
-        store_solar: "warmte opslaan met eigen zonnestroom (tot {sp} \u00b0C)",
-        store_cheap: "nu warmte opslaan ({ct} ct), straks wordt het duurder",
-        expensive: "duur uur ({ct} ct): stoken op opgeslagen warmte",
-        warm_enough: "warm genoeg ({room} \u00b0C): geen warmte nodig", holding: "{sp} \u00b0C vasthouden",
+        store_solar: "vloer opladen met eigen zonnestroom (tot {sp} \u00b0C)",
+        store_cheap: "vloer opladen ({ct} ct), straks wordt het duurder",
+        expensive: "duur uur ({ct} ct): teert op de vloerbuffer",
+        warm_enough: "warm genoeg ({room} \u00b0C): geen warmte nodig", holding: "kamer op temperatuur houden",
         paused: "met de hand gewijzigd: thermostaat nog {min} min met rust gelaten",
         already_right: "thermostaat staat al goed", wait: "volgende wijziging over {min} min",
         urgent: "kamer onder het minimum: nu bijsturen", following: "volgt het plan" },
@@ -163,13 +163,17 @@ class RoostCard extends HTMLElement {
     const title = this._config.title || this._t("title");
     const reason = this._why(a.reason_code, a.reason_args, a.reason) || this._t("noplan");
     const decision = this._why(a.decision_code, a.decision_args, a.decision);
+    // the planned setpoint is a thermostat setting (a lever: a slow unit may be set well below the room), so show
+    // where the room is expected to go with it
+    const p0 = a.plan && a.plan.length ? a.plan[0] : null;
+    const expect = p0 ? `${this._t("expected")} ${this._num(p0[1], 1)} ${DEG}` : reason;
     let html = `<div class="head"><div class="ico"><ha-icon icon="mdi:bird"></ha-icon></div>
       <div class="ht"><div class="tt">${title}</div><div class="sub">${reason}</div></div>${pill}</div>`;
     if (this._show("tiles")) {
       html += `<div class="tiles">
         ${this._tile("mdi:home-thermometer-outline", this._t("room"), a.room, true, `${this._t("stored")} ${fmt(a.storage_kwh, 1)} kWh`)}
         ${this._tile("mdi:thermostat", this._t("thermostat"), a.thermostat, false, decision)}
-        ${this._tile("mdi:bird", this._t("planned"), parseFloat(st.state), false, reason, "plan")}
+        ${this._tile("mdi:bird", this._t("planned"), parseFloat(st.state), false, expect, "plan")}
       </div>`;
     }
     if (this._show("chart") && a.plan && a.plan.length) html += this._chart(a);

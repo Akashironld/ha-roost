@@ -33,7 +33,7 @@ async def _async_archive(mgr: "RoostManager", start: datetime, end: datetime) ->
     while t < end:
         t2 = min(end, t + timedelta(days=90))
         probe = [int(x) for x in range(int(t.timestamp()) // 3600 * 3600, int(t2.timestamp()), 6 * 3600)]
-        if sum(1 for p in probe if p in have) >= 0.9 * len(probe):
+        if sum(1 for p in probe if len(have.get(p, ())) >= 5) >= 0.9 * len(probe):    # 5: with direct/diffuse (v0.3)
             t = t2
             continue
         url = om.ARCHIVE.format(lat=mgr.hass.config.latitude, lon=mgr.hass.config.longitude,

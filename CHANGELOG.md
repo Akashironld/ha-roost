@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.3.1 — fixed price contracts, comfort suggestions, sun on the facades, internal gains per hour (unreleased)
+
+- Price: dynamic (a price sensor, as before) or a fixed contract: one rate, optionally a low rate with its hours and
+  the weekend, optionally a fixed export price (empty = net metering)
+- Comfort suggestions: changes made by hand while Roost steers are remembered; when the same kind of change comes back
+  on three different days within two weeks, a repair suggests a setting (warmer or cooler in the day, comfort hours
+  earlier or later). One click to accept, or ignore it — never changed by itself
+- Sun on the facades: the weather now includes direct and diffuse radiation; the house model tries every facade
+  direction (east to west, half and fully vertical) next to global radiation and keeps the one that predicts alternate
+  weeks best (the author's house: south-east, about 5 % better)
+- Internal gains per hour of the day (cooking, people, a thermostat in the sun), at half strength and at most 1 kW,
+  kept only when it predicts better
+- The weather archive is read again once, for the direct and diffuse radiation
+- Card: under *Planned* the room temperature expected with it (the planned setpoint is a thermostat setting and
+  may be well below the room for a slow unit); clearer reasons: charging the floor, living off the heat in the floor
+
 ## v0.2.0 — self-learning: self-check, correction, response to the thermostat, hot water (unreleased)
 
 - Self-check every night: the last 7 days replayed with the setpoints that were really on the thermostat (so it also

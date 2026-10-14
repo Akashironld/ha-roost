@@ -15,11 +15,11 @@ EN = {
     "no_plan": "no plan",
     "off": "Roost is off",
     # planner: the first hour
-    "store_solar": "storing heat on own solar (up to {sp:g} °C)",
-    "store_cheap": "storing heat now ({ct:.0f} ct) before more expensive hours",
-    "expensive": "expensive hour ({ct:.0f} ct): running on stored heat",
+    "store_solar": "charging the floor on own solar (up to {sp:g} °C)",
+    "store_cheap": "charging the floor now ({ct:.0f} ct) before more expensive hours",
+    "expensive": "expensive hour ({ct:.0f} ct): living off the heat in the floor",
     "warm_enough": "warm enough ({room:.1f} °C): no heat needed",
-    "holding": "holding {sp:g} °C",
+    "holding": "keeping the room at temperature",
     # control: what happens with the thermostat
     "paused": "changed by hand: leaving the thermostat alone for {min:.0f} more min",
     "already_right": "thermostat already right",
