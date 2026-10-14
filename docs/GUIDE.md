@@ -423,9 +423,12 @@ anywhere else.
 
 ## 16. FAQ
 
-**How much does it save?** It depends on your price spread, your floor and the weather. With a dynamic contract and
-floor heating in winter, typically a few to ten percent of the heating cost; with a single fixed rate a little (more
-heating in the warmer, more efficient hours and on your own solar). The card shows it against a steady thermostat.
+**How much does it save?** Honestly: it depends on your heat pump, your floor and your prices, and beta testers will
+tell. In [closed-loop simulations](SIMULATIONS.md) against an equally comfortable steady thermostat: about 2 % with
+floor heating and a slow OpenTherm heat pump (it follows a new setpoint over hours, so there is little to shift), about
+3 % with a fixed price (heating in the warmer, more efficient hours), 7–8 % with radiators or an on/off thermostat. Own
+solar and a home battery add to it. The card shows it against a steady thermostat that is as comfortable as Roost's
+plan.
 
 **Does it work with an air conditioner as well?** No, Roost is for a Weheat heat pump driven by a thermostat.
 

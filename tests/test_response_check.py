@@ -156,8 +156,8 @@ def test_correction_from_the_last_hours():
 
 
 def test_slow_unit_plan_beats_a_steady_thermostat():
-    """A modulating unit that follows slowly: the plan (search + polish with the real delay) costs less than holding the
-    comfort temperature, keeps the room within comfort, and lowers the setpoint before the expensive evening."""
+    """A modulating unit that follows slowly: the plan (search + polish with the real delay) costs less than a steady
+    thermostat that is as comfortable, keeps the room within comfort, and asks no more heat in the expensive evening."""
     hp = true_pump()
     s = planner.Settings(comfort=20.5, day_min=20.0, night_min=19.0, store_max=22.5)
     hours = []
@@ -169,9 +169,9 @@ def test_slow_unit_plan_beats_a_steady_thermostat():
     p = planner.plan(HOUSE, hp, s, hours, 20.6, 1.0, 20.0, w_now=2.0)
     assert p.saving > 0.05, p.saving
     assert all(x.t_end >= 20.1 for x, h in zip(p.hours, hours) if h.day), [round(x.t_end, 2) for x in p.hours]
-    evening = [x.sp for x, h in zip(p.hours, hours) if 17 <= h.hour < 20]
-    hold = planner.baseline_sp(s, hp, HOUSE, hours[4])
-    assert max(evening) < hold, (evening, hold)
+    evening = [x.sp for x, h in zip(p.hours, hours) if 17 <= h.hour < 21]
+    afternoon = [x.sp for x, h in zip(p.hours, hours) if 13 <= h.hour < 17]
+    assert max(evening) <= max(afternoon), (afternoon, evening)          # never more heat asked in the expensive evening
 
 
 if __name__ == "__main__":

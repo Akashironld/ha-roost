@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.5.0 — beta (unreleased)
+
+- Calmer: a thermostat change has to be worth more (about 1–2 a day instead of ~5), and the comfort temperature weighs
+  more, so fewer changes do not cost comfort — chosen with closed-loop simulations of eight kinds of houses
+  ([docs/SIMULATIONS.md](docs/SIMULATIONS.md), `tools/sim/sim.py`)
+- The saving shown is against a steady thermostat that is as comfortable as Roost's plan (it could be colder before,
+  which made a comfortable plan look expensive)
+- A setup and user guide ([docs/GUIDE.md](docs/GUIDE.md)); the README is now a front page with a quick start
+
 ## v0.4.1 — setup by subject (unreleased)
 
 - Setup and options by subject: the heat pump and thermostat, the house, the electricity price, solar and home

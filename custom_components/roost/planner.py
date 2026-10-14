@@ -50,9 +50,12 @@ class Settings:
     sp_min: float = 18.0
     step: float = 0.5
     penalty_hard: float = 5.0      # currency per °C·hour below the minimum
-    penalty_soft: float = 0.10     # per °C·hour below the comfort temperature (day)
+    penalty_soft: float = 0.20     # per °C·hour below the comfort temperature (day); 0.20 + switch 0.15: calm and comfortable (simulations)
     penalty_warm: float = 0.03     # per °C·hour above warm_from
-    switch_cost: float = 0.05      # per setpoint change
+    penalty_above: float = 0.0     # per °C·hour above comfort + above_margin: storing heat only when it pays
+    above_margin: float = 0.3
+    end_cop: str = "last"          # value of the heat left at the end: COP of the last hour ("last") or of the horizon ("mean")
+    switch_cost: float = 0.15      # per setpoint change (0.05 gave ~5 changes a day for little gain)
     end_factor: float = 0.6        # share of surplus heat after 24 h that still counts
     baseline_night: float | None = None   # baseline thermostat at night (None: same as the day)
 
@@ -145,6 +148,8 @@ class Simulator:
                 pen += (s.comfort - T) * 0.25 * s.penalty_soft
             if T > s.warm_from:
                 pen += (T - s.warm_from) * 0.25 * s.penalty_warm
+            if s.penalty_above and T > s.comfort + s.above_margin:
+                pen += (T - s.comfort - s.above_margin) * 0.25 * s.penalty_above
         self.w_end = w
         return T, E, cost, kwh, heat, pen
 
@@ -158,10 +163,35 @@ def baseline_sp(s: Settings, hp: HeatPumpModel, house: HouseModel, h: HourIn) ->
     return room + hp.th_diff - hp.offset + (1 - hp.a) * max(0.0, loss) / max(0.1, k)
 
 
+def _deficit(T: float, h: HourIn, s: Settings) -> float:
+    """Comfort shortfall at the end of an hour (°C), counted in the comfort hours only."""
+    return max(0.0, s.comfort - T) if h.day else 0.0
+
+
+def comparable_steady(sim: Simulator, hours: list[HourIn], T0: float, E0: float, w0: float | None, house: HouseModel,
+                      deficit: float) -> tuple[float, float, float, float]:
+    """The steady thermostat to compare with, at equal comfort: one offset on the setpoint that holds the comfort
+    temperature, the lowest that is at least as comfortable as the plan (°C·hours below comfort in the comfort hours).
+    Comparing with a colder steady thermostat would make a comfortable plan look expensive. -> (cost, kWh, T, E)."""
+    s, hp = sim.s, sim.hp
+    last = None
+    for off in [x / 10 for x in range(-5, 16)]:
+        T, E, w, cost, kwh, dfc = T0, E0, w0, 0.0, 0.0, 0.0
+        for h in hours:
+            T, E, c, e, _q, _ = sim.hour(T, E, baseline_sp(s, hp, house, h) + off, h, w)
+            w = sim.w_end if w is not None else None
+            cost, kwh, dfc = cost + c, kwh + e, dfc + _deficit(T, h, s)
+        last = (cost, kwh, T, E)
+        if dfc <= deficit + 0.05:
+            break
+    return last
+
+
 def _end_value(sim: Simulator, hours: list[HourIn], comfort: float):
     tail = hours[-6:] or hours
     price = sum(h.p_grid for h in tail) / len(tail)
-    cop = sim.hp.cop(hours[-1].t_out, 3.5)
+    cop = sim.hp.cop(hours[-1].t_out, 3.5) if sim.s.end_cop == "last" else \
+        sum(sim.hp.cop(h.t_out, 3.0) for h in hours) / len(hours)
     C = sim.m.C
 
     def value(T: float, E: float) -> float:
@@ -171,7 +201,8 @@ def _end_value(sim: Simulator, hours: list[HourIn], comfort: float):
 
 
 SLOW = 0.67             # a unit closing less of a change per hour than this is planned with its delay (polish)
-BLOCKS = (1, 2, 4)      # polish: try a setpoint for this many hours at once
+BLOCKS = (1, 2, 4)      # polish: try a setpoint for this many hours at once. Longer blocks and more starting plans
+                        # found cheaper plans on the model but not in closed-loop simulations (tools/sim): they exploit model errors
 
 
 def start_output(sim: Simulator, T: float, sp: float, h: HourIn) -> float:
@@ -342,25 +373,20 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
     min_day = None
     R = min(report, H)
     w = w_now
+    deficit = 0.0
     for k in range(R):
         T1, E1, c, e, q, _ = sim.hour(T, E, seq[k], hours[k], w)
         w = sim.w_end if w is not None else None
         out.append(HourPlan(seq[k], T1, e, q, c, hours[k].p_grid))
+        deficit += _deficit(T1, hours[k], s)
         total += c
         kwh_tot += e
         if hours[k].day:
             min_day = T1 if min_day is None else min(min_day, T1)
         T, E = T1, E1
 
-    # the steady thermostat to compare with
-    Tb, Eb, base_cost, base_kwh = t_now, e_now, 0.0, 0.0
-    wb = w_now
-    for h in hours[:R]:
-        spb = baseline_sp(s, hp, house, h)
-        Tb, Eb, c, e, _q, _ = sim.hour(Tb, Eb, spb, h, wb)
-        wb = sim.w_end if wb is not None else None
-        base_cost += c
-        base_kwh += e
+    # the steady thermostat to compare with, at equal comfort
+    base_cost, base_kwh, Tb, Eb = comparable_steady(sim, hours[:R], t_now, e_now, w_now, house, deficit)
     saving = base_cost - total + end_r(Tb, Eb) - end_r(T, E)
     room_t = room_temps(sim, hours[:R], t_now, e_now, w_now, seq[:R], rooms) if rooms else []
     return Plan(out, total, kwh_tot, base_cost, base_kwh, saving, min_day, rooms=room_t)
@@ -402,13 +428,10 @@ def replay_day(house: HouseModel, hp: HeatPumpModel, s: Settings, entries: list[
     sim = Simulator(house, hp, s)
     end = _end_value(sim, hours, s.comfort)
     T0, E0 = entries[0]["T"], entries[0].get("E", 0.0)
-    T, E, cost = T0, E0, 0.0
+    T, E, cost, deficit = T0, E0, 0.0, 0.0
     for e, h in zip(entries, hours):
         T, E, c, *_ = sim.hour(T, E, float(e["sp"]), h)
         cost += c
-    Tb, Eb, base = T0, E0, 0.0
-    for h in hours:
-        spb = baseline_sp(s, hp, house, h)
-        Tb, Eb, c, *_ = sim.hour(Tb, Eb, spb, h)
-        base += c
+        deficit += _deficit(T, h, s)
+    base, _kwh, Tb, Eb = comparable_steady(sim, hours, T0, E0, None, house, deficit)
     return cost - end(T, E), base - end(Tb, Eb)
