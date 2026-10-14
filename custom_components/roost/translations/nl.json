@@ -228,7 +228,15 @@
         "name": "Warmtepompmodel"
       },
       "weheat_import": {
-        "name": "Weheat-import"
+        "name": "Weheat-import",
+        "state": {
+          "not_yet": "Nog niet",
+          "importing": "Bezig met importeren",
+          "done": "Klaar",
+          "waiting": "Wacht op de Weheat-login",
+          "failed": "Mislukt",
+          "no_heat_pump": "Geen Weheat-warmtepomp gevonden"
+        }
       },
       "plan_accuracy": {
         "name": "Plannauwkeurigheid"

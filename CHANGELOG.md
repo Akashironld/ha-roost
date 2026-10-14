@@ -18,6 +18,7 @@
   (walls shared with neighbours left out) limit the facade directions tried. No address is kept; off removes it.
   Not used when the home location is not in or within 25 m of the dwelling; for flats only year and area
 - Options: each part saves when it is submitted (the separate *Save* step was easy to miss)
+- Weheat import: a status with translated states (done, importing, waiting for the Weheat login, failed)
 - Card: under *Planned* the room temperature expected with it (the planned setpoint is a thermostat setting and
   may be well below the room for a slow unit); clearer reasons: charging the floor, living off the heat in the floor
 

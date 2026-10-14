@@ -228,7 +228,15 @@
         "name": "Heat pump model"
       },
       "weheat_import": {
-        "name": "Weheat import"
+        "name": "Weheat import",
+        "state": {
+          "not_yet": "Not yet",
+          "importing": "Importing",
+          "done": "Done",
+          "waiting": "Waiting for the Weheat login",
+          "failed": "Failed",
+          "no_heat_pump": "No Weheat heat pump found"
+        }
       },
       "plan_accuracy": {
         "name": "Plan accuracy"

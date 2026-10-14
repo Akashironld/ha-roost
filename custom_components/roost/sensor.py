@@ -273,9 +273,16 @@ class PlanAccuracySensor(RoostEntity, SensorEntity):
                 "correction_kw": m.corr_kw, "correction_hours": m.corr_n, **_response(m.pump)}
 
 
+IMPORT_STATES = ["not_yet", "importing", "done", "waiting", "failed", "no_heat_pump"]
+
+
 class ImportSensor(RoostEntity, SensorEntity):
+    """Status of the Weheat history import (translated states; the details in the attributes)."""
+
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_icon = "mdi:cloud-download-outline"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = IMPORT_STATES
 
     def __init__(self, mgr) -> None:
         super().__init__(mgr, "weheat_import")
@@ -283,7 +290,18 @@ class ImportSensor(RoostEntity, SensorEntity):
     @property
     def native_value(self):
         i = self.mgr.import_info
-        return "importing" if self.mgr.importing else ("done" if i.get("done") else (i.get("status") or "not yet")[:250])
+        status = str(i.get("status") or "")
+        if self.mgr.importing:
+            return "importing"
+        if i.get("done"):
+            return "done"
+        if status.startswith("waiting"):
+            return "waiting"
+        if status.startswith("failed"):
+            return "failed"
+        if status.startswith("no Weheat"):
+            return "no_heat_pump"
+        return "not_yet"
 
     @property
     def extra_state_attributes(self):
