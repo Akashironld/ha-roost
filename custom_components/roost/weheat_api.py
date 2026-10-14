@@ -29,7 +29,9 @@ def heat_pump_id(hass: HomeAssistant, device_id: str) -> tuple[str | None, str |
     if dev is None:
         return None, None
     hp = next((i[1] for i in dev.identifiers if i[0] == "weheat"), None)
-    entry = next((e for e in dev.config_entries if (ce := hass.config_entries.async_get_entry(e)) and ce.domain == "weheat"), None)
+    # HA 2026.10+ has one config entry per device (config_entry_id); older versions only a set (config_entries).
+    ids = [dev.config_entry_id] if getattr(dev, "config_entry_id", None) else list(dev.config_entries)
+    entry = next((e for e in ids if (ce := hass.config_entries.async_get_entry(e)) and ce.domain == "weheat"), None)
     return hp, entry
 
 
