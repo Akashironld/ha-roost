@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 
 from .heatpump import HeatPumpModel
 from .model import HouseModel
+from .reasons import Reason
 
 
 @dataclass
@@ -232,24 +233,24 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
     return Plan(out, total, kwh_tot, base_cost, base_kwh, saving, min_day)
 
 
-def explain(p: Plan, hours: list[HourIn], room: float, s: Settings) -> str:
+def explain(p: Plan, hours: list[HourIn], room: float, s: Settings) -> Reason:
     """One line on why the first hour is what it is."""
     if not p.hours:
-        return "no plan"
+        return Reason("no_plan")
     sp = p.first.sp
     prices = [h.p_grid for h in hours[:12]]
     now = hours[0].p_grid
     cheap = now <= sorted(prices)[len(prices) // 3]
     dear = now >= sorted(prices)[(2 * len(prices)) // 3]
     if hours[0].own_kw >= 0.5 and sp > s.comfort:
-        return f"storing heat on own solar (up to {sp:g} °C)"
+        return Reason("store_solar", {"sp": sp})
     if sp > s.comfort and cheap:
-        return f"storing heat now ({now * 100:.0f} ct) before more expensive hours"
+        return Reason("store_cheap", {"ct": round(now * 100, 1)})
     if sp < s.comfort and dear:
-        return f"expensive hour ({now * 100:.0f} ct): running on stored heat"
+        return Reason("expensive", {"ct": round(now * 100, 1)})
     if sp <= room - 0.5:
-        return f"warm enough ({room:.1f} °C): no heat needed"
-    return f"holding {sp:g} °C"
+        return Reason("warm_enough", {"room": round(room, 1)})
+    return Reason("holding", {"sp": sp})
 
 
 def replay_day(house: HouseModel, hp: HeatPumpModel, s: Settings, entries: list[dict]) -> tuple[float, float] | None:

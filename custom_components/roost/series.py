@@ -168,6 +168,31 @@ def _hour_floor(ts: float) -> float:
     return ts - (ts % 3600)
 
 
+def slots_from_changes(changes: list[tuple[float, float]], end_ts: float) -> list[Slot]:
+    """Slots from state changes (epoch s, value), each valid until the next change (the last one until end_ts)."""
+    ch = sorted(changes)
+    return [(t, ch[i + 1][0] if i + 1 < len(ch) else end_ts, v) for i, (t, v) in enumerate(ch) if (ch[i + 1][0] if i + 1 < len(ch) else end_ts) > t]
+
+
+def fill_gaps(vals: list[float | None], start_ts: float, seen: dict[int, float],
+              fallback: float | None = None) -> tuple[list[float | None], list[bool]]:
+    """Fill hours the forecast does not reach yet (day-ahead prices for tomorrow often arrive in the afternoon):
+    the same clock hour one day earlier, else two days earlier, else the last known value. Returns (values, guessed)."""
+    out, guessed, last = [], [], fallback
+    base = int(_hour_floor(start_ts))
+    for h, v in enumerate(vals):
+        if v is not None:
+            last = v
+            out.append(v)
+            guessed.append(False)
+            continue
+        ts = base + h * 3600
+        prev = seen.get(ts - 86400, seen.get(ts - 2 * 86400))
+        out.append(prev if prev is not None else last)
+        guessed.append(True)
+    return out, guessed
+
+
 def energy_per_hour(slots: list[Slot], start_ts: float, hours: int) -> list[float]:
     """kWh per hour from slots holding average power in kW (Solcast style): integral of power over the hour."""
     out = []

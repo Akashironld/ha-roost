@@ -1,6 +1,6 @@
 /* Roost card - served by the roost integration. */
 (() => {   // own scope: safe if the file is loaded twice as a classic script (legacy frontend + a manual resource)
-const CARD_VERSION = "0.1.0";
+const CARD_VERSION = "0.1.2";
 
 // Plain ES2017 on purpose (no ?. / ??), ASCII only (\u escapes): wall tablets often run an older browser.
 const nn = (a, b) => (a === null || a === undefined ? b : a);
@@ -8,23 +8,56 @@ const DEG = "\u00b0C";
 
 const T = {
   en: { title: "Roost", room: "Room", thermostat: "Thermostat", planned: "Planned", next24: "Next 24 hours",
-        setpoint: "setpoint", expected: "room expected", price: "price", comfort: "comfort hours", now: "now",
+        setpoint: "setpoint", expected: "room expected", price: "tariff", guessed: "estimated", uses: "plan uses", comfort: "comfort hours", now: "now",
         night: "night", saving24: "expected saving", month: "this month", yesterday: "yesterday", vs: "vs steady",
         active: "ACTIVE", shadow: "SHADOW", off: "OFF", paused: "PAUSED", scrub: "slide over the graph",
         stored: "stored", unavailable: "Not available", pick: "Pick the 'Planned setpoint' sensor of the Roost integration.",
         noplan: "no plan yet", heating: "heat pump heating", e_entity: "Sensor", e_title: "Title", e_language: "Language",
         e_time_format: "Time format", e_auto: "Like Home Assistant", e_show_tiles: "Tiles", e_show_chart: "24-hour plan",
-        e_show_footer: "Saving" },
+        e_show_footer: "Saving", e_compact: "Compact (e.g. a wall tablet)" },
   nl: { title: "Roost", room: "Kamer", thermostat: "Thermostaat", planned: "Gepland", next24: "Komende 24 uur",
-        setpoint: "setpoint", expected: "kamer verwacht", price: "prijs", comfort: "comforturen", now: "nu",
+        setpoint: "setpoint", expected: "kamer verwacht", price: "tarief", guessed: "geschat", uses: "rekent met", comfort: "comforturen", now: "nu",
         night: "nacht", saving24: "verwachte besparing", month: "deze maand", yesterday: "gisteren", vs: "t.o.v. vast",
         active: "ACTIEF", shadow: "MEEKIJKEN", off: "UIT", paused: "GEPAUZEERD", scrub: "schuif over de grafiek",
         stored: "opgeslagen", unavailable: "Niet beschikbaar", pick: "Kies de sensor 'Gepland setpoint' van de integratie Roost.",
         noplan: "nog geen plan", heating: "warmtepomp stookt", e_entity: "Sensor", e_title: "Titel", e_language: "Taal",
         e_time_format: "Tijdnotatie", e_auto: "Zoals Home Assistant", e_show_tiles: "Tegels", e_show_chart: "24-uursplan",
-        e_show_footer: "Besparing" },
+        e_show_footer: "Besparing", e_compact: "Compact (bijv. een wandtablet)" },
 };
+
+// Why Roost plans or does something: the integration sends a code with values (reason_code/_args,
+// decision_code/_args); the card words it. Unknown codes fall back to the English text of the integration.
+const WHY = {
+  en: { starting: "starting", no_price: "no price", no_room: "no room temperature",
+        no_weather: "no weather forecast and no outdoor temperature", no_plan: "no plan", off: "Roost is off",
+        store_solar: "storing heat on own solar (up to {sp} \u00b0C)",
+        store_cheap: "storing heat now ({ct} ct) before more expensive hours",
+        expensive: "expensive hour ({ct} ct): running on stored heat",
+        warm_enough: "warm enough ({room} \u00b0C): no heat needed", holding: "holding {sp} \u00b0C",
+        paused: "changed by hand: leaving the thermostat alone for {min} more min",
+        already_right: "thermostat already right", wait: "next change allowed in {min} min",
+        urgent: "room below the minimum: correcting now", following: "following the plan" },
+  nl: { starting: "opstarten", no_price: "geen prijs", no_room: "geen kamertemperatuur",
+        no_weather: "geen weersverwachting en geen buitentemperatuur", no_plan: "geen plan", off: "Roost staat uit",
+        store_solar: "warmte opslaan met eigen zonnestroom (tot {sp} \u00b0C)",
+        store_cheap: "nu warmte opslaan ({ct} ct), straks wordt het duurder",
+        expensive: "duur uur ({ct} ct): stoken op opgeslagen warmte",
+        warm_enough: "warm genoeg ({room} \u00b0C): geen warmte nodig", holding: "{sp} \u00b0C vasthouden",
+        paused: "met de hand gewijzigd: thermostaat nog {min} min met rust gelaten",
+        already_right: "thermostaat staat al goed", wait: "volgende wijziging over {min} min",
+        urgent: "kamer onder het minimum: nu bijsturen", following: "volgt het plan" },
+};
+const WHY_DECIMALS = { sp: 1, room: 1, ct: 0, min: 0 };
+
+// Parts of the card that can be hidden with show_<part>: false. "compact: true" hides the chart and the saving and
+// keeps the header and the tiles; a show_<part> set explicitly always wins (e.g. compact with show_chart: true).
 const PARTS = ["tiles", "chart", "footer"];
+const COMPACT_HIDES = ["chart", "footer"];
+const showDefault = (config, part) => !(config && config.compact && COMPACT_HIDES.indexOf(part) >= 0);
+const shows = (config, part) => {
+  const v = config ? config["show_" + part] : undefined;
+  return v === undefined || v === null ? showDefault(config, part) : !!v;
+};
 const lang2 = (hass) => ((hass && ((hass.locale && hass.locale.language) || hass.language)) || "en").slice(0, 2);
 const fmt = (v, d) => (v === null || v === undefined || isNaN(v)) ? "\u2014" : Number(v).toFixed(d === undefined ? 0 : d);
 
@@ -57,9 +90,14 @@ class RoostCard extends HTMLElement {
   getCardSize() { return 2 + (this._show("tiles") ? 1 : 0) + (this._show("chart") ? 3 : 0); }
   getGridOptions() { return { columns: 12, min_columns: 6 }; }
 
-  _show(part) { const v = this._config ? this._config["show_" + part] : undefined; return v === undefined || v === null ? true : !!v; }
+  _show(part) { return shows(this._config, part); }
   _lang() { const own = this._config && this._config.language; return own && T[own] ? own : lang2(this._hass); }
   _t(k) { return (T[this._lang()] || T.en)[k]; }
+  _why(code, args, text) {
+    const tpl = code && ((WHY[this._lang()] || WHY.en)[code] || WHY.en[code]);
+    if (!tpl) return text || "";
+    return tpl.replace(/\{(\w+)\}/g, (m, k) => (args && args[k] !== undefined ? this._num(args[k], nn(WHY_DECIMALS[k], 1)) : m));
+  }
   _locale() {
     const user = (this._hass && ((this._hass.locale && this._hass.locale.language) || this._hass.language)) || undefined;
     const own = this._config && this._config.language;
@@ -123,13 +161,15 @@ class RoostCard extends HTMLElement {
     const pill = paused ? `<span class="pill warn">${this._t("paused")}</span>`
       : `<span class="pill ${mode}">${this._t(mode)}</span>`;
     const title = this._config.title || this._t("title");
+    const reason = this._why(a.reason_code, a.reason_args, a.reason) || this._t("noplan");
+    const decision = this._why(a.decision_code, a.decision_args, a.decision);
     let html = `<div class="head"><div class="ico"><ha-icon icon="mdi:bird"></ha-icon></div>
-      <div class="ht"><div class="tt">${title}</div><div class="sub">${a.reason || this._t("noplan")}</div></div>${pill}</div>`;
+      <div class="ht"><div class="tt">${title}</div><div class="sub">${reason}</div></div>${pill}</div>`;
     if (this._show("tiles")) {
       html += `<div class="tiles">
         ${this._tile("mdi:home-thermometer-outline", this._t("room"), a.room, true, `${this._t("stored")} ${fmt(a.storage_kwh, 1)} kWh`)}
-        ${this._tile("mdi:thermostat", this._t("thermostat"), a.thermostat, false, a.decision || "")}
-        ${this._tile("mdi:bird", this._t("planned"), parseFloat(st.state), false, a.reason || "", "plan")}
+        ${this._tile("mdi:thermostat", this._t("thermostat"), a.thermostat, false, decision)}
+        ${this._tile("mdi:bird", this._t("planned"), parseFloat(st.state), false, reason, "plan")}
       </div>`;
     }
     if (this._show("chart") && a.plan && a.plan.length) html += this._chart(a);
@@ -146,7 +186,9 @@ class RoostCard extends HTMLElement {
 
   _chart(a) {
     const plan = a.plan, n = plan.length;
-    const sp = plan.map((p) => p[0]), kt = plan.map((p) => p[1]), pr = plan.map((p) => p[3]);
+    // bars: the import tariff (p[4]; older versions only had the planner's price p[3]); p[5] = 1: not known yet, guessed
+    const sp = plan.map((p) => p[0]), kt = plan.map((p) => p[1]), pr = plan.map((p) => nn(p[4], p[3]));
+    const guess = plan.map((p) => !!p[5]);
     const day = a.day_hours || plan.map(() => 1);
     const start = a.start ? new Date(a.start) : new Date();
     const VW = 440, VH = 172, L = 28, R = 6, TOP = 8, B = 46, PB = 26, w = (VW - L - R) / n;
@@ -165,7 +207,7 @@ class RoostCard extends HTMLElement {
     }
     pr.forEach((p, i) => {
       const r = (p - pmin) / Math.max(0.01, pmax - pmin), hgt = 4 + r * (PB - 8);
-      g += `<rect x="${(x(i) + 1).toFixed(1)}" y="${(pb - hgt).toFixed(1)}" width="${(w - 2).toFixed(1)}" height="${hgt.toFixed(1)}" rx="1.5" style="fill:${tone(p)}" class="price"/>`;
+      g += `<rect x="${(x(i) + 1).toFixed(1)}" y="${(pb - hgt).toFixed(1)}" width="${(w - 2).toFixed(1)}" height="${hgt.toFixed(1)}" rx="1.5" style="fill:${tone(p)}" class="price${guess[i] ? " guess" : ""}"/>`;
     });
     let d = `M${x(0).toFixed(1)} ${y(sp[0]).toFixed(1)}`;
     sp.forEach((v, i) => { d += ` L${x(i).toFixed(1)} ${y(v).toFixed(1)} L${x(i + 1).toFixed(1)} ${y(v).toFixed(1)}`; });
@@ -184,15 +226,19 @@ class RoostCard extends HTMLElement {
     return `<div class="chart"><div class="ch"><span>${this._t("next24")}</span><span class="info">${this._info(0)} \u00b7 <i>${this._t("scrub")}</i></span></div>
       <svg viewBox="0 0 ${VW} ${VH}">${g}</svg>
       <div class="leg"><span><b class="l sp"></b>${this._t("setpoint")}</span><span><b class="l room"></b>${this._t("expected")}</span>
-      <span><b class="l price"></b>${this._t("price")}</span><span><b class="l band"></b>${this._t("comfort")}</span></div></div>`;
+      <span><b class="l price"></b>${this._t("price")}</span>${guess.some((g) => g) ? `<span><b class="l price guess"></b>${this._t("guessed")}</span>` : ""}
+      <span><b class="l band"></b>${this._t("comfort")}</span></div></div>`;
   }
 
   _info(i) {
     const p = this._geo && this._geo.plan[i];
     if (!p) return "";
     const t = i === 0 ? this._t("now") : this._hour(new Date(this._geo.start + i * 3600000));
+    const tariff = nn(p[4], p[3]);
+    // the planner may count another price: the battery's refill cost, or own solar
+    const uses = Math.abs(p[3] - tariff) >= 0.5 ? ` (${this._t("uses")} ${this._num(p[3], 0)} ct)` : "";
     return `<b>${t}</b> \u00b7 ${this._t("setpoint")} <b class="o">${this._num(p[0], 1)}${DEG}</b> \u00b7 ${this._t("room")} <b>${this._num(p[1], 1)}${DEG}</b>` +
-      ` \u00b7 <b>${this._num(p[3], 0)} ct</b>${this._geo.day[i] ? "" : " \u00b7 " + this._t("night")}`;
+      ` \u00b7 <b>${this._num(tariff, 0)} ct</b>${p[5] ? " " + this._t("guessed") : ""}${uses}${this._geo.day[i] ? "" : " \u00b7 " + this._t("night")}`;
   }
 
   _wire() {
@@ -256,7 +302,7 @@ class RoostCard extends HTMLElement {
       svg { width: 100%; display: block; touch-action: pan-y; }
       .band { fill: var(--rc-band); opacity: .07; } .grid { stroke: var(--divider-color); stroke-width: 1; }
       .axis { fill: var(--secondary-text-color); font-size: 10px; } .nowt { fill: var(--rc-sp); }
-      .price { opacity: .55; } .area { fill: var(--rc-room); opacity: .06; }
+      .price { opacity: .55; } .price.guess { opacity: .2; } .area { fill: var(--rc-room); opacity: .06; }
       .sp { fill: none; stroke: var(--rc-sp); stroke-width: 2.2; stroke-linejoin: round; }
       .room { fill: none; stroke: var(--rc-room); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
       .nowl { stroke: var(--rc-sp); stroke-width: 1.5; opacity: .6; }
@@ -267,6 +313,7 @@ class RoostCard extends HTMLElement {
       .leg span { display: inline-flex; align-items: center; gap: 5px; }
       .l { display: inline-block; width: 14px; height: 3px; border-radius: 2px; } .l.sp { background: var(--rc-sp); }
       .l.room { background: var(--rc-room); } .l.price { height: 8px; background: linear-gradient(90deg, var(--rc-cheap), var(--rc-mid), var(--rc-dear)); opacity: .6; }
+      .l.price.guess { opacity: .2; }
       .l.band { height: 8px; background: var(--rc-band); opacity: .25; }
       .foot { font-size: 12px; color: var(--secondary-text-color); margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--divider-color); }
       .foot b { color: var(--primary-text-color); }
@@ -278,9 +325,14 @@ class RoostCardEditor extends HTMLElement {
   setConfig(config) { this._config = config; this._render(); }
   set hass(hass) { this._hass = hass; this._render(); }
 
+  // The toggles show what the card really shows. Switching "compact" resets the parts to its preset, and a part
+  // that matches the preset is left out of the YAML, so the configuration stays short.
   _changed(value) {
+    const prev = this._config || {};
     const v = Object.assign({}, value);
-    PARTS.forEach((p) => { if (v["show_" + p] === true) delete v["show_" + p]; });
+    if (!!v.compact !== !!prev.compact) PARTS.forEach((p) => { delete v["show_" + p]; });
+    else PARTS.forEach((p) => { if (v["show_" + p] === showDefault(v, p)) delete v["show_" + p]; });
+    if (!v.compact) delete v.compact;
     if (!v.title) delete v.title;
     if (!v.language || v.language === "auto") delete v.language;
     if (!v.time_format || v.time_format === "auto") delete v.time_format;
@@ -297,13 +349,15 @@ class RoostCardEditor extends HTMLElement {
       this._form.addEventListener("value-changed", (ev) => this._changed(ev.detail.value));
       this.appendChild(this._form);
     }
-    const data = Object.assign({}, this._config, { language: this._config.language || "auto", time_format: this._config.time_format || "auto" });
-    PARTS.forEach((p) => { data["show_" + p] = this._config["show_" + p] !== false; });
+    const data = Object.assign({}, this._config, { compact: !!this._config.compact,
+      language: this._config.language || "auto", time_format: this._config.time_format || "auto" });
+    PARTS.forEach((p) => { data["show_" + p] = shows(this._config, p); });
     this._form.hass = this._hass;
     this._form.data = data;
     this._form.schema = [
       { name: "entity", required: true, selector: { entity: { filter: { integration: "roost", domain: "sensor" } } } },
       { name: "title", selector: { text: {} } },
+      { name: "compact", selector: { boolean: {} } },
       { type: "grid", name: "", schema: [
         { name: "language", selector: { select: { mode: "dropdown", options: [
           { value: "auto", label: t.e_auto }, { value: "en", label: "English" }, { value: "nl", label: "Nederlands" }] } } },

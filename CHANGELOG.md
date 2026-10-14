@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.1.2 — compact card, reasons in your language, prices beyond the forecast (unreleased)
+
+- Card: `compact` option (header and tiles only, for a wall tablet); a `show_…` option set yourself still wins
+- Card: the reason and the decision now follow your language (English, Dutch); the planned-setpoint sensor gets
+  `reason_code`/`reason_args` and `decision_code`/`decision_args` next to the English text
+- Prices: hours the price forecast does not reach yet (tomorrow's day-ahead prices arrive in the afternoon) get the
+  price of the same hour a day earlier (remembered, and read from the recorder at start-up) instead of the last known
+  price for the whole night
+- Card: the bars show the import tariff; hours with a guessed price are faded; sliding over the graph also shows the
+  price the planner counts when that differs (the home battery's refill cost, or own solar)
+- Weheat lookup uses `DeviceEntry.config_entry_id` where Home Assistant has it (`config_entries` is deprecated)
+
 ## v0.1.0 — first version (unreleased)
 
 Roost: smart heating planner for Weheat heat pumps.

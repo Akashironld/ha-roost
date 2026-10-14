@@ -6,8 +6,10 @@ import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from functools import partial
 from typing import Any, Callable
 
+from homeassistant.components.recorder import get_instance, history as rh
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_UNIT_OF_MEASUREMENT, STATE_UNAVAILABLE, STATE_UNKNOWN, UnitOfTemperature
 from homeassistant.core import Context, Event, HomeAssistant, State, callback
@@ -26,6 +28,7 @@ from .const import (
     CONF_ROOM, CONF_STORE_MAX, CONF_THERMOSTAT, CONF_WEATHER, CONF_WEATHER_SOURCE, DEFAULTS, DOMAIN, HISTORY_DAYS,
     LEARN_HOUR, LEARN_MINUTE, PLAN_MINUTES, STORAGE_VERSION, TICK_SECONDS, WEATHER_MINUTES, WEHEAT, WEHEAT_IMPORT_DAYS,
 )
+from .reasons import Reason
 from .weheat_api import WeheatUnavailable, async_fetch_history, heat_pump_id
 
 _LOGGER = logging.getLogger(__name__)
@@ -67,7 +70,13 @@ class RoostManager:
         self.plan: planner.Plan | None = None
         self.plan_hours: list[planner.HourIn] = []
         self.plan_at: float | None = None
-        self.reason = "starting"
+        self.plan_tariff: list[float] = []          # import price per plan hour (what the price sensor says, or a guess)
+        self.plan_guess: list[bool] = []            # True: no price known yet for that hour, filled in
+        # price entity -> {hour epoch: price per kWh}: known hourly prices of the last days, to fill hours the price
+        # forecast does not reach yet with the same hour a day earlier
+        self.price_seen: dict[str, dict[int, float]] = {}
+        self._price_guess: dict[str, list[bool]] = {}
+        self.reason = Reason("starting")
         self.decision: control.Decision | None = None
         self.sources: dict[str, str] = {}
         self.learn_info: dict = {}
@@ -128,6 +137,7 @@ class RoostManager:
         self.saving_days = data.get("saving_days", {})
         self.pv_k = data.get("pv_k")
         self.load_profile = data.get("load_profile")
+        self.price_seen = {e: {int(k): v for k, v in d.items()} for e, d in (data.get("price_seen") or {}).items()}
         self._weheat_hours = {int(k): v for k, v in (hist.get("weheat") or {}).items()}
         self._weather_hist = {int(k): tuple(v) for k, v in (hist.get("weather") or {}).items()}
         self._unsubs.append(async_track_time_interval(self.hass, self._async_tick, timedelta(seconds=TICK_SECONDS)))
@@ -136,6 +146,7 @@ class RoostManager:
         self.hass.async_create_task(self._async_first_run())
 
     async def _async_first_run(self) -> None:
+        await self._async_seed_prices()
         await self._async_tick(None, force_plan=True)
         if self.conf.get(CONF_IMPORT_ON_SETUP) and not self.import_info.get("done"):
             self.hass.async_create_background_task(self.async_import(WEHEAT_IMPORT_DAYS), f"{DOMAIN} weheat import")
@@ -161,7 +172,40 @@ class RoostManager:
             "mode": self.mode, "house": self.house.as_dict(), "pump": self.pump.as_dict(), "control": self.mem.as_dict(),
             "storage_e": round(self.storage_e, 3), "learn": self.learn_info, "import": self.import_info,
             "hour_log": self.hour_log[-60:], "saving_days": dict(sorted(self.saving_days.items())[-62:]),
-            "pv_k": self.pv_k, "load_profile": self.load_profile})
+            "pv_k": self.pv_k, "load_profile": self.load_profile, "price_seen": self._price_seen_recent()})
+
+    def _price_seen_recent(self) -> dict[str, dict[str, float]]:
+        cut = time.time() - 3 * 86400
+        self.price_seen = {e: {k: v for k, v in d.items() if k >= cut} for e, d in self.price_seen.items()}
+        return {e: {str(k): round(v, 5) for k, v in sorted(d.items())} for e, d in self.price_seen.items()}
+
+    async def _async_seed_prices(self) -> None:
+        """Hourly prices of the last two days from the recorder (the state of the price sensor), so hours without a
+        forecast yet can be filled with the same hour a day earlier right after setup or a restart."""
+        now = dt_util.utcnow()
+        start = now - timedelta(hours=49)
+        for key in (CONF_IMPORT_PRICE, CONF_EXPORT_PRICE):
+            eid = self.conf.get(key)
+            st = self._state(eid)
+            if not eid or st is None:
+                continue
+            try:
+                res = await get_instance(self.hass).async_add_executor_job(
+                    partial(rh.state_changes_during_period, self.hass, start, now, entity_id=eid, no_attributes=True,
+                            include_start_time_state=True))
+            except Exception as err:  # noqa: BLE001 - without the recorder the last known price is used, as before
+                _LOGGER.debug("Roost could not read the price history of %s: %s", eid, err)
+                continue
+            changes = [(s.last_changed.timestamp(), v) for s in res.get(eid, []) if (v := _f(s.state)) is not None]
+            if not changes:
+                continue
+            scale = series.price_scale(st.attributes.get(ATTR_UNIT_OF_MEASUREMENT), [v for _, v in changes])
+            h0 = int(start.timestamp() // 3600 * 3600) + 3600
+            n = int((now.timestamp() - h0) // 3600)                # complete hours only
+            seen = self.price_seen.setdefault(eid, {})
+            for h, v in enumerate(series.hourly(series.slots_from_changes(changes, now.timestamp()), h0, n, fill_last=False)):
+                if v is not None:
+                    seen.setdefault(h0 + h * 3600, v * scale)
 
     async def _async_save_history(self) -> None:
         await self._hist_store.async_save({"weheat": {str(k): v for k, v in self._weheat_hours.items()},
@@ -293,11 +337,18 @@ class RoostManager:
         cur = _f(st.state)
         scale = series.price_scale(st.attributes.get(ATTR_UNIT_OF_MEASUREMENT), [v for _, _, v in slots] or ([cur] if cur is not None else []))
         if slots:
-            vals, last = [], cur
-            for v in series.hourly(slots, now.timestamp(), hours):
-                last = v if v is not None else last
-                vals.append((last or 0.0) * scale)
-            return vals
+            raw = [None if v is None else v * scale for v in series.hourly(slots, now.timestamp(), hours, fill_last=False)]
+            seen = self.price_seen.setdefault(eid, {})
+            base = int(now.timestamp() // 3600 * 3600)
+            for h, v in enumerate(raw):
+                if v is not None and h > 0:                     # hour 0 is only the rest of the hour: keep the full one
+                    seen[base + h * 3600] = v
+                elif v is not None:
+                    seen.setdefault(base, v)
+            vals, guess = series.fill_gaps(raw, now.timestamp(), seen, cur * scale if cur is not None else None)
+            self._price_guess[eid] = guess
+            return [v or 0.0 for v in vals]
+        self._price_guess[eid] = [h > 0 for h in range(hours)]
         return [cur * scale] * hours if cur is not None else None
 
     def _pv_forecast(self, start: float, hours: int) -> list[float] | None:
@@ -437,24 +488,26 @@ class RoostManager:
             e = self._energy(now, 36)                 # plan 36 h, show 24: the end of the horizon does not distort what is shown
             room = self.room()
             if e is None or room is None:
-                self.reason = "no price" if e is None else "no room temperature"
+                self.reason = Reason("no_price" if e is None else "no_room")
                 return
             inp, ev = e
             prices = value.planner_prices(inp, ev)
             hours = self._hours_ahead(now, prices)
             if not hours:
-                self.reason = "no weather forecast and no outdoor temperature"
+                self.reason = Reason("no_weather")
                 return
             s = self.settings()
             p = await self.hass.async_add_executor_job(planner.plan, self.house, self.pump, s, hours, room, self.storage_e, self.thermostat_sp())
             self.plan, self.plan_hours, self.plan_at = p, hours, now.timestamp()
+            self.plan_tariff = list(inp.import_price)
+            self.plan_guess = list(self._price_guess.get(self.conf.get(CONF_IMPORT_PRICE)) or [])
             self.reason = planner.explain(p, hours, room, s)
         finally:
             self._planning = False
 
     async def _async_control(self, t: float) -> None:
         if self.mode == "off" or self.plan is None or self.plan.first is None:
-            self.decision = control.Decision(None, "Roost is off" if self.mode == "off" else self.reason, self.thermostat_sp())
+            self.decision = control.Decision(None, Reason("off") if self.mode == "off" else self.reason, self.thermostat_sp())
             return
         d = control.decide(t, self.plan.first.sp, self.thermostat_sp(), self.room(), float(self.conf[CONF_DAY_MIN]) if self.plan_hours and self.plan_hours[0].day else float(self.conf[CONF_NIGHT_MIN]),
                            self.mem, self.control_settings(), self.mode == "active")

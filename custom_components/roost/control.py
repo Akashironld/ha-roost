@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 
+from .reasons import Reason
+
 
 @dataclass
 class ControlSettings:
@@ -40,25 +42,32 @@ class ControlMemory:
 @dataclass
 class Decision:
     setpoint: float | None        # send this, or None
-    reason: str
+    why: Reason
     effective: float | None       # what the thermostat has (or would have) after this decision
+
+    @property
+    def reason(self) -> str:
+        return str(self.why)
+
+    def as_dict(self) -> dict:
+        return {"setpoint": self.setpoint, "why": self.why.as_dict(), "effective": self.effective}
 
 
 def decide(now: float, planned: float | None, thermostat_sp: float | None, room: float | None, hard_min: float,
            mem: ControlMemory, cs: ControlSettings, active: bool) -> Decision:
     current = thermostat_sp if (active or mem.virtual_sp is None) else mem.virtual_sp
     if planned is None:
-        return Decision(None, "no plan", current)
+        return Decision(None, Reason("no_plan"), current)
     if mem.pause_until and now < mem.pause_until:
         mins = round((mem.pause_until - now) / 60)
-        return Decision(None, f"changed by hand: leaving the thermostat alone for {mins} more min", current)
+        return Decision(None, Reason("paused", {"min": mins}), current)
     if current is not None and abs(planned - current) < cs.tolerance:
-        return Decision(None, "thermostat already right", current)
+        return Decision(None, Reason("already_right"), current)
     urgent = room is not None and room < hard_min - 0.3 and (current is None or planned > current)
     if not urgent and mem.last_write is not None and (now - mem.last_write) / 60 < cs.min_interval_min:
         wait = cs.min_interval_min - (now - mem.last_write) / 60
-        return Decision(None, f"next change allowed in {wait:.0f} min", current)
+        return Decision(None, Reason("wait", {"min": round(wait)}), current)
     mem.last_write, mem.last_sp = now, planned
     if not active:
         mem.virtual_sp = planned
-    return Decision(planned, "room below the minimum: correcting now" if urgent else "following the plan", planned)
+    return Decision(planned, Reason("urgent" if urgent else "following"), planned)

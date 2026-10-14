@@ -47,13 +47,21 @@ class SetpointSensor(RoostEntity, SensorEntity):
         m = self.mgr
         p, d = m.plan, m.decision
         s = m.settings()
-        attrs = {"mode": m.mode, "reason": m.reason, "decision": d.reason if d else None, "room": m.room(),
+        # English text for automations and logs; code + args so the card can show it in the user's language
+        attrs = {"mode": m.mode, "reason": str(m.reason), "reason_code": m.reason.code, "reason_args": m.reason.args,
+                 "decision": d.reason if d else None, "decision_code": d.why.code if d else None,
+                 "decision_args": d.why.args if d else None, "room": m.room(),
                  "thermostat": m.thermostat_sp(), "storage_kwh": round(m.storage_e, 1),
                  "paused_until": datetime.fromtimestamp(m.mem.pause_until, tz=dt_util.UTC).isoformat() if m.mem.pause_until else None,
                  "comfort": s.comfort, "day_min": s.day_min, "night_min": s.night_min, "store_max": s.store_max}
         if p:
             attrs["start"] = datetime.fromtimestamp(m.plan_at - m.plan_at % 3600, tz=dt_util.UTC).isoformat() if m.plan_at else None
-            attrs["plan"] = [[h.sp, round(h.t_end, 1), round(h.kwh, 2), round(h.price * 100, 1)] for h in p.hours]
+            # per hour: setpoint, room expected, kWh, price the planner uses (ct; the battery's refill cost when the
+            # battery supplies), import tariff (ct), 1 when that tariff is not known yet and filled in
+            tar, gss = m.plan_tariff, m.plan_guess
+            attrs["plan"] = [[h.sp, round(h.t_end, 1), round(h.kwh, 2), round(h.price * 100, 1),
+                              round(tar[i] * 100, 1) if i < len(tar) else None, 1 if i < len(gss) and gss[i] else 0]
+                             for i, h in enumerate(p.hours)]
             attrs["day_hours"] = [1 if h.day else 0 for h in m.plan_hours[:len(p.hours)]]
             attrs["cost_24h"] = round(p.cost, 2)
             attrs["steady_cost_24h"] = round(p.baseline_cost, 2)

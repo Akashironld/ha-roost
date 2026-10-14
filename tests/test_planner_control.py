@@ -12,6 +12,7 @@ heatpump = load("heatpump")
 planner = load("planner")
 control = load("control")
 value = load("value")
+series = load("series")
 
 HOUSE = model.HouseModel(C=19.1, H=0.122, g=5.8, lag=0.98, internal=-0.02, Hw=0.0073, source="learned")
 PUMP = heatpump.HeatPumpModel.for_profile("p80")
@@ -97,6 +98,7 @@ def test_control_sends_once_and_waits():
     assert d.setpoint == 21.0
     d = control.decide(NOW + 600, 20.0, 21.0, 20.8, 20.0, mem, CS, True)
     assert d.setpoint is None and "next change" in d.reason
+    assert d.why.code == "wait" and d.why.args == {"min": 50}       # code + values for the card's own language
     d = control.decide(NOW + 3700, 20.0, 21.0, 20.8, 20.0, mem, CS, True)
     assert d.setpoint == 20.0
 
@@ -108,7 +110,7 @@ def test_control_tolerance_pause_and_urgent():
     assert control.decide(NOW, 22.0, 20.5, 20.6, 20.0, mem, CS, True).setpoint is None
     mem = control.ControlMemory(last_write=NOW - 60)
     d = control.decide(NOW, 20.5, 19.5, 19.4, 20.0, mem, CS, True)
-    assert d.setpoint == 20.5 and "minimum" in d.reason
+    assert d.setpoint == 20.5 and "minimum" in d.reason and d.why.code == "urgent"
 
 
 def test_control_shadow_keeps_virtual_setpoint():
@@ -134,6 +136,23 @@ def test_planner_prices_split():
     pr = value.planner_prices(inp, ev)
     assert pr[1].own_kw > 2 and pr[1].p_own == 0.05 and pr[1].p_grid == 0.30
     assert pr[0].own_kw == 0 and pr[0].p_grid == 0.30
+
+
+
+def test_price_gaps_filled_with_the_day_before():
+    # forecast until midnight (3 hours known), tomorrow's prices not published yet
+    start = 1_800_000_000 - 1_800_000_000 % 3600
+    vals = [0.25, 0.46, 0.37, None, None, None]
+    seen = {start + 3 * 3600 - 86400: 0.22, start + 5 * 3600 - 2 * 86400: 0.20}
+    out, guess = series.fill_gaps(vals, start, seen)
+    assert out == [0.25, 0.46, 0.37, 0.22, 0.37, 0.20]   # a day earlier, nothing known (last value), two days earlier
+    assert guess == [False, False, False, True, True, True]
+
+
+def test_slots_from_state_changes():
+    sl = series.slots_from_changes([(7200, 0.3), (0, 0.2)], 10800)
+    assert sl == [(0, 7200, 0.2), (7200, 10800, 0.3)]
+    assert series.hourly(sl, 0, 3, fill_last=False) == [0.2, 0.2, 0.3]
 
 
 if __name__ == "__main__":

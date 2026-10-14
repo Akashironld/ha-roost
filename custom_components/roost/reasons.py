@@ -1,0 +1,41 @@
+"""Why Roost plans or does what it does: a code with values, so the card can show it in the user's language.
+
+The English text stays available as str(reason), for the state attributes and the logs. The card holds the same
+codes in its own language tables; a code it does not know falls back to this English text.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+EN = {
+    "starting": "starting",
+    "no_price": "no price",
+    "no_room": "no room temperature",
+    "no_weather": "no weather forecast and no outdoor temperature",
+    "no_plan": "no plan",
+    "off": "Roost is off",
+    # planner: the first hour
+    "store_solar": "storing heat on own solar (up to {sp:g} °C)",
+    "store_cheap": "storing heat now ({ct:.0f} ct) before more expensive hours",
+    "expensive": "expensive hour ({ct:.0f} ct): running on stored heat",
+    "warm_enough": "warm enough ({room:.1f} °C): no heat needed",
+    "holding": "holding {sp:g} °C",
+    # control: what happens with the thermostat
+    "paused": "changed by hand: leaving the thermostat alone for {min:.0f} more min",
+    "already_right": "thermostat already right",
+    "wait": "next change allowed in {min:.0f} min",
+    "urgent": "room below the minimum: correcting now",
+    "following": "following the plan",
+}
+
+
+@dataclass(frozen=True)
+class Reason:
+    code: str
+    args: dict = field(default_factory=dict)
+
+    def __str__(self) -> str:
+        return EN[self.code].format(**self.args)
+
+    def as_dict(self) -> dict:
+        return {"code": self.code, "args": dict(self.args), "text": str(self)}

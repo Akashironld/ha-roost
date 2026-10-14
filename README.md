@@ -51,12 +51,36 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
    then (optionally) solar, battery and weather, and your comfort temperatures.
 4. Add the card: *Edit dashboard → Add card → Roost*.
 
+## Card options
+
+All options are also in the visual editor.
+
+| Option | What | Default |
+|---|---|---|
+| `entity` | the *Planned setpoint* sensor of Roost | required |
+| `title` | own title | `Roost` |
+| `compact` | only the header and the tiles (room, thermostat, planned) — handy on a wall tablet | `false` |
+| `show_tiles` | room, thermostat and planned setpoint | `true` |
+| `show_chart` | the 24-hour plan | `true` (`false` in compact) |
+| `show_footer` | the saving | `true` (`false` in compact) |
+| `language` | `en` or `nl`; by default the language of your Home Assistant profile | |
+| `time_format` | `24` or `12`; by default your profile | |
+
+A `show_…` option you set yourself always wins, so you can start from `compact` and add a part back:
+
+```yaml
+type: custom:roost-card
+entity: sensor.roost_planned_setpoint
+compact: true
+show_chart: true
+```
+
 ## Entities
 
 | Entity | What |
 |---|---|
 | `select.roost_mode` | off / shadow / active |
-| `sensor.roost_planned_setpoint` | the setpoint Roost wants now; reason, decision and the 24-hour plan in the attributes |
+| `sensor.roost_planned_setpoint` | the setpoint Roost wants now; reason, decision and the 24-hour plan in the attributes (`reason`/`decision` in English, `reason_code`/`decision_code` with their `_args` for your own translations) |
 | `sensor.roost_expected_saving_next_24_h` | against a steady thermostat at your comfort temperature |
 | `sensor.roost_saving_yesterday`, `sensor.roost_saving_this_month` | the day replayed with the same model, weather and prices |
 | `sensor.roost_heating_cost_today` | heat pump electricity for space heating × the price of each hour |
