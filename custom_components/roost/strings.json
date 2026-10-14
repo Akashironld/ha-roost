@@ -12,7 +12,8 @@
           "price_mode": "Electricity price",
           "import_price": "Electricity price sensor (with forecast)",
           "export_price": "Export price",
-          "import_weheat_history": "Import the heat pump's history from Weheat now"
+          "import_weheat_history": "Import the heat pump's history from Weheat now",
+          "use_bag": "Building data from the Dutch building register (BAG)"
         },
         "data_description": {
           "heat_pump": "The device of the official Weheat integration. Its sensors are found automatically.",
@@ -20,6 +21,7 @@
           "price_mode": "Dynamic: a sensor with hourly prices. Fixed: you enter your contract's rate (and a low rate if you have one) in the next step.",
           "import_price": "Only with a dynamic price. A sensor with prices for the coming hours in its attributes (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Without a forecast every hour costs the same.",
           "export_price": "Leave empty with net metering: export is then worth the import price.",
+          "use_bag": "Netherlands only. Sends your Home Assistant home location once to PDOK (Kadaster) to look up the construction year, floor area and outside walls of your house: better starting values and only the facade directions your house has. Roost keeps no address. Turning it off removes the data.",
           "import_weheat_history": "Read-only, through the login of your Weheat integration: up to 13 months of hourly logs (heat, electricity, states), so Roost knows your house and heat pump from day one. Takes a few minutes."
         }
       },
@@ -115,13 +117,15 @@
           "room_temperature": "Room temperature sensor (optional, better than the thermostat's)",
           "price_mode": "Electricity price",
           "import_price": "Electricity price sensor (with forecast)",
-          "export_price": "Export price"
+          "export_price": "Export price",
+          "use_bag": "Building data from the Dutch building register (BAG)"
         },
         "data_description": {
           "thermostat": "Roost only changes this thermostat's target temperature, like you would. The heat pump must follow the thermostat (not its own heating curve).",
           "price_mode": "Dynamic: a sensor with hourly prices. Fixed: you enter your contract's rate (and a low rate if you have one) in the next step.",
           "import_price": "Only with a dynamic price. A sensor with prices for the coming hours in its attributes (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Without a forecast every hour costs the same.",
-          "export_price": "Leave empty with net metering: export is then worth the import price."
+          "export_price": "Leave empty with net metering: export is then worth the import price.",
+          "use_bag": "Netherlands only. Sends your Home Assistant home location once to PDOK (Kadaster) to look up the construction year, floor area and outside walls of your house: better starting values and only the facade directions your house has. Roost keeps no address. Turning it off removes the data."
         }
       },
       "price": {

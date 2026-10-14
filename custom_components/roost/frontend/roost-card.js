@@ -1,6 +1,6 @@
 /* Roost card - served by the roost integration. */
 (() => {   // own scope: safe if the file is loaded twice as a classic script (legacy frontend + a manual resource)
-const CARD_VERSION = "0.3.1";
+const CARD_VERSION = "0.3.2";
 
 // Plain ES2017 on purpose (no ?. / ??), ASCII only (\u escapes): wall tablets often run an older browser.
 const nn = (a, b) => (a === null || a === undefined ? b : a);

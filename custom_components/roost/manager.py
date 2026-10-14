@@ -19,7 +19,7 @@ from homeassistant.helpers.event import async_track_state_change_event, async_tr
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from . import check, comfort, control, heatpump, history, model, planner, response, series, sun, value, weather as om
+from . import building, check, comfort, control, heatpump, history, model, planner, response, series, sun, value, weather as om
 from .const import (
     CONF_BASELINE_NIGHT, CONF_BATTERY_KW, CONF_BATTERY_KWH, CONF_BATTERY_POWER, CONF_BATTERY_RESERVE, CONF_BATTERY_SOC,
     CONF_COMFORT, CONF_DAY_FROM, CONF_DAY_MIN, CONF_DAY_TO, CONF_EXPORT_PRICE, CONF_GRID_POWER, CONF_GRID_PREFERENCE,
@@ -27,6 +27,7 @@ from .const import (
     CONF_MIN_INTERVAL, CONF_NIGHT_MIN, CONF_PAUSE_HOURS, CONF_PV_FORECAST, CONF_PV_FORECAST_TOMORROW, CONF_PV_POWER,
     CONF_ROOM, CONF_STORE_MAX, CONF_THERMOSTAT, CONF_WEATHER, CONF_WEATHER_SOURCE, DEFAULTS, DOMAIN, HISTORY_DAYS,
     CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND, CONF_PRICE_MODE,
+    CONF_USE_BAG,
     LEARN_HOUR, LEARN_MINUTE, PLAN_MINUTES, STORAGE_VERSION, TICK_SECONDS, WEATHER_MINUTES, WEHEAT, WEHEAT_IMPORT_DAYS,
 )
 from .reasons import Reason
@@ -104,6 +105,7 @@ class RoostManager:
         self.importing = False
         self.check: dict = {}                       # nightly self-check (check.self_check)
         self.changes: list[dict] = []               # changes by hand while active: {"ts", "from", "to", "room"}
+        self.building: dict | None = None           # opt-in BAG data: {"lat", "lon", "year", "area_m2", "walls"} (no address)
         self.suggestion: comfort.Suggestion | None = None
         self.ready: bool = False
         self.ready_missing: list[str] = []
@@ -153,6 +155,9 @@ class RoostManager:
         self.price_seen = {e: {int(k): v for k, v in d.items()} for e, d in (data.get("price_seen") or {}).items()}
         self.check = data.get("check") or {}
         self.changes = data.get("changes") or []
+        self.building = data.get("building") if self.conf.get(CONF_USE_BAG) else None
+        if self.house.source != "learned" and building.prior(self.building):
+            self.house = model.HouseModel(**{**model.PRIOR, **building.prior(self.building)}, source="building register")
         self.ready, self.ready_missing = check.readiness(self.check, None) if self.check else (False, [])
         self._weheat_hours = {int(k): v for k, v in (hist.get("weheat") or {}).items()}
         self._weather_hist = {int(k): tuple(v) for k, v in (hist.get("weather") or {}).items()}
@@ -161,7 +166,33 @@ class RoostManager:
         self._unsubs.append(async_track_state_change_event(self.hass, [self.conf[CONF_THERMOSTAT]], self._on_thermostat))
         self.hass.async_create_task(self._async_first_run())
 
+    async def _async_building(self) -> None:
+        """Opt-in: the building register (BAG via PDOK) around the home location, once (again when the home moves).
+        Only the construction year, the floor area and the directions of the outside walls are kept."""
+        if not self.conf.get(CONF_USE_BAG):
+            return
+        lat, lon = round(self.hass.config.latitude, 5), round(self.hass.config.longitude, 5)
+        if self.building and abs(self.building.get("lat", 0) - lat) < 1e-4 and abs(self.building.get("lon", 0) - lon) < 1e-4:
+            return
+        bb = building.bbox(lat, lon)
+        session = async_get_clientsession(self.hass)
+        try:
+            got = {}
+            for kind in ("pand", "verblijfsobject"):
+                async with session.get(building.WFS.format(kind=kind, **bb), timeout=30) as r:
+                    r.raise_for_status()
+                    got[kind] = await r.json(content_type=None)
+            b = await self.hass.async_add_executor_job(building.parse, got["pand"], got["verblijfsobject"], lat, lon)
+        except Exception as err:  # noqa: BLE001 - optional: without it Roost starts from a generic house
+            _LOGGER.info("Roost: building register not available: %s", err)
+            return
+        self.building = {**b, "lat": lat, "lon": lon} if b else {"lat": lat, "lon": lon, "none": True}
+        if b and self.house.source != "learned" and building.prior(b):
+            self.house = model.HouseModel(**{**model.PRIOR, **building.prior(b)}, source="building register")
+        await self.async_save()
+
     async def _async_first_run(self) -> None:
+        await self._async_building()
         await self._async_seed_prices()
         await self._async_tick(None, force_plan=True)
         if self.import_info.get("done") and self.import_info.get("fields", 1) < WEHEAT_FIELDS:
@@ -192,7 +223,8 @@ class RoostManager:
             "storage_e": round(self.storage_e, 3), "learn": self.learn_info, "import": self.import_info,
             "hour_log": self.hour_log[-60:], "saving_days": dict(sorted(self.saving_days.items())[-62:]),
             "pv_k": self.pv_k, "load_profile": self.load_profile, "price_seen": self._price_seen_recent(),
-            "check": self.check, "changes": [c for c in self.changes if c["ts"] > time.time() - 30 * 86400]})
+            "check": self.check, "changes": [c for c in self.changes if c["ts"] > time.time() - 30 * 86400],
+            "building": self.building})
 
     def _price_seen_recent(self) -> dict[str, dict[str, float]]:
         cut = time.time() - 3 * 86400
@@ -750,7 +782,8 @@ class RoostManager:
                 wx = wx_all.get(ts)
                 return sun.effective(ts, wx, lat, lon, facade, vertical) if wx else 0.0
             hours = {r.ts: self.local_hour(r.ts) for r in rows}
-            house = await self.hass.async_add_executor_job(model.learn, rows, self.house, eff, hours.__getitem__)
+            house = await self.hass.async_add_executor_job(model.learn, rows, self.house, eff, hours.__getitem__,
+                                                           building.prior(self.building), building.facades(self.building, model.FACADES))
             # from here on the rows carry the sun on the learned facade and their local hour
             hm = house.model
             rows = [replace(r, rad=eff(r.ts, hm.sun_facade, hm.sun_vertical) if hm.sun_vertical > 0 else r.rad, hour=hours[r.ts]) for r in rows]

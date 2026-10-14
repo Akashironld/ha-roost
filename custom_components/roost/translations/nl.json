@@ -12,7 +12,8 @@
           "price_mode": "Stroomprijs",
           "import_price": "Stroomprijssensor (met verwachting)",
           "export_price": "Terugleverprijs",
-          "import_weheat_history": "Historie van de warmtepomp nu uit Weheat importeren"
+          "import_weheat_history": "Historie van de warmtepomp nu uit Weheat importeren",
+          "use_bag": "Gebouwgegevens uit de BAG (Kadaster)"
         },
         "data_description": {
           "heat_pump": "Het apparaat van de officiële Weheat-integratie. De sensoren worden automatisch gevonden.",
@@ -20,6 +21,7 @@
           "price_mode": "Dynamisch: een sensor met uurprijzen. Vast: je vult in de volgende stap het tarief van je contract in (en een daltarief als je dat hebt).",
           "import_price": "Alleen bij een dynamische prijs. Een sensor met prijzen voor de komende uren in de attributen (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Zonder verwachting kost elk uur hetzelfde.",
           "export_price": "Leeg laten bij salderen: teruglevering is dan de afnameprijs waard.",
+          "use_bag": "Alleen Nederland. Stuurt de thuislocatie van Home Assistant één keer naar PDOK (Kadaster) om bouwjaar, woonoppervlak en buitenmuren van je huis op te zoeken: betere startwaarden en alleen de gevelrichtingen die je huis heeft. Roost bewaart geen adres. Uitzetten wist de gegevens.",
           "import_weheat_history": "Alleen lezen, via de login van je Weheat-integratie: tot 13 maanden aan uurlogboeken (warmte, stroom, standen), zodat Roost je huis en warmtepomp vanaf dag één kent. Duurt een paar minuten."
         }
       },
@@ -115,13 +117,15 @@
           "room_temperature": "Kamertemperatuursensor (optioneel, beter dan die van de thermostaat)",
           "price_mode": "Stroomprijs",
           "import_price": "Stroomprijssensor (met verwachting)",
-          "export_price": "Terugleverprijs"
+          "export_price": "Terugleverprijs",
+          "use_bag": "Gebouwgegevens uit de BAG (Kadaster)"
         },
         "data_description": {
           "thermostat": "Roost verandert alleen de ingestelde temperatuur van deze thermostaat, zoals jij dat ook doet. De warmtepomp moet de thermostaat volgen (niet zijn eigen stooklijn).",
           "price_mode": "Dynamisch: een sensor met uurprijzen. Vast: je vult in de volgende stap het tarief van je contract in (en een daltarief als je dat hebt).",
           "import_price": "Alleen bij een dynamische prijs. Een sensor met prijzen voor de komende uren in de attributen (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Zonder verwachting kost elk uur hetzelfde.",
-          "export_price": "Leeg laten bij salderen: teruglevering is dan de afnameprijs waard."
+          "export_price": "Leeg laten bij salderen: teruglevering is dan de afnameprijs waard.",
+          "use_bag": "Alleen Nederland. Stuurt de thuislocatie van Home Assistant één keer naar PDOK (Kadaster) om bouwjaar, woonoppervlak en buitenmuren van je huis op te zoeken: betere startwaarden en alleen de gevelrichtingen die je huis heeft. Roost bewaart geen adres. Uitzetten wist de gegevens."
         }
       },
       "price": {

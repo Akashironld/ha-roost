@@ -202,7 +202,18 @@ class HouseModelSensor(RoostEntity, SensorEntity):
                 "heating_days": h.heating_days, "source": h.source,
                 "sun_facade": {90.0: "east", 135.0: "south-east", 180.0: "south", 225.0: "south-west", 270.0: "west"}.get(h.sun_facade, h.sun_facade)
                 if h.sun_vertical > 0 else "horizontal", "sun_on_facade_share": h.sun_vertical,
-                "internal_gain_per_hour_kw": h.profile, "learning": self.mgr.learn_info}
+                "internal_gain_per_hour_kw": h.profile, "building": _building(self.mgr.building), "learning": self.mgr.learn_info}
+
+
+def _building(b: dict | None) -> dict | None:
+    """Opt-in building register data, without the location."""
+    if not b or b.get("none"):
+        return None
+    walls: dict[str, float] = {}
+    for az, m in b.get("walls") or []:
+        name = ("north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west")[int(((az + 22.5) % 360) // 45)]
+        walls[name] = round(walls.get(name, 0.0) + m, 1)
+    return {"construction_year": b.get("year"), "floor_area_m2": b.get("area_m2"), "outside_walls_m": walls}
 
 
 class HeatPumpModelSensor(RoostEntity, SensorEntity):

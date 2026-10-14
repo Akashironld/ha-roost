@@ -253,15 +253,18 @@ def residual_profile(p: dict, idx: dict[int, HourRow], days: list[int], local_ho
 
 
 def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, float], float] | None = None,
-          local_hour: Callable[[int], int] | None = None) -> LearnResult:
+          local_hour: Callable[[int], int] | None = None, prior: dict | None = None,
+          facades: tuple[float, ...] | None = None) -> LearnResult:
     """eff(ts, facade, vertical): the sun on that facade in that hour (sun.effective), None: global radiation only.
-    local_hour(ts): for the internal gains per hour of the day."""
+    local_hour(ts): for the internal gains per hour of the day. prior: starting values that replace the generic house
+    (building.prior). facades: the directions with an outside wall (building.facades; None: all)."""
+    base = {**PRIOR, **(prior or {})}
     rows = [r for r in rows if 5.0 < r.T < 35.0 and -40.0 < r.T_out < 45.0 and r.Q >= 0]
     days = select_days(rows)
     if len(days) < 7 + TEST_DAYS:
         return LearnResult(previous, False, f"not enough complete days yet ({len(days)}, need {7 + TEST_DAYS})")
     train, test = days[:-TEST_DAYS], days[-TEST_DAYS:]
-    centre = previous.params() if previous.source == "learned" else dict(PRIOR)
+    centre = previous.params() if previous.source == "learned" else dict(base)
     cache: dict[tuple, dict[int, HourRow]] = {}
 
     def idx_for(facade: float, vertical: float) -> dict[int, HourRow]:
@@ -278,7 +281,7 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
     odd = [d for d in days if (d // 7) % 2]
     even = [d for d in days if not (d // 7) % 2]
     sel_train, sel_test = (odd, even) if len(odd) >= 10 and len(even) >= 10 else (train, test)
-    suns = [(180.0, 0.0)] + ([(f, v) for f in FACADES for v in VERTICAL] if eff else [])
+    suns = [(180.0, 0.0)] + ([(f, v) for f in (FACADES if facades is None else facades) for v in VERTICAL] if eff else [])
     tried = []
     for f, v in suns:
         ix = idx_for(f, v)
@@ -290,7 +293,7 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
     ix_new = idx_for(facade, vertical)
     options = [("new", candidate, ix_new, None),
                ("previous", previous.params(), idx_for(previous.sun_facade, previous.sun_vertical), previous.profile),
-               ("default", dict(PRIOR), idx_for(180.0, 0.0), None)]
+               ("default", dict(base), idx_for(180.0, 0.0), None)]
     scores = {}
     for name, p, ix, prof in options:
         e = errors(p, ix, test, extra_for(prof)) if within(p) else None
@@ -320,6 +323,6 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
                        error_balance=round(err[1], 3), days=len(days), heating_days=heating, source="learned",
                        sun_facade=facade, sun_vertical=vertical, profile=profile)
         return LearnResult(m, True, "new model adopted", rounded)
-    keep = previous if choice == "previous" else HouseModel()
+    keep = previous if choice == "previous" else HouseModel(**base)
     keep = HouseModel.from_dict({**keep.as_dict(), "error_t": round(scores[choice][0], 3), "error_balance": round(scores[choice][1], 3)})
     return LearnResult(keep, False, f"{choice} model predicts the last days better: kept", rounded)
