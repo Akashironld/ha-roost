@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.1 — setup by subject (unreleased)
+
+- Setup and options by subject: the heat pump and thermostat, the house, the electricity price, solar and home
+  battery (two ticks first: only the fields for what the house has), comfort with the regulation and the weather
+  folded away under *Advanced*. The options menu shows what is set now; each part saves when submitted
+- Likely entities are filled in: the thermostat (a climate entity that heats and does not cool), the room sensor (in
+  the thermostat's area, else the living room), price sensors with a forecast, solar/grid/battery/house power of one
+  inverter, solar forecasts
+- Comfort settings filled in from the thermostat's last days: the comfort hours, the comfort temperature, the night
+  minimum (at most 1.5 °C below comfort: a heat pump does badly with a deep setback)
+
 ## v0.4.0 — extra rooms (unreleased)
 
 - Extra rooms the heat pump also heats (radiators upstairs, a bedroom): *Add room* on the integration page, with a

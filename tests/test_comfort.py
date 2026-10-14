@@ -65,5 +65,19 @@ def test_a_schedule_is_not_a_person():
     assert comfort.scheduled(human, local_minute, NOW) == []
 
 
+
+def test_comfort_from_the_thermostats_history():
+    def sp(h):
+        return 20.5 if 7 <= h < 14 or 17 <= h < 22 else (21.0 if 14 <= h < 17 else 19.5)
+    samples = [(h, sp(h)) for _d in range(14) for h in range(24)]
+    got = comfort.from_history(samples)
+    assert got == {"day_from": 7, "day_to": 22, "comfort": 20.5, "day_min": 20.0, "night_min": 19.5, "store_max": 22.5}, got
+    flat = comfort.from_history([(h, 20.0) for _d in range(10) for h in range(24)])
+    assert flat["comfort"] == 20.0 and (flat["day_from"], flat["day_to"]) == (7, 22) and flat["night_min"] == 19.0
+    deep = comfort.from_history([(h, 21.0 if 6 <= h < 23 else 15.0) for _d in range(10) for h in range(24)])
+    assert deep["night_min"] == 19.5 and (deep["day_from"], deep["day_to"]) == (6, 23)      # at most 1.5 °C setback
+    assert comfort.from_history([(12, 20.0)] * 30) is None                                  # too little
+
+
 if __name__ == "__main__":
     run_all(dict(globals()))

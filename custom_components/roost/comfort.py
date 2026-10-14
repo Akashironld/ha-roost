@@ -60,6 +60,46 @@ def scheduled(changes: list[dict], local_minute: Callable[[float], tuple[str, in
     return out
 
 
+def _r(x: float) -> float:
+    return round(x * 2) / 2
+
+
+def from_history(samples: list[tuple[int, float]]) -> dict | None:
+    """Comfort settings from the thermostat's last weeks: samples (local hour, setpoint) for every hour.
+    The comfort hours are the longest run of hours whose usual setpoint is in the upper half; the comfort temperature is
+    their usual setpoint; the night minimum the usual night setpoint, but at most 1.5 °C below comfort (a heat pump does
+    badly with a deep night setback); the day minimum half a degree below comfort; storing heat up to 2 °C above it."""
+    per: dict[int, list[float]] = {}
+    for h, sp in samples:
+        if 5.0 <= sp <= 30.0:
+            per.setdefault(h % 24, []).append(sp)
+    if len(per) < 20 or sum(len(v) for v in per.values()) < 24 * 3:          # three days are enough for a start
+        return None
+    med = {h: _median(v) for h, v in per.items()}
+    hi, lo = max(med.values()), min(med.values())
+    if hi - lo >= 0.5:
+        mid = (hi + lo) / 2
+        warm = [h for h in range(24) if med.get(h, lo) >= mid]
+        best, cur = [], []
+        for h in list(range(24)) * 2:                       # twice round: a run may pass midnight
+            cur = cur + [h] if h in warm and len(cur) < 24 else ([h] if h in warm else [])
+            if len(cur) > len(best):
+                best = list(cur)
+        day_from, day_to = best[0], (best[-1] + 1) % 24 or 24
+        if day_to <= day_from:                             # a run through midnight: keep a plain day
+            day_from, day_to = 7, 22
+        comfort = _r(_median([med[h] for h in best if h in med]))
+        night = _r(_median([med[h] for h in med if h not in best])) if len(best) < 24 else comfort - 1.0
+    else:
+        day_from, day_to = 7, 22
+        comfort = _r(_median(list(med.values())))
+        night = comfort - 1.0
+    comfort = max(18.0, min(23.0, comfort))
+    night = max(16.0, max(comfort - 1.5, min(comfort, night)))
+    return {"day_from": day_from, "day_to": day_to, "comfort": comfort, "day_min": comfort - 0.5,
+            "night_min": night, "store_max": min(25.0, comfort + 2.0)}
+
+
 def suggest(changes: list[dict], local: Callable[[float], tuple[str, int]], now_ts: float, day_from: int, day_to: int,
             comfort: float, day_min: float) -> Suggestion | None:
     """changes: [{"ts", "from", "to"}]; local(ts) -> (local date, local hour). The pattern seen on the most days wins.

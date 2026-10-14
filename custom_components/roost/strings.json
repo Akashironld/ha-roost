@@ -3,32 +3,49 @@
     "step": {
       "user": {
         "title": "Roost",
-        "description": "Roost plans your Weheat heat pump's thermostat 24 hours ahead on price, weather and the heat your house stores. It starts in shadow mode: it only shows what it would do.",
+        "description": "Roost plans your Weheat heat pump's thermostat 24 hours ahead on price, weather and the heat your house stores. It starts in shadow mode: it only shows what it would do. Found entities are filled in already; check them.",
         "data": {
           "name": "Name",
           "heat_pump": "Weheat heat pump",
           "thermostat": "Thermostat that drives the heat pump",
-          "room_temperature": "Room temperature sensor (optional, better than the thermostat's)",
-          "emitter": "Heat emitters",
-          "price_mode": "Electricity price",
-          "import_price": "Electricity price sensor (with forecast)",
-          "export_price": "Export price",
-          "import_weheat_history": "Import the heat pump's history from Weheat now",
-          "use_bag": "Building data from the Dutch building register (BAG)"
+          "import_weheat_history": "Import the heat pump's history from Weheat now"
         },
         "data_description": {
           "heat_pump": "The device of the official Weheat integration. Its sensors are found automatically.",
           "thermostat": "Roost only changes this thermostat's target temperature, like you would. The heat pump must follow the thermostat (not its own heating curve).",
-          "emitter": "Floor heating holds a lot of heat and reaches the room slowly; radiators react in minutes and the house itself is the buffer. Only the starting values: Roost learns your house from its data.",
-          "price_mode": "Dynamic: a sensor with hourly prices. Fixed: you enter your contract's rate (and a low rate if you have one) in the next step.",
-          "import_price": "Only with a dynamic price. A sensor with prices for the coming hours in its attributes (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Without a forecast every hour costs the same.",
-          "export_price": "Leave empty with net metering: export is then worth the import price.",
-          "use_bag": "Netherlands only. Sends your Home Assistant home location once to PDOK (Kadaster) to look up the construction year, floor area and outside walls of your house: better starting values and only the facade directions your house has. Roost keeps no address. Turning it off removes the data.",
           "import_weheat_history": "Read-only, through the login of your Weheat integration: up to 13 months of hourly logs (heat, electricity, states), so Roost knows your house and heat pump from day one. Takes a few minutes."
         }
       },
+      "house": {
+        "title": "The house",
+        "description": "A separate room sensor is better than the thermostat's own reading.",
+        "data": {
+          "room_temperature": "Room temperature sensor (optional, better than the thermostat's)",
+          "emitter": "Heat emitters",
+          "use_bag": "Building data from the Dutch building register (BAG)"
+        },
+        "data_description": {
+          "emitter": "Floor heating holds a lot of heat and reaches the room slowly; radiators react in minutes and the house itself is the buffer. Only the starting values: Roost learns your house from its data.",
+          "use_bag": "Netherlands only. Sends your Home Assistant home location once to PDOK (Kadaster) to look up the construction year, floor area and outside walls of your house: better starting values and only the facade directions your house has. Roost keeps no address. Turning it off removes the data."
+        }
+      },
       "price": {
+        "title": "Electricity price",
+        "description": "A dynamic contract: choose the sensor with the prices of the coming hours. A fixed contract: choose 'Fixed price' and enter it in the next step.",
+        "data": {
+          "price_mode": "Electricity price",
+          "import_price": "Electricity price sensor (with forecast)",
+          "export_price": "Export price"
+        },
+        "data_description": {
+          "price_mode": "Dynamic: a sensor with hourly prices. Fixed: you enter your contract's rate (and a low rate if you have one) in the next step.",
+          "import_price": "Only with a dynamic price. A sensor with prices for the coming hours in its attributes (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Without a forecast every hour costs the same.",
+          "export_price": "Leave empty with net metering: export is then worth the import price."
+        }
+      },
+      "price_fixed": {
         "title": "Fixed price",
+        "description": "As on your bill, all in.",
         "data": {
           "fixed_price": "Price per kWh (normal rate)",
           "fixed_low_price": "Low rate per kWh (optional)",
@@ -44,50 +61,74 @@
           "fixed_export_price": "Leave empty with net metering: export is then worth the import price."
         }
       },
-      "energy": {
-        "title": "Solar, battery and weather (optional)",
+      "solar": {
+        "title": "Solar and home battery",
+        "description": "Tick what your house has; only those fields follow. Without either, skip this.",
         "data": {
-          "grid_power": "Grid power",
-          "grid_sign": "Sign of the grid power",
+          "has_solar": "I have solar panels",
+          "has_battery": "I have a home battery"
+        },
+        "data_description": {
+          "has_solar": "Roost then counts own solar at what exporting it would earn.",
+          "has_battery": "Roost then values energy from the battery at what refilling it costs."
+        }
+      },
+      "solar_details": {
+        "title": "Solar and home battery",
+        "description": "Found entities are filled in; check them. All fields are optional.",
+        "data": {
           "pv_power": "Solar power",
           "pv_forecast": "Solar forecast today",
           "pv_forecast_tomorrow": "Solar forecast tomorrow",
+          "grid_power": "Grid power",
+          "grid_sign": "Sign of the grid power",
           "battery_soc": "Home battery state of charge",
           "battery_power": "Home battery power (+ = discharging)",
           "battery_kwh": "Usable battery capacity",
           "battery_kw": "Maximum battery charge power",
           "battery_reserve": "Battery reserve",
           "house_power": "House power (for the usage profile)",
-          "grid_preference": "Preference for own energy (added per kWh from the grid)",
-          "weather_source": "Weather forecast",
-          "weather_entity": "Weather entity"
+          "grid_preference": "Preference for own energy (added per kWh from the grid)"
         },
         "data_description": {
           "grid_power": "All optional. With solar, Roost sees real solar surplus (export minus battery discharge, at most the solar power).",
-          "battery_power": "Needed to tell solar export from a battery selling to the grid.",
-          "weather_source": "Open-Meteo needs no account and gives radiation and wind (the house model uses both)."
+          "battery_power": "Needed to tell solar export from a battery selling to the grid."
         }
       },
       "comfort": {
         "title": "Comfort",
+        "description": "Roost keeps the room at the comfort temperature in the comfort hours and never lets it get colder than the minimums. Filled in from your thermostat's last weeks where it could.",
         "data": {
           "day_from": "Comfort hours start",
           "day_to": "Comfort hours end",
           "comfort": "Comfort temperature (day)",
           "day_min": "Never below in the day",
           "night_min": "Never below at night",
-          "store_max": "Warmest while storing heat",
-          "max_above_room": "Setpoint at most this above the room",
-          "min_interval": "At most one change per",
-          "pause_hours": "Pause after a change by hand",
-          "baseline_night": "Night setback of the thermostat to compare with (0 = none)",
-          "lowest_setpoint": "Lowest thermostat setting"
+          "store_max": "Warmest while storing heat"
         },
         "data_description": {
-          "store_max": "Roost stores heat in the floor when an hour is cheap (or solar earns little) and an expensive one follows. Set it equal to the comfort temperature to switch that off.",
-          "max_above_room": "Keeps an OpenTherm thermostat asking for lukewarm water (high COP).",
-          "baseline_night": "The saving is shown against a steady thermostat at the comfort temperature, the usual advice for heat pumps.",
-          "lowest_setpoint": "Roost never sets the thermostat lower. A lower setting lets a slow heat pump stop sooner, but if Home Assistant is down the thermostat stays where Roost left it."
+          "store_max": "Roost stores heat in the floor (or the house) when an hour is cheap (or solar earns little) and an expensive one follows. Set it equal to the comfort temperature to switch that off."
+        },
+        "sections": {
+          "advanced": {
+            "name": "Advanced: regulation and weather",
+            "description": "The defaults suit most houses.",
+            "data": {
+              "lowest_setpoint": "Lowest thermostat setting",
+              "max_above_room": "Setpoint at most this above the room",
+              "min_interval": "At most one change per",
+              "pause_hours": "Pause after a change by hand",
+              "baseline_night": "Night setback of the thermostat to compare with (0 = none)",
+              "weather_source": "Weather forecast",
+              "weather_entity": "Weather entity"
+            },
+            "data_description": {
+              "lowest_setpoint": "Roost never sets the thermostat lower. A lower setting lets a slow heat pump stop sooner, but if Home Assistant is down the thermostat stays where Roost left it.",
+              "max_above_room": "Keeps an OpenTherm thermostat asking for lukewarm water (high COP).",
+              "baseline_night": "The saving is shown against a steady thermostat at the comfort temperature, the usual advice for heat pumps.",
+              "weather_source": "Open-Meteo needs no account and gives radiation and wind (the house model uses both)."
+            }
+          }
         }
       }
     },
@@ -96,7 +137,7 @@
       "comfort_below_min": "The comfort temperature must be at least the day minimum.",
       "store_below_comfort": "Storing heat must allow at least the comfort temperature.",
       "day_order": "The comfort hours must end after they start.",
-      "weather_needed": "Choose a weather entity.",
+      "weather_needed": "Choose a weather entity (under Advanced).",
       "lowest_above_comfort": "The lowest thermostat setting must not be above the comfort temperature.",
       "price_needed": "Choose a price sensor, or choose a fixed price."
     },
@@ -108,34 +149,46 @@
     "step": {
       "init": {
         "title": "Roost",
+        "description": "**The house:** {house}\n**Electricity price:** {price}\n**Solar and battery:** {solar}\n**Comfort:** {comfort}\n**Extra rooms:** {rooms} (add them on the integration page)\n\nEach part saves when you submit it.",
         "menu_options": {
-          "basics": "Thermostat and prices",
-          "energy": "Solar, battery and weather",
+          "house": "The house and the thermostat",
+          "price": "Electricity price",
+          "solar": "Solar and home battery",
           "comfort": "Comfort"
         }
       },
-      "basics": {
-        "title": "Thermostat and prices",
+      "house": {
+        "title": "The house",
+        "description": "A separate room sensor is better than the thermostat's own reading.",
         "data": {
           "thermostat": "Thermostat that drives the heat pump",
           "room_temperature": "Room temperature sensor (optional, better than the thermostat's)",
           "emitter": "Heat emitters",
-          "price_mode": "Electricity price",
-          "import_price": "Electricity price sensor (with forecast)",
-          "export_price": "Export price",
           "use_bag": "Building data from the Dutch building register (BAG)"
         },
         "data_description": {
           "thermostat": "Roost only changes this thermostat's target temperature, like you would. The heat pump must follow the thermostat (not its own heating curve).",
           "emitter": "Floor heating holds a lot of heat and reaches the room slowly; radiators react in minutes and the house itself is the buffer. Only the starting values: Roost learns your house from its data.",
-          "price_mode": "Dynamic: a sensor with hourly prices. Fixed: you enter your contract's rate (and a low rate if you have one) in the next step.",
-          "import_price": "Only with a dynamic price. A sensor with prices for the coming hours in its attributes (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Without a forecast every hour costs the same.",
-          "export_price": "Leave empty with net metering: export is then worth the import price.",
           "use_bag": "Netherlands only. Sends your Home Assistant home location once to PDOK (Kadaster) to look up the construction year, floor area and outside walls of your house: better starting values and only the facade directions your house has. Roost keeps no address. Turning it off removes the data."
         }
       },
       "price": {
+        "title": "Electricity price",
+        "description": "A dynamic contract: choose the sensor with the prices of the coming hours. A fixed contract: choose 'Fixed price' and enter it in the next step.",
+        "data": {
+          "price_mode": "Electricity price",
+          "import_price": "Electricity price sensor (with forecast)",
+          "export_price": "Export price"
+        },
+        "data_description": {
+          "price_mode": "Dynamic: a sensor with hourly prices. Fixed: you enter your contract's rate (and a low rate if you have one) in the next step.",
+          "import_price": "Only with a dynamic price. A sensor with prices for the coming hours in its attributes (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Without a forecast every hour costs the same.",
+          "export_price": "Leave empty with net metering: export is then worth the import price."
+        }
+      },
+      "price_fixed": {
         "title": "Fixed price",
+        "description": "As on your bill, all in.",
         "data": {
           "fixed_price": "Price per kWh (normal rate)",
           "fixed_low_price": "Low rate per kWh (optional)",
@@ -151,50 +204,74 @@
           "fixed_export_price": "Leave empty with net metering: export is then worth the import price."
         }
       },
-      "energy": {
-        "title": "Solar, battery and weather (optional)",
+      "solar": {
+        "title": "Solar and home battery",
+        "description": "Tick what your house has; only those fields follow. Without either, skip this.",
         "data": {
-          "grid_power": "Grid power",
-          "grid_sign": "Sign of the grid power",
+          "has_solar": "I have solar panels",
+          "has_battery": "I have a home battery"
+        },
+        "data_description": {
+          "has_solar": "Roost then counts own solar at what exporting it would earn.",
+          "has_battery": "Roost then values energy from the battery at what refilling it costs."
+        }
+      },
+      "solar_details": {
+        "title": "Solar and home battery",
+        "description": "Found entities are filled in; check them. All fields are optional.",
+        "data": {
           "pv_power": "Solar power",
           "pv_forecast": "Solar forecast today",
           "pv_forecast_tomorrow": "Solar forecast tomorrow",
+          "grid_power": "Grid power",
+          "grid_sign": "Sign of the grid power",
           "battery_soc": "Home battery state of charge",
           "battery_power": "Home battery power (+ = discharging)",
           "battery_kwh": "Usable battery capacity",
           "battery_kw": "Maximum battery charge power",
           "battery_reserve": "Battery reserve",
           "house_power": "House power (for the usage profile)",
-          "grid_preference": "Preference for own energy (added per kWh from the grid)",
-          "weather_source": "Weather forecast",
-          "weather_entity": "Weather entity"
+          "grid_preference": "Preference for own energy (added per kWh from the grid)"
         },
         "data_description": {
           "grid_power": "All optional. With solar, Roost sees real solar surplus (export minus battery discharge, at most the solar power).",
-          "battery_power": "Needed to tell solar export from a battery selling to the grid.",
-          "weather_source": "Open-Meteo needs no account and gives radiation and wind (the house model uses both)."
+          "battery_power": "Needed to tell solar export from a battery selling to the grid."
         }
       },
       "comfort": {
         "title": "Comfort",
+        "description": "Roost keeps the room at the comfort temperature in the comfort hours and never lets it get colder than the minimums. Filled in from your thermostat's last weeks where it could.",
         "data": {
           "day_from": "Comfort hours start",
           "day_to": "Comfort hours end",
           "comfort": "Comfort temperature (day)",
           "day_min": "Never below in the day",
           "night_min": "Never below at night",
-          "store_max": "Warmest while storing heat",
-          "max_above_room": "Setpoint at most this above the room",
-          "min_interval": "At most one change per",
-          "pause_hours": "Pause after a change by hand",
-          "baseline_night": "Night setback of the thermostat to compare with (0 = none)",
-          "lowest_setpoint": "Lowest thermostat setting"
+          "store_max": "Warmest while storing heat"
         },
         "data_description": {
-          "store_max": "Roost stores heat in the floor when an hour is cheap (or solar earns little) and an expensive one follows. Set it equal to the comfort temperature to switch that off.",
-          "max_above_room": "Keeps an OpenTherm thermostat asking for lukewarm water (high COP).",
-          "baseline_night": "The saving is shown against a steady thermostat at the comfort temperature, the usual advice for heat pumps.",
-          "lowest_setpoint": "Roost never sets the thermostat lower. A lower setting lets a slow heat pump stop sooner, but if Home Assistant is down the thermostat stays where Roost left it."
+          "store_max": "Roost stores heat in the floor (or the house) when an hour is cheap (or solar earns little) and an expensive one follows. Set it equal to the comfort temperature to switch that off."
+        },
+        "sections": {
+          "advanced": {
+            "name": "Advanced: regulation and weather",
+            "description": "The defaults suit most houses.",
+            "data": {
+              "lowest_setpoint": "Lowest thermostat setting",
+              "max_above_room": "Setpoint at most this above the room",
+              "min_interval": "At most one change per",
+              "pause_hours": "Pause after a change by hand",
+              "baseline_night": "Night setback of the thermostat to compare with (0 = none)",
+              "weather_source": "Weather forecast",
+              "weather_entity": "Weather entity"
+            },
+            "data_description": {
+              "lowest_setpoint": "Roost never sets the thermostat lower. A lower setting lets a slow heat pump stop sooner, but if Home Assistant is down the thermostat stays where Roost left it.",
+              "max_above_room": "Keeps an OpenTherm thermostat asking for lukewarm water (high COP).",
+              "baseline_night": "The saving is shown against a steady thermostat at the comfort temperature, the usual advice for heat pumps.",
+              "weather_source": "Open-Meteo needs no account and gives radiation and wind (the house model uses both)."
+            }
+          }
         }
       }
     },
@@ -203,7 +280,7 @@
       "comfort_below_min": "The comfort temperature must be at least the day minimum.",
       "store_below_comfort": "Storing heat must allow at least the comfort temperature.",
       "day_order": "The comfort hours must end after they start.",
-      "weather_needed": "Choose a weather entity.",
+      "weather_needed": "Choose a weather entity (under Advanced).",
       "lowest_above_comfort": "The lowest thermostat setting must not be above the comfort temperature.",
       "price_needed": "Choose a price sensor, or choose a fixed price."
     }
