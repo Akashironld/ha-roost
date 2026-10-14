@@ -195,6 +195,13 @@ something else drives the battery).
      meters with HA's room temperature and solar.
    - **Weather for past hours** from the Open-Meteo archive (outdoor temperature, radiation, wind) when HA has none.
 
+## 11b. Later (noted 14-10-2026)
+
+- **Steer radiator valves of extra rooms** (step 2 of extra rooms): with smart valves in Home Assistant, open them in
+  cheap or solar hours and set them back in expensive hours, on the same plan as the main thermostat, so the upstairs
+  rooms become a buffer too instead of only a constraint. Start when step 1 (watch rooms, keep minimums; v0.4.0) has
+  shown with real data how much those rooms store.
+
 ## 12. Build order
 
 1. Pure core, ported from what runs today: `series.py`/`value.py` (from Climate Pilot, with the 14-10 solar fix),

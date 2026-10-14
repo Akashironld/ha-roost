@@ -279,7 +279,65 @@
       }
     }
   },
+  "config_subentries": {
+    "room": {
+      "initiate_flow": {
+        "user": "Add room"
+      },
+      "entry_type": "Room",
+      "step": {
+        "user": {
+          "title": "Extra room",
+          "description": "A room the heat pump also heats (radiators upstairs, a bedroom). Roost keeps its minimum in its hours and learns how it cools and warms.",
+          "data": {
+            "name": "Name",
+            "sensor": "Temperature sensor",
+            "kind": "Kind of room",
+            "minimum": "Minimum (optional)",
+            "hour_from": "From (optional)",
+            "hour_to": "Until (optional)"
+          },
+          "data_description": {
+            "sensor": "A sensor in that room: the radiator valve's own reading or a separate sensor.",
+            "kind": "Sets the minimum and the hours it holds; outside them the room may be as cool as it likes. Bedroom 16 °C 19–23 h, kids' room 18 °C 7–21 h, study 19 °C 8–18 h, bathroom 20 °C 6–9 h, other 17 °C in the comfort hours.",
+            "minimum": "Leave empty for the kind's minimum.",
+            "hour_from": "Leave empty for the kind's hours."
+          }
+        },
+        "reconfigure": {
+          "title": "Extra room",
+          "description": "A room the heat pump also heats (radiators upstairs, a bedroom). Roost keeps its minimum in its hours and learns how it cools and warms.",
+          "data": {
+            "name": "Name",
+            "sensor": "Temperature sensor",
+            "kind": "Kind of room",
+            "minimum": "Minimum (optional)",
+            "hour_from": "From (optional)",
+            "hour_to": "Until (optional)"
+          },
+          "data_description": {
+            "sensor": "A sensor in that room: the radiator valve's own reading or a separate sensor.",
+            "kind": "Sets the minimum and the hours it holds; outside them the room may be as cool as it likes. Bedroom 16 °C 19–23 h, kids' room 18 °C 7–21 h, study 19 °C 8–18 h, bathroom 20 °C 6–9 h, other 17 °C in the comfort hours.",
+            "minimum": "Leave empty for the kind's minimum.",
+            "hour_from": "Leave empty for the kind's hours."
+          }
+        }
+      },
+      "abort": {
+        "reconfigure_successful": "The room is changed."
+      }
+    }
+  },
   "selector": {
+    "room_kind": {
+      "options": {
+        "bedroom": "Bedroom",
+        "kids": "Kids' room",
+        "study": "Study",
+        "bathroom": "Bathroom",
+        "other": "Other"
+      }
+    },
     "emitter": {
       "options": {
         "floor": "Floor heating",
@@ -326,6 +384,10 @@
     "no_lever": {
       "title": "{name}: the setpoint hardly moves the heat pump",
       "description": "Roost learned that changing the thermostat changes the heat pump's output by only {k} kW per °C. The heat pump probably runs on its own heating curve, or the thermostat does not pass the setpoint on. Roost keeps planning, but cannot shift heat to cheaper hours this way. Check that the heat pump follows the thermostat (Weheat app)."
+    },
+    "room_cold": {
+      "title": "{name}: {room} stays too cold",
+      "description": "On several of the last days {room} stayed for hours below its minimum of {minimum} °C ({hours}). The water may be too lukewarm for its radiators, or the radiator valve is set low. Check the valve; if it is open, allow warmer water: raise 'Setpoint at most this above the room' in the comfort settings."
     },
     "learning_failed": {
       "title": "{name}: learning failed",

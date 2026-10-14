@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from .heatpump import HeatPumpModel
 from .model import HouseModel
 from .reasons import Reason
+from .rooms import penalty as room_penalty
 
 
 @dataclass
@@ -87,6 +88,7 @@ class Plan:
     saving: float                  # baseline − plan, with the end state levelled
     min_day: float | None
     notes: list[str] = field(default_factory=list)
+    rooms: list[list[float]] = field(default_factory=list)    # extra rooms: expected temperature at the end of each hour
 
     @property
     def first(self) -> HourPlan | None:
@@ -178,24 +180,46 @@ def start_output(sim: Simulator, T: float, sp: float, h: HourIn) -> float:
     return sim.w_end
 
 
+def room_temps(sim: Simulator, hours: list[HourIn], t_now: float, e_now: float, w_now: float | None, seq: list[float],
+               rooms: list[dict]) -> list[list[float]]:
+    """Expected temperature of each extra room at the end of each hour of a plan."""
+    T, E, w = t_now, e_now, w_now
+    trs = [r["T"] for r in rooms]
+    out: list[list[float]] = [[] for _ in rooms]
+    for k, sp in enumerate(seq):
+        T1, E, _c, _e, q, _p = sim.hour(T, E, sp, hours[k], w)
+        w = sim.w_end if w is not None else None
+        for i, r in enumerate(rooms):
+            trs[i] = r["model"].step(trs[i], q, hours[k].t_out, (T + T1) / 2)
+            out[i].append(round(trs[i], 2))
+        T = T1
+    return out
+
+
 def polish(sim: Simulator, hours: list[HourIn], t_now: float, e_now: float, w_now: float, sp_now: float | None,
-           starts: list[list[float]], sps: list[float], end, t_lo: float) -> list[float]:
+           starts: list[list[float]], sps: list[float], end, t_lo: float, rooms: list[dict] | None = None) -> list[float]:
     """Improve a plan of setpoints with the unit's real delay: from the best start, set blocks of 1, 2 and 4 hours to
-    another setpoint and keep what lowers cost + comfort penalties + changes − the value of the heat left at the end."""
+    another setpoint and keep what lowers cost + comfort penalties (also of the extra rooms) + changes − the value of
+    the heat left at the end."""
     s, hp = sim.s, sim.hp
     H = len(hours)
+    rooms = rooms or []
 
     def run(seq: list[float], k0: int = 0, state=None):
-        """-> total, states (T, E, w, running total, previous setpoint) at the start of each hour"""
-        T, E, w, tot, prev = state if state else (t_now, e_now, w_now, 0.0, sp_now)
+        """-> total, states (T, E, w, running total, previous setpoint, extra room temperatures) at the start of each hour"""
+        T, E, w, tot, prev, trs = state if state else (t_now, e_now, w_now, 0.0, sp_now, tuple(r["T"] for r in rooms))
         states = []
         for k in range(k0, H):
-            states.append((T, E, w, tot, prev))
+            states.append((T, E, w, tot, prev, trs))
             sp = seq[k]
             if sp > T + hp.th_diff + s.max_above_room + 1e-9 and sp > s.day_min and sp != prev:
                 tot += 10.0                    # not allowed: too far above what the thermostat reads
-            T, E, c, _e, _q, pen = sim.hour(T, E, sp, hours[k], w)
+            T1, E, c, _e, q, pen = sim.hour(T, E, sp, hours[k], w)
             w = sim.w_end
+            if rooms:
+                trs = tuple(r["model"].step(tr, q, hours[k].t_out, (T + T1) / 2) for r, tr in zip(rooms, trs))
+                pen += sum(room_penalty(tr, r["min"]) for r, tr in zip(rooms, trs) if r["active"][k])
+            T = T1
             tot += c + pen + (s.switch_cost if prev is not None and sp != prev else 0.0)
             prev = sp
         return tot - end(T, E), states
@@ -230,7 +254,7 @@ def polish(sim: Simulator, hours: list[HourIn], t_now: float, e_now: float, w_no
 
 
 def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn], t_now: float, e_now: float,
-         sp_now: float | None, report: int = 24, w_now: float | None = None) -> Plan:
+         sp_now: float | None, report: int = 24, w_now: float | None = None, rooms: list[dict] | None = None) -> Plan:
     """Plan over all `hours` (give ~36 so the last shown hours are not distorted by the horizon), report the first
     `report` hours (plan, cost, kWh, saving with the state after `report` hours levelled). w_now: the unit's heat
     output now (kW); the reported hours then follow the unit's delay."""
@@ -302,12 +326,13 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
         prev = choice[k][i][j][prev]
         seq.append(sps[prev])
         T, E, *_ = sim.hour(T, E, sps[prev], hours[k])
-    if hp.follow < SLOW:
+    if hp.follow < SLOW or rooms:
         # a unit that follows the thermostat slowly (OpenTherm, modulating): the search above takes a new setpoint as
-        # working at once, so improve its plan with the real delay (and never end up worse than a steady thermostat)
+        # working at once, so improve its plan with the real delay (and never end up worse than a steady thermostat).
+        # Extra rooms (rooms.py) are only known here: their minimums are kept in the same step
         w0 = w_now if w_now is not None else start_output(sim, t_now, sp_now if sp_now is not None else seq[0], hours[0])
         steady = [round(baseline_sp(s, hp, house, h) * 2) / 2 for h in hours]
-        seq = polish(sim, hours, t_now, e_now, w0, sp_now, [seq, steady], sps, end, t_lo)
+        seq = polish(sim, hours, t_now, e_now, w0, sp_now, [seq, steady], sps, end, t_lo, rooms)
         w_now = w0
 
     # forward from the real state
@@ -337,7 +362,8 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
         base_cost += c
         base_kwh += e
     saving = base_cost - total + end_r(Tb, Eb) - end_r(T, E)
-    return Plan(out, total, kwh_tot, base_cost, base_kwh, saving, min_day)
+    room_t = room_temps(sim, hours[:R], t_now, e_now, w_now, seq[:R], rooms) if rooms else []
+    return Plan(out, total, kwh_tot, base_cost, base_kwh, saving, min_day, rooms=room_t)
 
 
 def explain(p: Plan, hours: list[HourIn], room: float, s: Settings, hp: HeatPumpModel | None = None,

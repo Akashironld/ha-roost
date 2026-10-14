@@ -5,7 +5,9 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import (
+    ConfigEntry, ConfigFlow, ConfigFlowResult, ConfigSubentryFlow, OptionsFlow, SubentryFlowResult,
+)
 from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er, selector
@@ -19,6 +21,7 @@ from .const import (
     WEHEAT, CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND,
     CONF_EMITTER, CONF_PRICE_MODE, CONF_SP_MIN, CONF_USE_BAG, EMITTERS, PRICE_MODES,
 )
+from .rooms import KINDS as ROOM_KINDS
 
 
 def _ent(domain, device_class=None):
@@ -139,8 +142,42 @@ def _check_weather(d: dict) -> dict[str, str]:
     return {CONF_WEATHER: "weather_needed"} if d.get(CONF_WEATHER_SOURCE) == "entity" and not d.get(CONF_WEATHER) else {}
 
 
+def room_schema() -> vol.Schema:
+    """An extra room: a sensor, its kind (the defaults for its minimum and hours) and, if wanted, other values."""
+    return vol.Schema({
+        vol.Required("name"): selector.TextSelector(),
+        vol.Required("sensor"): _ent("sensor", "temperature"),
+        vol.Required("kind", default="other"): _sel(list(ROOM_KINDS), "room_kind"),
+        vol.Optional("minimum"): _num(10, 24, 0.5, "°C"),
+        vol.Optional("hour_from"): _num(0, 23, 1, "h"),
+        vol.Optional("hour_to"): _num(0, 24, 1, "h"),
+    })
+
+
+class RoomSubentryFlow(ConfigSubentryFlow):
+    """Add or change an extra room the heat pump also heats."""
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        if user_input is not None:
+            data = _clean(user_input)
+            return self.async_create_entry(title=data["name"], data=data)
+        return self.async_show_form(step_id="user", data_schema=room_schema())
+
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        sub = self._get_reconfigure_subentry()
+        if user_input is not None:
+            data = _clean(user_input)
+            return self.async_update_and_abort(self._get_entry(), sub, title=data["name"], data=data)
+        return self.async_show_form(step_id="reconfigure", data_schema=self.add_suggested_values_to_schema(room_schema(), dict(sub.data)))
+
+
 class RoostConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
+
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(cls, config_entry: ConfigEntry) -> dict[str, type[ConfigSubentryFlow]]:
+        return {"room": RoomSubentryFlow}
 
     def __init__(self) -> None:
         self._data: dict[str, Any] = {}

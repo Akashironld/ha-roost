@@ -50,6 +50,15 @@ async def _async_archive(mgr: "RoostManager", start: datetime, end: datetime) ->
         await mgr._async_save_history()
 
 
+async def async_hourly_means(mgr: "RoostManager", entity_ids: list[str], days: int) -> dict[str, dict[int, float]]:
+    """Hourly means from Home Assistant's long-term statistics: {entity: {hour ts: mean}}."""
+    end = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
+    start = end - timedelta(days=days)
+    stats = await get_instance(mgr.hass).async_add_executor_job(
+        statistics.statistics_during_period, mgr.hass, start, end, set(entity_ids), "hour", None, {"mean"})
+    return {eid: {_ts(r["start"]): float(r["mean"]) for r in stats.get(eid, []) if r.get("mean") is not None} for eid in entity_ids}
+
+
 async def async_rows(mgr: "RoostManager") -> tuple[list, dict]:
     hass = mgr.hass
     end = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)

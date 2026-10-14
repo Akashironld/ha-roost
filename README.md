@@ -70,6 +70,25 @@ Roost learns how much and shifts less, so expect a smaller saving.
 A thermostat with its own schedule or learning (Nest, Tado) works against Roost: turn that schedule off. Roost notices
 changes that come back at the same time every day and says so in Repairs.
 
+## Extra rooms (optional)
+
+The thermostat is in one room; other rooms (radiators upstairs, a bedroom) only get heat while the heat pump runs for
+it. Add them on the integration page with *Add room*: a temperature sensor (a radiator valve's own reading or a
+separate sensor) and the kind of room, which sets a minimum and the hours it holds:
+
+| Kind | Minimum | Hours |
+|---|---|---|
+| Bedroom | 16 °C | 19–23 h (cool for sleeping is fine) |
+| Kids' room | 18 °C | 7–21 h |
+| Study | 19 °C | 8–18 h |
+| Bathroom | 20 °C | 6–9 h |
+| Other | 17 °C | the comfort hours |
+
+Change the minimum or hours if you like. Outside its hours a room may get as cool as it likes, so a valve closed on
+purpose stays closed. Roost learns per room how it cools and warms, keeps the minimums in its plan (it will not leave the
+heat pump off longer than those rooms can take) and says so in Repairs when a room keeps staying too cold. The card
+shows them under the tiles. Roost does not steer radiator valves (yet).
+
 ## Card options
 
 All options are also in the visual editor.

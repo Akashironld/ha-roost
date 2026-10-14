@@ -32,7 +32,7 @@ class SetpointSensor(RoostEntity, SensorEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 1
     _attr_icon = "mdi:home-thermometer"
-    _unrecorded_attributes = frozenset({"plan", "start", "comfort", "day_min", "night_min", "store_max", "day_hours"})
+    _unrecorded_attributes = frozenset({"plan", "start", "comfort", "day_min", "night_min", "store_max", "day_hours", "rooms"})
 
     def __init__(self, mgr) -> None:
         super().__init__(mgr, "setpoint")
@@ -53,7 +53,8 @@ class SetpointSensor(RoostEntity, SensorEntity):
                  "decision_args": d.why.args if d else None, "room": m.room(),
                  "thermostat": m.thermostat_sp(), "storage_kwh": round(m.storage_e, 1),
                  "paused_until": datetime.fromtimestamp(m.mem.pause_until, tz=dt_util.UTC).isoformat() if m.mem.pause_until else None,
-                 "comfort": s.comfort, "day_min": s.day_min, "night_min": s.night_min, "store_max": s.store_max}
+                 "comfort": s.comfort, "day_min": s.day_min, "night_min": s.night_min, "store_max": s.store_max,
+                 "rooms": m.room_status}
         if p:
             attrs["start"] = datetime.fromtimestamp(m.plan_at - m.plan_at % 3600, tz=dt_util.UTC).isoformat() if m.plan_at else None
             # per hour: setpoint, room expected, kWh, price the planner uses (ct; the battery's refill cost when the

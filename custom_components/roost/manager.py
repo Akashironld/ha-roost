@@ -19,7 +19,7 @@ from homeassistant.helpers.event import async_track_state_change_event, async_tr
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from . import building, check, comfort, control, heatpump, history, model, planner, response, series, sun, value, weather as om
+from . import building, check, comfort, control, heatpump, history, model, planner, response, rooms, series, sun, value, weather as om
 from .const import (
     CONF_BASELINE_NIGHT, CONF_BATTERY_KW, CONF_BATTERY_KWH, CONF_BATTERY_POWER, CONF_BATTERY_RESERVE, CONF_BATTERY_SOC,
     CONF_COMFORT, CONF_DAY_FROM, CONF_DAY_MIN, CONF_DAY_TO, CONF_EXPORT_PRICE, CONF_GRID_POWER, CONF_GRID_PREFERENCE,
@@ -41,6 +41,11 @@ NO_LEVER_KW = 0.2             # learned gain below this (kW per °C): the setpoi
 WEHEAT_FIELDS = 2             # 2: the import includes the setpoint per hour
 NOT_FOLLOWING_MIN = 45
 ROOM_SILENT_MIN = 30
+
+
+def _i(v: Any) -> int | None:
+    x = _f(v)
+    return None if x is None else int(x)
 
 
 def _f(v: Any) -> float | None:
@@ -108,6 +113,13 @@ class RoostManager:
         self.check: dict = {}                       # nightly self-check (check.self_check)
         self.changes: list[dict] = []               # changes by hand while active: {"ts", "from", "to", "room"}
         self.building: dict | None = None           # opt-in BAG data: {"lat", "lon", "year", "area_m2", "walls"} (no address)
+        # extra rooms (subentries of type "room"): the heat pump heats them too, Roost keeps their minimums
+        self.rooms: list[rooms.Room] = [
+            rooms.Room(id=sid, name=sub.title, sensor=sub.data["sensor"], kind=sub.data.get("kind", "other"),
+                       minimum=_f(sub.data.get("minimum")), hour_from=_i(sub.data.get("hour_from")), hour_to=_i(sub.data.get("hour_to")))
+            for sid, sub in getattr(entry, "subentries", {}).items() if sub.subentry_type == "room" and sub.data.get("sensor")]
+        self.room_models: dict[str, rooms.RoomModel] = {}
+        self.room_status: list[dict] = []
         self.suggestion: comfort.Suggestion | None = None
         self.ready: bool = False
         self.ready_missing: list[str] = []
@@ -166,6 +178,7 @@ class RoostManager:
         self.check = data.get("check") or {}
         self.changes = data.get("changes") or []
         self.sp_hist = {int(k): v for k, v in (data.get("sp_hist") or {}).items()}
+        self.room_models = {k: rooms.RoomModel.from_dict(v) for k, v in (data.get("room_models") or {}).items()}
         self.building = data.get("building") if self.conf.get(CONF_USE_BAG) else None
         if self.house.source != "learned":
             self.house = model.HouseModel(**self.house_start(), source="building register" if building.prior(self.building) else "default")
@@ -236,7 +249,8 @@ class RoostManager:
             "pv_k": self.pv_k, "load_profile": self.load_profile, "price_seen": self._price_seen_recent(),
             "check": self.check, "changes": [c for c in self.changes if c["ts"] > time.time() - 30 * 86400],
             "building": self.building,
-            "sp_hist": {str(k): v for k, v in self.sp_hist.items() if k > time.time() - SP_HIST_DAYS * 86400}})
+            "sp_hist": {str(k): v for k, v in self.sp_hist.items() if k > time.time() - SP_HIST_DAYS * 86400},
+            "room_models": {k: v.as_dict() for k, v in self.room_models.items() if any(r.id == k for r in self.rooms)}})
 
     def _price_seen_recent(self) -> dict[str, dict[str, float]]:
         cut = time.time() - 3 * 86400
@@ -433,6 +447,46 @@ class RoostManager:
             return [self.pv_k * (self._weather.get(int(base + i * 3600)) or (0, 0, 0))[1] for i in range(hours)]
         return None
 
+    def _rooms_ahead(self, hours: list[planner.HourIn]) -> tuple[list[dict], list[dict]]:
+        """The extra rooms for the planner (model, temperature now, minimum, hours it holds) and for the card."""
+        c = self.conf
+        plan_in, meta = [], []
+        for r in self.rooms:
+            st = self._state(r.sensor)
+            T = self._sys_to_c(_f(st.state)) if st else None
+            lo, a, b = r.settings(int(c[CONF_DAY_FROM]), int(c[CONF_DAY_TO]))
+            m = self.room_models.get(r.id) or rooms.RoomModel()
+            if T is None:
+                continue
+            act = [rooms.active(h.hour, a, b) for h in hours]
+            plan_in.append({"model": m, "T": T, "min": lo, "active": act})
+            meta.append({"id": r.id, "name": r.name, "kind": r.kind, "temperature": round(T, 1), "minimum": lo, "from": a, "to": b,
+                         "active_now": act[0] if act else False, "model": m.source, "model_error": m.error})
+        return plan_in, meta
+
+    async def _async_learn_rooms(self, rows: list[model.HourRow]) -> None:
+        """Per extra room: its model from the hourly means of its sensor, and a repair when it stays too cold."""
+        if not self.rooms:
+            return
+        from .learning import async_hourly_means
+        means = await async_hourly_means(self, [r.sensor for r in self.rooms], days=60)
+        idx = {r.ts: r for r in rows}
+        c = self.conf
+        for r in self.rooms:
+            m = means.get(r.sensor) or {}
+            samples = [(m[t], m[t + 3600], idx[t].Q, idx[t].T_out, idx[t].T) for t in sorted(m) if t + 3600 in m and t in idx]
+            learned = await self.hass.async_add_executor_job(rooms.learn, samples)
+            if learned:
+                self.room_models[r.id] = learned
+            lo, a, b = r.settings(int(c[CONF_DAY_FROM]), int(c[CONF_DAY_TO]))
+            since = time.time() - 3 * 86400
+            log = []
+            for t in sorted(x for x in m if x >= since):
+                loc = dt_util.as_local(datetime.fromtimestamp(t, tz=timezone.utc))
+                log.append((loc.date().isoformat(), rooms.active(loc.hour, a, b), m[t], lo))
+            self._issue(f"room_cold_{r.id}", rooms.too_cold(log), translation_key="room_cold",
+                        placeholders={"room": r.name, "minimum": f"{lo:g}", "hours": f"{a}:00–{b}:00"})
+
     def house_start(self) -> dict:
         """Starting values for the house model: heat emitter and (opt-in) the building register."""
         return model.starting_values(self.conf.get(CONF_EMITTER, "floor"), building.prior(self.building))
@@ -608,8 +662,10 @@ class RoostManager:
                 return
             s = self.settings()
             w_now = self._kw(self.ent.get("power_out")) if self.pump_state() == "heating" else 0.0
+            room_in, room_meta = self._rooms_ahead(hours)
             p = await self.hass.async_add_executor_job(planner.plan, self.house, self.pump, s, hours, room, self.storage_e,
-                                                       self.thermostat_sp(), 24, w_now)
+                                                       self.thermostat_sp(), 24, w_now, room_in)
+            self.room_status = [{**meta, "expected": temps[:24]} for meta, temps in zip(room_meta, p.rooms)]
             self.plan, self.plan_hours, self.plan_at = p, hours, now.timestamp()
             self.plan_tariff = list(inp.import_price)
             self.plan_guess = [] if self.conf.get(CONF_PRICE_MODE) == "fixed" else list(self._price_guess.get(self.conf.get(CONF_IMPORT_PRICE)) or [])
@@ -844,6 +900,7 @@ class RoostManager:
             self.ready, self.ready_missing = check.readiness(self.check, self.following, lever)
             self._issue_ready()
             self._issue_comfort()
+            await self._async_learn_rooms(rows)
             if extra.get("pv_k"):
                 self.pv_k = extra["pv_k"]
             if extra.get("load_profile"):

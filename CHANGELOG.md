@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.0 — extra rooms (unreleased)
+
+- Extra rooms the heat pump also heats (radiators upstairs, a bedroom): *Add room* on the integration page, with a
+  sensor and a kind (bedroom, kids' room, study, bathroom, other) that sets a minimum and its hours; outside them the
+  room may be cool. Roost learns per room how it cools and warms, keeps the minimums in the plan, shows the rooms on the
+  card and raises a repair when a room keeps staying too cold
+- Needs Home Assistant 2025.3 or newer (rooms are config subentries)
+
 ## v0.3.6 — fixed price contracts, comfort suggestions, sun on the facades, internal gains per hour, building register (unreleased)
 
 - Price: dynamic (a price sensor, as before) or a fixed contract: one rate, optionally a low rate with its hours and

@@ -279,7 +279,65 @@
       }
     }
   },
+  "config_subentries": {
+    "room": {
+      "initiate_flow": {
+        "user": "Kamer toevoegen"
+      },
+      "entry_type": "Kamer",
+      "step": {
+        "user": {
+          "title": "Extra kamer",
+          "description": "Een kamer die de warmtepomp ook verwarmt (radiatoren boven, een slaapkamer). Roost houdt het minimum aan in de eigen uren en leert hoe de kamer afkoelt en opwarmt.",
+          "data": {
+            "name": "Naam",
+            "sensor": "Temperatuursensor",
+            "kind": "Soort kamer",
+            "minimum": "Minimum (optioneel)",
+            "hour_from": "Vanaf (optioneel)",
+            "hour_to": "Tot (optioneel)"
+          },
+          "data_description": {
+            "sensor": "Een sensor in die kamer: de meting van de radiatorkop of een losse sensor.",
+            "kind": "Bepaalt het minimum en de uren waarin het geldt; daarbuiten mag de kamer zo koel zijn als hij wil. Slaapkamer 16 °C 19–23 u, kinderkamer 18 °C 7–21 u, werkkamer 19 °C 8–18 u, badkamer 20 °C 6–9 u, overig 17 °C in de comforturen.",
+            "minimum": "Leeg laten voor het minimum van de soort.",
+            "hour_from": "Leeg laten voor de uren van de soort."
+          }
+        },
+        "reconfigure": {
+          "title": "Extra kamer",
+          "description": "Een kamer die de warmtepomp ook verwarmt (radiatoren boven, een slaapkamer). Roost houdt het minimum aan in de eigen uren en leert hoe de kamer afkoelt en opwarmt.",
+          "data": {
+            "name": "Naam",
+            "sensor": "Temperatuursensor",
+            "kind": "Soort kamer",
+            "minimum": "Minimum (optioneel)",
+            "hour_from": "Vanaf (optioneel)",
+            "hour_to": "Tot (optioneel)"
+          },
+          "data_description": {
+            "sensor": "Een sensor in die kamer: de meting van de radiatorkop of een losse sensor.",
+            "kind": "Bepaalt het minimum en de uren waarin het geldt; daarbuiten mag de kamer zo koel zijn als hij wil. Slaapkamer 16 °C 19–23 u, kinderkamer 18 °C 7–21 u, werkkamer 19 °C 8–18 u, badkamer 20 °C 6–9 u, overig 17 °C in de comforturen.",
+            "minimum": "Leeg laten voor het minimum van de soort.",
+            "hour_from": "Leeg laten voor de uren van de soort."
+          }
+        }
+      },
+      "abort": {
+        "reconfigure_successful": "De kamer is aangepast."
+      }
+    }
+  },
   "selector": {
+    "room_kind": {
+      "options": {
+        "bedroom": "Slaapkamer",
+        "kids": "Kinderkamer",
+        "study": "Werkkamer",
+        "bathroom": "Badkamer",
+        "other": "Overig"
+      }
+    },
     "emitter": {
       "options": {
         "floor": "Vloerverwarming",
@@ -326,6 +384,10 @@
     "no_lever": {
       "title": "{name}: het setpoint stuurt de warmtepomp nauwelijks",
       "description": "Roost heeft geleerd dat de thermostaat verzetten de warmtepomp maar {k} kW per °C laat veranderen. Waarschijnlijk draait de warmtepomp op zijn eigen stooklijn, of geeft de thermostaat het setpoint niet door. Roost blijft plannen, maar kan zo geen warmte naar goedkopere uren schuiven. Controleer of de warmtepomp de thermostaat volgt (Weheat-app)."
+    },
+    "room_cold": {
+      "title": "{name}: {room} blijft te koud",
+      "description": "Op meerdere van de laatste dagen bleef {room} urenlang onder het minimum van {minimum} °C ({hours}). Mogelijk is het water te lauw voor de radiatoren daar, of staat de radiatorknop laag. Controleer de knop; staat die open, sta dan warmer water toe: verhoog 'Setpoint hoogstens zoveel boven de kamer' bij de comfortinstellingen."
     },
     "learning_failed": {
       "title": "{name}: leren mislukt",
