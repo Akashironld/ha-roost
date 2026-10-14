@@ -27,7 +27,7 @@ from .const import (
     CONF_MIN_INTERVAL, CONF_NIGHT_MIN, CONF_PAUSE_HOURS, CONF_PV_FORECAST, CONF_PV_FORECAST_TOMORROW, CONF_PV_POWER,
     CONF_ROOM, CONF_STORE_MAX, CONF_THERMOSTAT, CONF_WEATHER, CONF_WEATHER_SOURCE, DEFAULTS, DOMAIN, HISTORY_DAYS,
     CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND, CONF_PRICE_MODE,
-    CONF_USE_BAG,
+    CONF_SP_MIN, CONF_USE_BAG,
     LEARN_HOUR, LEARN_MINUTE, PLAN_MINUTES, STORAGE_VERSION, TICK_SECONDS, WEATHER_MINUTES, WEHEAT, WEHEAT_IMPORT_DAYS,
 )
 from .reasons import Reason
@@ -124,7 +124,7 @@ class RoostManager:
         night = _f(c.get(CONF_BASELINE_NIGHT)) or 0.0
         return planner.Settings(comfort=float(c[CONF_COMFORT]), day_min=float(c[CONF_DAY_MIN]), night_min=float(c[CONF_NIGHT_MIN]),
                                 store_max=max(float(c[CONF_STORE_MAX]), float(c[CONF_COMFORT])), max_above_room=float(c[CONF_MAX_ABOVE]),
-                                sp_min=min(18.0, float(c[CONF_NIGHT_MIN]) - 1.0),
+                                sp_min=float(c.get(CONF_SP_MIN, c[CONF_NIGHT_MIN])),
                                 baseline_night=night if night > 0 else None)
 
     def control_settings(self) -> control.ControlSettings:

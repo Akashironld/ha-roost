@@ -78,12 +78,14 @@
           "max_above_room": "Setpoint at most this above the room",
           "min_interval": "At most one change per",
           "pause_hours": "Pause after a change by hand",
-          "baseline_night": "Night setback of the thermostat to compare with (0 = none)"
+          "baseline_night": "Night setback of the thermostat to compare with (0 = none)",
+          "lowest_setpoint": "Lowest thermostat setting"
         },
         "data_description": {
           "store_max": "Roost stores heat in the floor when an hour is cheap (or solar earns little) and an expensive one follows. Set it equal to the comfort temperature to switch that off.",
           "max_above_room": "Keeps an OpenTherm thermostat asking for lukewarm water (high COP).",
-          "baseline_night": "The saving is shown against a steady thermostat at the comfort temperature, the usual advice for heat pumps."
+          "baseline_night": "The saving is shown against a steady thermostat at the comfort temperature, the usual advice for heat pumps.",
+          "lowest_setpoint": "Roost never sets the thermostat lower. A lower setting lets a slow heat pump stop sooner, but if Home Assistant is down the thermostat stays where Roost left it."
         }
       }
     },
@@ -93,6 +95,7 @@
       "store_below_comfort": "Storing heat must allow at least the comfort temperature.",
       "day_order": "The comfort hours must end after they start.",
       "weather_needed": "Choose a weather entity.",
+      "lowest_above_comfort": "The lowest thermostat setting must not be above the comfort temperature.",
       "price_needed": "Choose a price sensor, or choose a fixed price."
     },
     "abort": {
@@ -180,12 +183,14 @@
           "max_above_room": "Setpoint at most this above the room",
           "min_interval": "At most one change per",
           "pause_hours": "Pause after a change by hand",
-          "baseline_night": "Night setback of the thermostat to compare with (0 = none)"
+          "baseline_night": "Night setback of the thermostat to compare with (0 = none)",
+          "lowest_setpoint": "Lowest thermostat setting"
         },
         "data_description": {
           "store_max": "Roost stores heat in the floor when an hour is cheap (or solar earns little) and an expensive one follows. Set it equal to the comfort temperature to switch that off.",
           "max_above_room": "Keeps an OpenTherm thermostat asking for lukewarm water (high COP).",
-          "baseline_night": "The saving is shown against a steady thermostat at the comfort temperature, the usual advice for heat pumps."
+          "baseline_night": "The saving is shown against a steady thermostat at the comfort temperature, the usual advice for heat pumps.",
+          "lowest_setpoint": "Roost never sets the thermostat lower. A lower setting lets a slow heat pump stop sooner, but if Home Assistant is down the thermostat stays where Roost left it."
         }
       }
     },
@@ -195,6 +200,7 @@
       "store_below_comfort": "Storing heat must allow at least the comfort temperature.",
       "day_order": "The comfort hours must end after they start.",
       "weather_needed": "Choose a weather entity.",
+      "lowest_above_comfort": "The lowest thermostat setting must not be above the comfort temperature.",
       "price_needed": "Choose a price sensor, or choose a fixed price."
     }
   },

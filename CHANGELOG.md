@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.3.3 — fixed price contracts, comfort suggestions, sun on the facades, internal gains per hour, building register (unreleased)
+## v0.3.4 — fixed price contracts, comfort suggestions, sun on the facades, internal gains per hour, building register (unreleased)
 
 - Price: dynamic (a price sensor, as before) or a fixed contract: one rate, optionally a low rate with its hours and
   the weekend, optionally a fixed export price (empty = net metering)
@@ -19,6 +19,8 @@
   Not used when the home location is not in or within 25 m of the dwelling; for flats only year and area
 - Options: each part saves when it is submitted (the separate *Save* step was easy to miss)
 - Weheat import: a status with translated states (done, importing, waiting for the Weheat login, failed)
+- Comfort option *Lowest thermostat setting* (default 19 °C): Roost never sets the thermostat lower — also what
+  stays on it if Home Assistant is down (it was the night minimum − 1, at most 18)
 - Card: under *Planned* the room temperature expected with it (the planned setpoint is a thermostat setting and
   may be well below the room for a slow unit); clearer reasons: charging the floor, living off the heat in the floor
 

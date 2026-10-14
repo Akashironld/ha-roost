@@ -78,12 +78,14 @@
           "max_above_room": "Setpoint hoogstens zoveel boven de kamer",
           "min_interval": "Hoogstens één wijziging per",
           "pause_hours": "Pauze na een handmatige wijziging",
-          "baseline_night": "Nachtverlaging van de vergelijkingsthermostaat (0 = geen)"
+          "baseline_night": "Nachtverlaging van de vergelijkingsthermostaat (0 = geen)",
+          "lowest_setpoint": "Laagste thermostaatstand"
         },
         "data_description": {
           "store_max": "Roost slaat warmte op in de vloer als een uur goedkoop is (of zonnestroom weinig opbrengt) en er een duur uur volgt. Gelijk aan de comforttemperatuur zetten schakelt dat uit.",
           "max_above_room": "Zo blijft een OpenTherm-thermostaat om lauw water vragen (hoge COP).",
-          "baseline_night": "De besparing wordt getoond tegenover een vaste thermostaat op de comforttemperatuur, het gebruikelijke advies bij warmtepompen."
+          "baseline_night": "De besparing wordt getoond tegenover een vaste thermostaat op de comforttemperatuur, het gebruikelijke advies bij warmtepompen.",
+          "lowest_setpoint": "Roost zet de thermostaat nooit lager. Lager laat een trage warmtepomp sneller stoppen, maar als Home Assistant uitvalt blijft de thermostaat staan waar Roost hem liet."
         }
       }
     },
@@ -93,6 +95,7 @@
       "store_below_comfort": "Warmte opslaan moet minstens de comforttemperatuur toestaan.",
       "day_order": "De comforturen moeten eindigen na het begin.",
       "weather_needed": "Kies een weerentiteit.",
+      "lowest_above_comfort": "De laagste thermostaatstand mag niet boven de comforttemperatuur liggen.",
       "price_needed": "Kies een prijssensor, of kies een vaste prijs."
     },
     "abort": {
@@ -180,12 +183,14 @@
           "max_above_room": "Setpoint hoogstens zoveel boven de kamer",
           "min_interval": "Hoogstens één wijziging per",
           "pause_hours": "Pauze na een handmatige wijziging",
-          "baseline_night": "Nachtverlaging van de vergelijkingsthermostaat (0 = geen)"
+          "baseline_night": "Nachtverlaging van de vergelijkingsthermostaat (0 = geen)",
+          "lowest_setpoint": "Laagste thermostaatstand"
         },
         "data_description": {
           "store_max": "Roost slaat warmte op in de vloer als een uur goedkoop is (of zonnestroom weinig opbrengt) en er een duur uur volgt. Gelijk aan de comforttemperatuur zetten schakelt dat uit.",
           "max_above_room": "Zo blijft een OpenTherm-thermostaat om lauw water vragen (hoge COP).",
-          "baseline_night": "De besparing wordt getoond tegenover een vaste thermostaat op de comforttemperatuur, het gebruikelijke advies bij warmtepompen."
+          "baseline_night": "De besparing wordt getoond tegenover een vaste thermostaat op de comforttemperatuur, het gebruikelijke advies bij warmtepompen.",
+          "lowest_setpoint": "Roost zet de thermostaat nooit lager. Lager laat een trage warmtepomp sneller stoppen, maar als Home Assistant uitvalt blijft de thermostaat staan waar Roost hem liet."
         }
       }
     },
@@ -195,6 +200,7 @@
       "store_below_comfort": "Warmte opslaan moet minstens de comforttemperatuur toestaan.",
       "day_order": "De comforturen moeten eindigen na het begin.",
       "weather_needed": "Kies een weerentiteit.",
+      "lowest_above_comfort": "De laagste thermostaatstand mag niet boven de comforttemperatuur liggen.",
       "price_needed": "Kies een prijssensor, of kies een vaste prijs."
     }
   },

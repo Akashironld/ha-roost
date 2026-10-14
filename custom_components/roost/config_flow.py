@@ -17,7 +17,7 @@ from .const import (
     CONF_MIN_INTERVAL, CONF_NIGHT_MIN, CONF_PAUSE_HOURS, CONF_PV_FORECAST, CONF_PV_FORECAST_TOMORROW, CONF_PV_POWER,
     CONF_ROOM, CONF_STORE_MAX, CONF_THERMOSTAT, CONF_WEATHER, CONF_WEATHER_SOURCE, DEFAULTS, DOMAIN, GRID_SIGNS, WEATHER_SOURCES,
     WEHEAT, CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND,
-    CONF_PRICE_MODE, CONF_USE_BAG, PRICE_MODES,
+    CONF_PRICE_MODE, CONF_SP_MIN, CONF_USE_BAG, PRICE_MODES,
 )
 
 
@@ -104,6 +104,7 @@ def comfort_schema() -> vol.Schema:
         vol.Required(CONF_DAY_MIN, default=d[CONF_DAY_MIN]): DEG,
         vol.Required(CONF_NIGHT_MIN, default=d[CONF_NIGHT_MIN]): DEG,
         vol.Required(CONF_STORE_MAX, default=d[CONF_STORE_MAX]): DEG,
+        vol.Required(CONF_SP_MIN, default=d[CONF_SP_MIN]): _num(14, 25, 0.5, "°C"),
         vol.Required(CONF_MAX_ABOVE, default=d[CONF_MAX_ABOVE]): _num(0.5, 3, 0.5, "°C"),
         vol.Required(CONF_MIN_INTERVAL, default=d[CONF_MIN_INTERVAL]): _num(15, 240, 15, "min"),
         vol.Required(CONF_PAUSE_HOURS, default=d[CONF_PAUSE_HOURS]): _num(0.5, 12, 0.5, "h"),
@@ -126,6 +127,8 @@ def _check_comfort(d: dict) -> dict[str, str]:
         errors[CONF_COMFORT] = "comfort_below_min"
     if float(d[CONF_STORE_MAX]) < float(d[CONF_COMFORT]):
         errors[CONF_STORE_MAX] = "store_below_comfort"
+    if float(d.get(CONF_SP_MIN, 0)) > float(d[CONF_COMFORT]):
+        errors[CONF_SP_MIN] = "lowest_above_comfort"
     if int(d[CONF_DAY_TO]) <= int(d[CONF_DAY_FROM]):
         errors[CONF_DAY_TO] = "day_order"
     return errors

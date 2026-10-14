@@ -41,6 +41,7 @@ CONF_COMFORT = "comfort"
 CONF_DAY_MIN = "day_min"
 CONF_NIGHT_MIN = "night_min"
 CONF_STORE_MAX = "store_max"
+CONF_SP_MIN = "lowest_setpoint"        # Roost never sets the thermostat lower (also what stays if HA is down)
 CONF_MAX_ABOVE = "max_above_room"
 CONF_MIN_INTERVAL = "min_interval"
 CONF_PAUSE_HOURS = "pause_hours"
@@ -48,7 +49,7 @@ CONF_BASELINE_NIGHT = "baseline_night"  # 0 = no night setback in the comparison
 CONF_GRID_PREFERENCE = "grid_preference"
 
 DEFAULTS = {
-    CONF_DAY_FROM: 7, CONF_DAY_TO: 22, CONF_COMFORT: 20.5, CONF_DAY_MIN: 20.0, CONF_NIGHT_MIN: 19.0, CONF_STORE_MAX: 22.5,
+    CONF_DAY_FROM: 7, CONF_DAY_TO: 22, CONF_COMFORT: 20.5, CONF_DAY_MIN: 20.0, CONF_NIGHT_MIN: 19.0, CONF_STORE_MAX: 22.5, CONF_SP_MIN: 19.0,
     CONF_MAX_ABOVE: 1.0, CONF_MIN_INTERVAL: 60, CONF_PAUSE_HOURS: 2, CONF_BASELINE_NIGHT: 0, CONF_GRID_PREFERENCE: 0.0,
     CONF_GRID_SIGN: "import_positive", CONF_WEATHER_SOURCE: "open_meteo", CONF_BATTERY_RESERVE: 10, CONF_IMPORT_ON_SETUP: True,
     CONF_PRICE_MODE: "sensor", CONF_USE_BAG: False, CONF_LOW_FROM: 23, CONF_LOW_TO: 7, CONF_LOW_WEEKEND: True,
