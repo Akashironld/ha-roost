@@ -1,6 +1,6 @@
 /* Roost card - served by the roost integration. */
 (() => {   // own scope: safe if the file is loaded twice as a classic script (legacy frontend + a manual resource)
-const CARD_VERSION = "0.3.5";
+const CARD_VERSION = "0.3.6";
 
 // Plain ES2017 on purpose (no ?. / ??), ASCII only (\u escapes): wall tablets often run an older browser.
 const nn = (a, b) => (a === null || a === undefined ? b : a);
@@ -33,6 +33,9 @@ const WHY = {
         store_solar: "charging the floor on own solar (up to {sp} \u00b0C)",
         store_cheap: "charging the floor now ({ct} ct) before more expensive hours",
         expensive: "expensive hour ({ct} ct): living off the heat in the floor",
+        store_solar_house: "storing heat in the house on own solar (up to {sp} \u00b0C)",
+        store_cheap_house: "storing heat in the house now ({ct} ct) before more expensive hours",
+        expensive_house: "expensive hour ({ct} ct): living off the heat in the house",
         warm_enough: "warm enough ({room} \u00b0C): no heat needed", holding: "keeping the room at temperature",
         paused: "changed by hand: leaving the thermostat alone for {min} more min",
         already_right: "thermostat already right", wait: "next change allowed in {min} min",
@@ -42,6 +45,9 @@ const WHY = {
         store_solar: "vloer opladen met eigen zonnestroom (tot {sp} \u00b0C)",
         store_cheap: "vloer opladen ({ct} ct), straks wordt het duurder",
         expensive: "duur uur ({ct} ct): teert op de vloerbuffer",
+        store_solar_house: "warmte opslaan in het huis met eigen zonnestroom (tot {sp} \u00b0C)",
+        store_cheap_house: "warmte opslaan in het huis ({ct} ct), straks wordt het duurder",
+        expensive_house: "duur uur ({ct} ct): teert op de warmte in het huis",
         warm_enough: "warm genoeg ({room} \u00b0C): geen warmte nodig", holding: "kamer op temperatuur houden",
         paused: "met de hand gewijzigd: thermostaat nog {min} min met rust gelaten",
         already_right: "thermostaat staat al goed", wait: "volgende wijziging over {min} min",

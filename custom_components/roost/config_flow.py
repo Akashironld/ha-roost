@@ -17,7 +17,7 @@ from .const import (
     CONF_MIN_INTERVAL, CONF_NIGHT_MIN, CONF_PAUSE_HOURS, CONF_PV_FORECAST, CONF_PV_FORECAST_TOMORROW, CONF_PV_POWER,
     CONF_ROOM, CONF_STORE_MAX, CONF_THERMOSTAT, CONF_WEATHER, CONF_WEATHER_SOURCE, DEFAULTS, DOMAIN, GRID_SIGNS, WEATHER_SOURCES,
     WEHEAT, CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND,
-    CONF_PRICE_MODE, CONF_SP_MIN, CONF_USE_BAG, PRICE_MODES,
+    CONF_EMITTER, CONF_PRICE_MODE, CONF_SP_MIN, CONF_USE_BAG, EMITTERS, PRICE_MODES,
 )
 
 
@@ -50,6 +50,7 @@ def basics_schema(first: bool) -> vol.Schema:
         s[vol.Required(CONF_HEAT_PUMP)] = selector.DeviceSelector(selector.DeviceSelectorConfig(integration="weheat"))
     s[vol.Required(CONF_THERMOSTAT)] = _ent("climate")
     s[vol.Optional(CONF_ROOM)] = _ent("sensor", "temperature")
+    s[vol.Required(CONF_EMITTER, default=DEFAULTS[CONF_EMITTER])] = _sel(EMITTERS, "emitter")
     s[vol.Required(CONF_PRICE_MODE, default=DEFAULTS[CONF_PRICE_MODE])] = _sel(PRICE_MODES, "price_mode")
     s[vol.Optional(CONF_IMPORT_PRICE)] = _ent(["sensor", "input_number"])
     s[vol.Optional(CONF_EXPORT_PRICE)] = _ent(["sensor", "input_number"])

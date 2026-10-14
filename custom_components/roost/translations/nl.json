@@ -9,6 +9,7 @@
           "heat_pump": "Weheat-warmtepomp",
           "thermostat": "Thermostaat die de warmtepomp aanstuurt",
           "room_temperature": "Kamertemperatuursensor (optioneel, beter dan die van de thermostaat)",
+          "emitter": "Warmte-afgifte",
           "price_mode": "Stroomprijs",
           "import_price": "Stroomprijssensor (met verwachting)",
           "export_price": "Terugleverprijs",
@@ -18,6 +19,7 @@
         "data_description": {
           "heat_pump": "Het apparaat van de officiële Weheat-integratie. De sensoren worden automatisch gevonden.",
           "thermostat": "Roost verandert alleen de ingestelde temperatuur van deze thermostaat, zoals jij dat ook doet. De warmtepomp moet de thermostaat volgen (niet zijn eigen stooklijn).",
+          "emitter": "Vloerverwarming houdt veel warmte vast en geeft die langzaam af; radiatoren reageren in minuten en dan is het huis zelf de buffer. Alleen de startwaarden: Roost leert je huis uit de data.",
           "price_mode": "Dynamisch: een sensor met uurprijzen. Vast: je vult in de volgende stap het tarief van je contract in (en een daltarief als je dat hebt).",
           "import_price": "Alleen bij een dynamische prijs. Een sensor met prijzen voor de komende uren in de attributen (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Zonder verwachting kost elk uur hetzelfde.",
           "export_price": "Leeg laten bij salderen: teruglevering is dan de afnameprijs waard.",
@@ -117,6 +119,7 @@
         "data": {
           "thermostat": "Thermostaat die de warmtepomp aanstuurt",
           "room_temperature": "Kamertemperatuursensor (optioneel, beter dan die van de thermostaat)",
+          "emitter": "Warmte-afgifte",
           "price_mode": "Stroomprijs",
           "import_price": "Stroomprijssensor (met verwachting)",
           "export_price": "Terugleverprijs",
@@ -124,6 +127,7 @@
         },
         "data_description": {
           "thermostat": "Roost verandert alleen de ingestelde temperatuur van deze thermostaat, zoals jij dat ook doet. De warmtepomp moet de thermostaat volgen (niet zijn eigen stooklijn).",
+          "emitter": "Vloerverwarming houdt veel warmte vast en geeft die langzaam af; radiatoren reageren in minuten en dan is het huis zelf de buffer. Alleen de startwaarden: Roost leert je huis uit de data.",
           "price_mode": "Dynamisch: een sensor met uurprijzen. Vast: je vult in de volgende stap het tarief van je contract in (en een daltarief als je dat hebt).",
           "import_price": "Alleen bij een dynamische prijs. Een sensor met prijzen voor de komende uren in de attributen (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Zonder verwachting kost elk uur hetzelfde.",
           "export_price": "Leeg laten bij salderen: teruglevering is dan de afnameprijs waard.",
@@ -276,6 +280,13 @@
     }
   },
   "selector": {
+    "emitter": {
+      "options": {
+        "floor": "Vloerverwarming",
+        "radiators": "Radiatoren",
+        "both": "Beide"
+      }
+    },
     "price_mode": {
       "options": {
         "sensor": "Dynamisch (prijssensor)",

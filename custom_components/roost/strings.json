@@ -9,6 +9,7 @@
           "heat_pump": "Weheat heat pump",
           "thermostat": "Thermostat that drives the heat pump",
           "room_temperature": "Room temperature sensor (optional, better than the thermostat's)",
+          "emitter": "Heat emitters",
           "price_mode": "Electricity price",
           "import_price": "Electricity price sensor (with forecast)",
           "export_price": "Export price",
@@ -18,6 +19,7 @@
         "data_description": {
           "heat_pump": "The device of the official Weheat integration. Its sensors are found automatically.",
           "thermostat": "Roost only changes this thermostat's target temperature, like you would. The heat pump must follow the thermostat (not its own heating curve).",
+          "emitter": "Floor heating holds a lot of heat and reaches the room slowly; radiators react in minutes and the house itself is the buffer. Only the starting values: Roost learns your house from its data.",
           "price_mode": "Dynamic: a sensor with hourly prices. Fixed: you enter your contract's rate (and a low rate if you have one) in the next step.",
           "import_price": "Only with a dynamic price. A sensor with prices for the coming hours in its attributes (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Without a forecast every hour costs the same.",
           "export_price": "Leave empty with net metering: export is then worth the import price.",
@@ -117,6 +119,7 @@
         "data": {
           "thermostat": "Thermostat that drives the heat pump",
           "room_temperature": "Room temperature sensor (optional, better than the thermostat's)",
+          "emitter": "Heat emitters",
           "price_mode": "Electricity price",
           "import_price": "Electricity price sensor (with forecast)",
           "export_price": "Export price",
@@ -124,6 +127,7 @@
         },
         "data_description": {
           "thermostat": "Roost only changes this thermostat's target temperature, like you would. The heat pump must follow the thermostat (not its own heating curve).",
+          "emitter": "Floor heating holds a lot of heat and reaches the room slowly; radiators react in minutes and the house itself is the buffer. Only the starting values: Roost learns your house from its data.",
           "price_mode": "Dynamic: a sensor with hourly prices. Fixed: you enter your contract's rate (and a low rate if you have one) in the next step.",
           "import_price": "Only with a dynamic price. A sensor with prices for the coming hours in its attributes (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Without a forecast every hour costs the same.",
           "export_price": "Leave empty with net metering: export is then worth the import price.",
@@ -276,6 +280,13 @@
     }
   },
   "selector": {
+    "emitter": {
+      "options": {
+        "floor": "Floor heating",
+        "radiators": "Radiators",
+        "both": "Both"
+      }
+    },
     "price_mode": {
       "options": {
         "sensor": "Dynamic (price sensor)",

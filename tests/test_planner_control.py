@@ -164,5 +164,14 @@ def test_fixed_contract_prices():
     assert value.fixed_prices(hours, 0.28) == [0.28] * 6               # single rate
 
 
+
+def test_reasons_follow_the_heat_emitter():
+    s = planner.Settings(comfort=20.5)
+    hours = [planner.HourIn(t_out=2.0, wind=3.5, rad=0.0, p_grid=0.50 if i < 3 else 0.25, p_own=0.25) for i in range(12)]
+    p = planner.Plan([planner.HourPlan(19.0, 20.6, 0.1, 0.4, 0.05, 0.5)], 0, 0, 0, 0, 0, None)
+    assert planner.explain(p, hours, 20.8, s).code == "expensive"
+    assert planner.explain(p, hours, 20.8, s, floor=False).code == "expensive_house"
+
+
 if __name__ == "__main__":
     run_all(dict(globals()))

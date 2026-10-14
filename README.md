@@ -63,6 +63,10 @@ follow the thermostat, not only its own heating curve.
 | On/off thermostat, heat pump on its heating curve when asked | Works. Roost records the setpoint itself, so the response is learned after a few weeks |
 | Heat pump only on its heating curve (ignores the thermostat) | Roost cannot steer; a repair says so |
 
+Floor heating, radiators or both: choose it in the setup (*Heat emitters*); it sets the starting values, the data takes
+over. Floor heating stores the most heat, so Roost can shift the most; with radiators the house itself is the buffer —
+Roost learns how much and shifts less, so expect a smaller saving.
+
 A thermostat with its own schedule or learning (Nest, Tado) works against Roost: turn that schedule off. Roost notices
 changes that come back at the same time every day and says so in Repairs.
 

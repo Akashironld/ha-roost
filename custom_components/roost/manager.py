@@ -27,7 +27,7 @@ from .const import (
     CONF_MIN_INTERVAL, CONF_NIGHT_MIN, CONF_PAUSE_HOURS, CONF_PV_FORECAST, CONF_PV_FORECAST_TOMORROW, CONF_PV_POWER,
     CONF_ROOM, CONF_STORE_MAX, CONF_THERMOSTAT, CONF_WEATHER, CONF_WEATHER_SOURCE, DEFAULTS, DOMAIN, HISTORY_DAYS,
     CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND, CONF_PRICE_MODE,
-    CONF_SP_MIN, CONF_USE_BAG,
+    CONF_EMITTER, CONF_SP_MIN, CONF_USE_BAG,
     LEARN_HOUR, LEARN_MINUTE, PLAN_MINUTES, STORAGE_VERSION, TICK_SECONDS, WEATHER_MINUTES, WEHEAT, WEHEAT_IMPORT_DAYS,
 )
 from .reasons import Reason
@@ -149,7 +149,11 @@ class RoostManager:
         prof = heatpump.profile_for(self.pump_name)
         self.mode = data.get("mode", "shadow")
         self.house = model.HouseModel.from_dict(data.get("house"))
-        self.pump = heatpump.HeatPumpModel.from_dict(data.get("pump"), prof) if data.get("pump") else heatpump.HeatPumpModel.for_profile(prof)
+        if data.get("pump"):
+            self.pump = heatpump.HeatPumpModel.from_dict(data.get("pump"), prof)
+        else:
+            self.pump = heatpump.HeatPumpModel.for_profile(prof)
+            self.pump.alpha = round(self.pump.alpha + heatpump.EMITTER_COP.get(self.conf.get(CONF_EMITTER, "floor"), 0.0), 3)
         self.mem = control.ControlMemory.from_dict(data.get("control"))
         self.storage_e = float(data.get("storage_e", 0.0))
         self.learn_info = data.get("learn", {})
@@ -163,8 +167,8 @@ class RoostManager:
         self.changes = data.get("changes") or []
         self.sp_hist = {int(k): v for k, v in (data.get("sp_hist") or {}).items()}
         self.building = data.get("building") if self.conf.get(CONF_USE_BAG) else None
-        if self.house.source != "learned" and building.prior(self.building):
-            self.house = model.HouseModel(**{**model.PRIOR, **building.prior(self.building)}, source="building register")
+        if self.house.source != "learned":
+            self.house = model.HouseModel(**self.house_start(), source="building register" if building.prior(self.building) else "default")
         self.ready, self.ready_missing = check.readiness(self.check, None) if self.check else (False, [])
         self._weheat_hours = {int(k): v for k, v in (hist.get("weheat") or {}).items()}
         self._weather_hist = {int(k): tuple(v) for k, v in (hist.get("weather") or {}).items()}
@@ -195,7 +199,7 @@ class RoostManager:
             return
         self.building = {**b, "lat": lat, "lon": lon} if b else {"lat": lat, "lon": lon, "none": True}
         if b and self.house.source != "learned" and building.prior(b):
-            self.house = model.HouseModel(**{**model.PRIOR, **building.prior(b)}, source="building register")
+            self.house = model.HouseModel(**self.house_start(), source="building register")
         await self.async_save()
 
     async def _async_first_run(self) -> None:
@@ -429,6 +433,10 @@ class RoostManager:
             return [self.pv_k * (self._weather.get(int(base + i * 3600)) or (0, 0, 0))[1] for i in range(hours)]
         return None
 
+    def house_start(self) -> dict:
+        """Starting values for the house model: heat emitter and (opt-in) the building register."""
+        return model.starting_values(self.conf.get(CONF_EMITTER, "floor"), building.prior(self.building))
+
     def sun_on_house(self, ts: int, wx: tuple) -> float:
         """Radiation driving the solar gain in this hour, for the facade the house model learned (sun.effective)."""
         return sun.effective(ts, wx, self.hass.config.latitude, self.hass.config.longitude, self.house.sun_facade, self.house.sun_vertical)
@@ -605,7 +613,7 @@ class RoostManager:
             self.plan, self.plan_hours, self.plan_at = p, hours, now.timestamp()
             self.plan_tariff = list(inp.import_price)
             self.plan_guess = [] if self.conf.get(CONF_PRICE_MODE) == "fixed" else list(self._price_guess.get(self.conf.get(CONF_IMPORT_PRICE)) or [])
-            self.reason = planner.explain(p, hours, room, s, self.pump, self.house)
+            self.reason = planner.explain(p, hours, room, s, self.pump, self.house, self.conf.get(CONF_EMITTER, "floor") == "floor")
         finally:
             self._planning = False
 
@@ -817,7 +825,7 @@ class RoostManager:
                 return sun.effective(ts, wx, lat, lon, facade, vertical) if wx else 0.0
             hours = {r.ts: self.local_hour(r.ts) for r in rows}
             house = await self.hass.async_add_executor_job(model.learn, rows, self.house, eff, hours.__getitem__,
-                                                           building.prior(self.building), building.facades(self.building, model.FACADES))
+                                                           self.house_start(), building.facades(self.building, model.FACADES))
             # from here on the rows carry the sun on the learned facade and their local hour
             hm = house.model
             rows = [replace(r, rad=eff(r.ts, hm.sun_facade, hm.sun_vertical) if hm.sun_vertical > 0 else r.rad, hour=hours[r.ts]) for r in rows]

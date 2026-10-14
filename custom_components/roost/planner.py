@@ -341,7 +341,7 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
 
 
 def explain(p: Plan, hours: list[HourIn], room: float, s: Settings, hp: HeatPumpModel | None = None,
-            house: HouseModel | None = None) -> Reason:
+            house: HouseModel | None = None, floor: bool = True) -> Reason:
     """One line on why the first hour is what it is: the setpoint against the one that would just hold the comfort
     temperature (the thermostat may read differently from the room sensor, and the unit may heat towards another
     temperature than the setpoint)."""
@@ -355,11 +355,11 @@ def explain(p: Plan, hours: list[HourIn], room: float, s: Settings, hp: HeatPump
     cheap = now <= sorted(prices)[len(prices) // 3]
     dear = now >= sorted(prices)[(2 * len(prices)) // 3]
     if hours[0].own_kw >= 0.5 and sp > hold + 0.25:
-        return Reason("store_solar", {"sp": sp})
+        return Reason("store_solar" if floor else "store_solar_house", {"sp": sp})
     if sp > hold + 0.25 and cheap:
-        return Reason("store_cheap", {"ct": round(now * 100, 1)})
+        return Reason("store_cheap" if floor else "store_cheap_house", {"ct": round(now * 100, 1)})
     if sp < hold - 0.25 and dear:
-        return Reason("expensive", {"ct": round(now * 100, 1)})
+        return Reason("expensive" if floor else "expensive_house", {"ct": round(now * 100, 1)})
     if sp <= room + th - 0.5:
         return Reason("warm_enough", {"room": round(room, 1)})
     return Reason("holding", {"sp": sp})

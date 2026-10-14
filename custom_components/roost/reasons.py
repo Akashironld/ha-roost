@@ -18,6 +18,9 @@ EN = {
     "store_solar": "charging the floor on own solar (up to {sp:g} °C)",
     "store_cheap": "charging the floor now ({ct:.0f} ct) before more expensive hours",
     "expensive": "expensive hour ({ct:.0f} ct): living off the heat in the floor",
+    "store_solar_house": "storing heat in the house on own solar (up to {sp:g} °C)",
+    "store_cheap_house": "storing heat in the house now ({ct:.0f} ct) before more expensive hours",
+    "expensive_house": "expensive hour ({ct:.0f} ct): living off the heat in the house",
     "warm_enough": "warm enough ({room:.1f} °C): no heat needed",
     "holding": "keeping the room at temperature",
     # control: what happens with the thermostat

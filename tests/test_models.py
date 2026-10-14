@@ -172,5 +172,16 @@ def test_learning_finds_the_window_facade_and_hourly_gains():
     assert m.profile and m.profile[18] == max(m.profile) and m.profile[18] > 0.2, m.profile
 
 
+
+def test_starting_values_by_heat_emitter():
+    floor = model.starting_values("floor", None)
+    rad = model.starting_values("radiators", None)
+    assert floor == {**model.PRIOR, "lag": 1.0, "C": 20.0}
+    assert rad["lag"] < 0.3 and rad["C"] < floor["C"]
+    bag = model.starting_values("radiators", {"H": 0.2, "C": 20.0})
+    assert bag["H"] == 0.2 and bag["C"] == 14.0                       # storage per m² scaled for radiators
+    assert model.starting_values("unknown", None)["lag"] == 1.0
+
+
 if __name__ == "__main__":
     run_all(dict(globals()))

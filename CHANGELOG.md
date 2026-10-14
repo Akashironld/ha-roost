@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.3.5 — fixed price contracts, comfort suggestions, sun on the facades, internal gains per hour, building register (unreleased)
+## v0.3.6 — fixed price contracts, comfort suggestions, sun on the facades, internal gains per hour, building register (unreleased)
 
 - Price: dynamic (a price sensor, as before) or a fixed contract: one rate, optionally a low rate with its hours and
   the weekend, optionally a fixed export price (empty = net metering)
@@ -27,6 +27,8 @@
   another automation); those changes do not count for comfort suggestions
 - Repair when the learned response shows the setpoint hardly moves the heat pump (its own heating curve); not ready
   to steer then
+- Setting *Heat emitters* (floor heating, radiators, both): starting values for the house (buffer, delay) and the
+  COP, and the wording (the floor, or the house, as the buffer)
 - Card: under *Planned* the room temperature expected with it (the planned setpoint is a thermostat setting and
   may be well below the room for a slow unit); clearer reasons: charging the floor, living off the heat in the floor
 

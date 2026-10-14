@@ -32,6 +32,10 @@ PROFILES = {
 }
 
 
+# radiators need warmer water than a floor: a lower COP to start from (the unit's own meters take over)
+EMITTER_COP = {"floor": 0.0, "radiators": -0.7, "both": -0.35}
+
+
 def profile_for(model_name: str | None) -> str:
     n = (model_name or "").lower()
     if "p80" in n:

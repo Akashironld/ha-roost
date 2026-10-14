@@ -43,6 +43,20 @@ MARGIN = 0.03        # within this, prefer the model with more evidence behind i
 FACADES = (90.0, 135.0, 180.0, 225.0, 270.0)
 VERTICAL = (0.5, 1.0)
 PROFILE_SHRINK, PROFILE_CAP = 0.5, 1.0
+# starting values by heat emitter (the data takes over): radiators hold little water and reach the room in minutes; the
+# buffer is then the house itself (walls, furniture), smaller than a screed floor
+EMITTER_PRIOR = {"floor": {"lag": 1.0, "C": 20.0}, "radiators": {"lag": 0.15, "C": 14.0}, "both": {"lag": 0.6, "C": 17.0}}
+EMITTER_STORAGE = {"floor": 1.0, "radiators": 0.7, "both": 0.85}   # share of the floor-heating storage per m²
+
+
+def starting_values(emitter: str, building_prior: dict | None) -> dict:
+    """PRIOR adjusted for the heat emitter and (optional) the building register's heat loss and storage."""
+    p = {**PRIOR, **EMITTER_PRIOR.get(emitter, EMITTER_PRIOR["floor"])}
+    if building_prior:
+        p["H"] = building_prior.get("H", p["H"])
+        if "C" in building_prior:
+            p["C"] = round(building_prior["C"] * EMITTER_STORAGE.get(emitter, 1.0), 1)
+    return p
 
 
 @dataclass
