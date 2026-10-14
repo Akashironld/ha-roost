@@ -4,147 +4,89 @@
 <p align="center"><b>Smart heating planner for Weheat heat pumps.</b><br>
 Plans your thermostat 24 hours ahead on price, weather and the heat your house stores — and learns your house by itself.</p>
 
-> Status: 0.1, early. Roost starts in **shadow mode**: it shows what it would do and why, without touching your
-> thermostat, until you switch it to active. Not affiliated with Weheat.
+> **Status: beta.** Roost starts in **shadow mode**: it shows what it would do and why, without touching your
+> thermostat, until you let it steer. Not affiliated with Weheat.
+>
+> 📖 **New here? Follow the [setup and user guide](docs/GUIDE.md)** — from installing to letting Roost steer, step by step.
 
 ## What it does
 
-- **Plans, instead of reacting.** Every quarter of an hour Roost makes a 24-hour plan of thermostat setpoints. When an
-  hour is cheap (or your solar earns little) and an expensive evening follows, it stores heat in the floor; in the
-  expensive hours it lets the house run on that stored heat. It weighs the price difference against the heat that
-  leaks away and against the better COP in the warm afternoon.
-- **Keeps the water lukewarm.** It never asks for much more than the room temperature (at most 1 °C above it by
-  default), so an OpenTherm thermostat keeps asking for low water temperatures and the heat pump keeps a high COP.
-- **Learns your house** every night from Home Assistant's history: heat loss, how much heat the house stores, how long
-  the floor holds it, solar gain through the windows, the effect of wind. A new model is only used when it predicts the
-  last days better than the old one, and it must get both the temperatures and the energy use right.
-- **Learns your heat pump**: its COP against the outdoor temperature and the output, and how far its outdoor sensor
-  reads off (they read high in the sun).
-- **Starts from last winter.** One button imports the heat pump's hourly history (up to 13 months) from Weheat through
-  your Weheat integration's login — read-only — so Roost knows your house from day one instead of after a winter.
-- **Works out the value of energy itself.** Only real solar counts as own solar (export minus battery discharge, never
-  more than the solar power), a home battery that fills up anyway makes solar free, and the rest costs the price of
-  that hour. With net metering export is worth the import price, so solar is not free yet; after net metering it is.
-- **Respects you and the heat pump.** At most one setpoint change per hour; a change by hand pauses Roost for two
-  hours; it never goes below your minimum; shadow mode first.
-- **Shows what it saves**, against a steady thermostat at your comfort temperature (the usual advice for heat pumps):
-  expected saving over the next 24 hours, yesterday and this month.
-- **Its own dashboard card** with the 24-hour plan (setpoint, expected room temperature, price per hour, comfort hours;
-  slide over it to read each hour).
+- **Plans instead of reacting.** Every 15 minutes a 24-hour plan of thermostat settings. When an hour is cheap (or your
+  solar earns little) and an expensive evening follows, it charges the floor a little; in the expensive hours the house
+  lives off that heat. It weighs the price difference against the heat that leaks away and the better COP in the warm
+  afternoon.
+- **Keeps the water lukewarm.** It never asks for much more than the room temperature, so an OpenTherm thermostat keeps
+  asking for low water temperatures and the heat pump keeps a high COP.
+- **Learns your house** every night: heat loss, the heat the house stores, how long the floor holds it, the facade the
+  sun comes in through, wind, internal gains per hour of the day. A new model is only used when it predicts better.
+- **Learns your heat pump**: its COP, how it responds to the thermostat (an OpenTherm thermostat modulates and the heat
+  pump follows slowly — Roost plans with that delay), its lowest output, when it makes hot water.
+- **Starts from last winter.** It imports the heat pump's hourly history (up to 13 months) from Weheat, read-only,
+  through your Weheat integration's login — so it knows your house from day one.
+- **Checks itself.** Every night it replays the last week with the setpoints that were really on the thermostat; when it
+  predicts well enough it offers to take over. Between nights it corrects from the last hours.
+- **Dynamic or fixed price**, solar, home battery (energy from the battery is valued at what refilling it costs), net
+  metering or not.
+- **Extra rooms**: radiators upstairs or a bedroom get a minimum in their own hours, so Roost never lets the heat pump
+  rest longer than they can take.
+- **Respects you.** At most one change an hour, steps aside for two hours when you change the thermostat, never below
+  your minimums or its lowest setting, comfort suggestions instead of changing your settings by itself.
+- **Its own dashboard card** with the plan, the expected room temperature, the tariff per hour and what it saves.
+
+## Quick start
+
+1. **HACS** → ⋮ → *Custom repositories* → add this repository as an *Integration* → download **Roost** → restart Home
+   Assistant.
+2. **Settings → Devices & services → Add integration → Roost.** Pick your Weheat heat pump and thermostat; Roost fills in
+   what it finds (room sensor, price sensor, solar and battery, your comfort temperatures) — check it and submit.
+3. **Add the card**: edit a dashboard → *Add card* → *Roost*.
+4. Watch it in **shadow mode** for some days. When its self-check is happy, a notice in **Settings → Repairs** offers to
+   let it steer. Turn off any other schedule or automation on the thermostat first.
+
+Everything else — every screen, every setting, the card, repairs, troubleshooting — is in the
+**[guide](docs/GUIDE.md)**.
 
 ## Requirements
 
-- Home Assistant 2025.1 or newer, with the recorder.
-- A **Weheat heat pump** with the official **Weheat** integration.
-- The **thermostat** that drives the heat pump (OpenTherm or on/off), as a `climate` entity. The heat pump must follow
-  the thermostat, not its own heating curve — Roost checks this and raises a repair notice if it does not.
-- An **electricity price** sensor, best with a forecast in its attributes (Nord Pool, ENTSO-e, Frank Energie, evcc and
-  other sensors with a list of `{start, end, value}` are read automatically).
-- Optional: a better room sensor, export price, grid power, solar power and forecast, home battery, house power, a
-  weather entity (Open-Meteo is used by default: free, no account).
+- Home Assistant **2025.3** or newer, with the recorder.
+- A **Weheat** heat pump with the official Weheat integration.
+- The **thermostat** that drives it, as a `climate` entity in Home Assistant (OpenTherm best; on/off works). The heat
+  pump must follow the thermostat, not only its own heating curve — Roost checks this.
+- An **electricity price**: a sensor with the prices of the coming hours (evcc, Nord Pool, Tibber, ENTSO-e, Frank
+  Energie, … are read automatically), or your fixed contract's rate.
+- Optional: a room sensor, solar and battery sensors, solar forecast, extra room sensors.
 
-## Installation
-
-1. HACS → three dots → *Custom repositories* → add this repository as an *Integration*.
-2. Install **Roost** and restart Home Assistant.
-3. *Settings → Devices & services → Add integration → Roost*: pick the Weheat heat pump, the thermostat and the price
-   (a dynamic price sensor, or your fixed contract's rate with an optional low rate),
-   then (optionally) solar, battery and weather, and your comfort temperatures.
-4. Add the card: *Edit dashboard → Add card → Roost*.
-
-## Thermostats
-
-Roost steers by changing the room setpoint of the thermostat in Home Assistant, like you would. The heat pump must
-follow the thermostat, not only its own heating curve.
+## Thermostats and heating
 
 | Setup | How well |
 |---|---|
-| OpenTherm thermostat (Lyric T6, Nest, Tado, …) | Best. How the heat pump responds to the setpoint is learned from the Weheat history (also last winter) |
-| On/off thermostat, heat pump on its heating curve when asked | Works. Roost records the setpoint itself, so the response is learned after a few weeks |
-| Heat pump only on its heating curve (ignores the thermostat) | Roost cannot steer; a repair says so |
+| OpenTherm thermostat (Lyric T6, Nest, Tado, Remeha, …) | Best: the heat pump's response is learned from the Weheat history, also last winter |
+| On/off thermostat, heat pump on its heating curve when asked | Works: Roost records the setpoint itself and learns the response in a few weeks |
+| Heat pump only on its own heating curve | Roost cannot steer, and says so |
 
-Floor heating, radiators or both: choose it in the setup (*Heat emitters*); it sets the starting values, the data takes
-over. Floor heating stores the most heat, so Roost can shift the most; with radiators the house itself is the buffer —
-Roost learns how much and shifts less, so expect a smaller saving.
+Floor heating stores the most heat, so Roost can shift the most; with radiators the house itself is the buffer and the
+saving is smaller. A thermostat with its own schedule or learning works against Roost: turn that off (Roost notices it).
 
-A thermostat with its own schedule or learning (Nest, Tado) works against Roost: turn that schedule off. Roost notices
-changes that come back at the same time every day and says so in Repairs.
+## Reporting a problem
 
-## Extra rooms (optional)
+**Settings → Devices & services → Roost → ⋮ → Download diagnostics**, then open a
+[bug report](https://github.com/Akashironld/ha-roost/issues/new/choose) and drag the file in. It holds Roost's event log
+(every thermostat change and why), the plan's inputs and the learned models — no passwords, no home location.
 
-The thermostat is in one room; other rooms (radiators upstairs, a bedroom) only get heat while the heat pump runs for
-it. Add them on the integration page with *Add room*: a temperature sensor (a radiator valve's own reading or a
-separate sensor) and the kind of room, which sets a minimum and the hours it holds:
+## Privacy
 
-| Kind | Minimum | Hours |
-|---|---|---|
-| Bedroom | 16 °C | 19–23 h (cool for sleeping is fine) |
-| Kids' room | 18 °C | 7–21 h |
-| Study | 19 °C | 8–18 h |
-| Bathroom | 20 °C | 6–9 h |
-| Other | 17 °C | the comfort hours |
-
-Change the minimum or hours if you like. Outside its hours a room may get as cool as it likes, so a valve closed on
-purpose stays closed. Roost learns per room how it cools and warms, keeps the minimums in its plan (it will not leave the
-heat pump off longer than those rooms can take) and says so in Repairs when a room keeps staying too cold. The card
-shows them under the tiles. Roost does not steer radiator valves (yet).
-
-## Card options
-
-All options are also in the visual editor.
-
-| Option | What | Default |
-|---|---|---|
-| `entity` | the *Planned setpoint* sensor of Roost | required |
-| `title` | own title | `Roost` |
-| `compact` | only the header and the tiles (room, thermostat, planned) — handy on a wall tablet | `false` |
-| `show_tiles` | room, thermostat and planned setpoint | `true` |
-| `show_chart` | the 24-hour plan | `true` (`false` in compact) |
-| `show_footer` | the saving | `true` (`false` in compact) |
-| `language` | `en` or `nl`; by default the language of your Home Assistant profile | |
-| `time_format` | `24` or `12`; by default your profile | |
-
-A `show_…` option you set yourself always wins, so you can start from `compact` and add a part back:
-
-```yaml
-type: custom:roost-card
-entity: sensor.roost_planned_setpoint
-compact: true
-show_chart: true
-```
-
-## Entities
-
-| Entity | What |
-|---|---|
-| `select.roost_mode` | off / shadow / active |
-| `sensor.roost_planned_setpoint` | the setpoint Roost wants now; reason, decision and the 24-hour plan in the attributes (`reason`/`decision` in English, `reason_code`/`decision_code` with their `_args` for your own translations) |
-| `sensor.roost_expected_saving_next_24_h` | against a steady thermostat at your comfort temperature |
-| `sensor.roost_saving_yesterday`, `sensor.roost_saving_this_month` | the day replayed with the same model, weather and prices |
-| `sensor.roost_heating_cost_today` | heat pump electricity for space heating × the price of each hour |
-| `sensor.roost_house_model_error` | how well the learned house model predicts a day (°C); the house's numbers in the attributes |
-| `sensor.roost_weheat_import` | status of the Weheat history import |
-| `sensor.roost_plan_accuracy` | nightly self-check: how close the plan comes to the room 6 hours ahead (°C); the horizons, heat and electricity against the meters, readiness to steer, the correction and the learned response in the attributes |
-| `binary_sensor.roost_paused_changed_by_hand`, `binary_sensor.roost_heat_pump_follows_the_thermostat` | |
-| `button.roost_learn_now`, `button.roost_import_history_from_weheat` | |
-
-Switched off by default: heating electricity today, energy value now, heat pump model.
-Services: `roost.pause`, `roost.resume`, `roost.import_history`.
+Roost talks to **Open-Meteo** (weather, with your home location), to **Weheat** (read-only, with your own Weheat
+integration's login, for the history) and — only if you turn it on — once to **PDOK** (Dutch building register). Nothing
+else, no account, no telemetry. Details in the [guide](docs/GUIDE.md#15-privacy-and-safety).
 
 ## How it decides
 
-Per quarter of an hour the planner simulates the thermostat (it heats on the room error only and does not know the
-floor), the heat going into the floor first and reaching the room with the learned lag, losses to outside with wind,
-and solar gain. The cost of an hour is the electricity (heat ÷ COP) times the energy value of that hour, plus comfort
-penalties (heavy below your minimum, light below your comfort temperature in the day) and a small cost per change. The
-cheapest plan over 36 hours wins; the first hour is carried out and the plan is made again every 15 minutes.
-
-## Limits (0.1)
-
-- One thermostat, one room. Hot water is left to the heat pump (Weheat Intelligence plans it itself).
-- Without imported history or a winter in Home Assistant, the first weeks use a generic model for a well-insulated
-  house with floor heating; it adapts as heating days come in.
-- With a weather entity instead of Open-Meteo, solar radiation is estimated from the sun's height and cloud cover.
+Per quarter of an hour the planner simulates the thermostat and the heat pump's learned response, the heat going into
+the floor first and reaching the room with the learned delay, losses to outside with wind, sun on the facade and
+internal gains. The cost of an hour is the electricity (heat ÷ COP) times the energy value of that hour, plus comfort
+penalties and a small cost per change; extra rooms add their own. A dynamic-programming search over 36 hours finds a
+plan, which is then refined with the heat pump's real delay. Only the first hour is carried out; the plan is made again
+every 15 minutes. More in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Support
 
