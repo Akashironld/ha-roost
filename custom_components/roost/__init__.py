@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import logging
+import traceback
+from collections import deque
+from datetime import datetime
 from pathlib import Path
 
 import voluptuous as vol
@@ -19,6 +22,31 @@ from .const import CARD_URL, DOMAIN
 from .manager import RoostManager
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class RecentLog(logging.Handler):
+    """The last warnings and errors of Roost's own loggers, for the diagnostics download (a bug report)."""
+
+    def __init__(self) -> None:
+        super().__init__(logging.WARNING)
+        self.records: deque = deque(maxlen=60)
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            exc = "".join(traceback.format_exception(*record.exc_info))[-1200:] if record.exc_info else None
+            self.records.append({"t": datetime.fromtimestamp(record.created).isoformat(timespec="seconds"), "level": record.levelname,
+                                 "logger": record.name, "message": record.getMessage()[:600], "exception": exc})
+        except Exception:  # noqa: BLE001 - never break logging
+            pass
+
+
+def recent_log(hass: HomeAssistant) -> RecentLog:
+    data = hass.data.setdefault(DOMAIN, {})
+    if "recent_log" not in data:
+        handler = RecentLog()
+        logging.getLogger(__package__).addHandler(handler)
+        data["recent_log"] = handler
+    return data["recent_log"]
 
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SELECT, Platform.BUTTON]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
@@ -111,6 +139,7 @@ async def _async_register_resource(hass: HomeAssistant, url: str) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: RoostConfigEntry) -> bool:
+    recent_log(hass)
     manager = RoostManager(hass, entry)
     entry.runtime_data = manager
     await manager.async_start()

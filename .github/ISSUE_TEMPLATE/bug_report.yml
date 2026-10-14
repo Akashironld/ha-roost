@@ -5,14 +5,31 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting! The **diagnostics file** is the most useful thing you can add: it lets the
-        situation be replayed exactly. Get it at **Settings → Devices & services → Roost →
-        ⋮ → Download diagnostics** and drag it into the field below. It contains no passwords or personal data.
+        Thanks for reporting! The **diagnostics file** is what makes a problem solvable: it holds Roost's settings,
+        the state of every entity it reads, the learned models, the inputs and result of the current plan, the last
+        48 hours, **Roost's own event log** (every thermostat change and why, changes by hand, repairs, errors) and its
+        last warnings from the log. It holds no passwords or tokens, and the home location is left out.
+
+        **How to get it**
+        1. Settings → Devices & services → **Roost**.
+        2. Click the **⋮** (three dots) next to the Roost entry.
+        3. **Download diagnostics** — a `.json` file is saved.
+        4. Drag that file into the field below.
+
+        Download it **soon after the problem** (Roost keeps its last 300 events and 48 hours in it).
   - type: textarea
     id: what
     attributes:
       label: What happens, and what did you expect?
-      placeholder: "E.g. it stored heat at 22 °C although the evening was cheaper than the afternoon"
+      placeholder: "E.g. at 18:00 it set the thermostat to 19 °C and the bedroom got cold"
+    validations:
+      required: true
+  - type: input
+    id: when
+    attributes:
+      label: When did it happen?
+      description: Date and time, so the right part of the event log can be found.
+      placeholder: "2026-11-02 around 18:00"
     validations:
       required: true
   - type: textarea
@@ -23,24 +40,10 @@ body:
     validations:
       required: true
   - type: input
-    id: ha_version
-    attributes:
-      label: Home Assistant version
-      placeholder: "2026.10.1"
-    validations:
-      required: true
-  - type: input
-    id: version
-    attributes:
-      label: Roost version
-      placeholder: "0.1.0"
-    validations:
-      required: true
-  - type: input
     id: setup
     attributes:
       label: Heat pump, thermostat and heating
-      placeholder: "Weheat Blackbird P80, Honeywell Lyric T6 over OpenTherm, floor heating"
+      placeholder: "Weheat Blackbird P80, Honeywell Lyric T6 over OpenTherm, floor heating downstairs, radiators upstairs"
     validations:
       required: true
   - type: dropdown
@@ -54,8 +57,12 @@ body:
     validations:
       required: true
   - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot of the Roost card (optional)
+  - type: textarea
     id: logs
     attributes:
-      label: Log lines (optional)
-      description: Settings → System → Logs, search for "roost".
+      label: Other log lines (optional)
+      description: Roost's own warnings are already in the diagnostics file. Add others only if they seem related (Settings → System → Logs).
       render: text

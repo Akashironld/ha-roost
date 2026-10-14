@@ -8,6 +8,10 @@
 - Likely entities are filled in: the thermostat (a climate entity that heats and does not cool), the room sensor (in
   the thermostat's area, else the living room), price sensors with a forecast, solar/grid/battery/house power of one
   inverter, solar forecasts
+- Bug reports: Roost keeps an event log (every thermostat change and why, changes by hand, mode, learning, import,
+  repairs, plans it could not make, errors; the last 300, kept over restarts) and its last warnings and errors; the
+  diagnostics download now holds those, the versions, the state of every entity Roost reads and the inputs of the
+  current plan (to replay it), without the home location. The bug report form explains how to get it
 - Comfort settings filled in from the thermostat's last days: the comfort hours, the comfort temperature, the night
   minimum (at most 1.5 °C below comfort: a heat pump does badly with a deep setback)
 

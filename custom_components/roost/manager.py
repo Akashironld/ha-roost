@@ -4,6 +4,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+import traceback
+from collections import deque
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from functools import partial
@@ -36,6 +38,7 @@ from .weheat_api import WeheatUnavailable, async_fetch_history, heat_pump_id
 _LOGGER = logging.getLogger(__name__)
 DHW_STATES = ("dhw", "legionella_prevention")
 DHW_WEEKS = 8                 # hot water profile from the last weeks
+EVENTS_KEPT = 300             # what Roost did, for a bug report
 SP_HIST_DAYS = 120            # own record of the thermostat's setpoint per hour
 NO_LEVER_KW = 0.2             # learned gain below this (kW per °C): the setpoint hardly moves the heat pump
 WEHEAT_FIELDS = 2             # 2: the import includes the setpoint per hour
@@ -121,6 +124,10 @@ class RoostManager:
         self.room_models: dict[str, rooms.RoomModel] = {}
         self.room_status: list[dict] = []
         self.suggestion: comfort.Suggestion | None = None
+        # what Roost did and why, for a bug report (diagnostics): thermostat changes, changes by hand, mode, learning,
+        # import, repairs, plans that could not be made, errors
+        self.events: deque = deque(maxlen=EVENTS_KEPT)
+        self._last_reason_code: str | None = None
         self.ready: bool = False
         self.ready_missing: list[str] = []
         self.corr_kw, self.corr_n = 0.0, 0           # correction from the last hours (check.correction)
@@ -179,6 +186,8 @@ class RoostManager:
         self.changes = data.get("changes") or []
         self.sp_hist = {int(k): v for k, v in (data.get("sp_hist") or {}).items()}
         self.room_models = {k: rooms.RoomModel.from_dict(v) for k, v in (data.get("room_models") or {}).items()}
+        self.events.extend(data.get("events") or [])
+        self.event("start", mode=self.mode)
         self.building = data.get("building") if self.conf.get(CONF_USE_BAG) else None
         if self.house.source != "learned":
             self.house = model.HouseModel(**self.house_start(), source="building register" if building.prior(self.building) else "default")
@@ -250,7 +259,8 @@ class RoostManager:
             "check": self.check, "changes": [c for c in self.changes if c["ts"] > time.time() - 30 * 86400],
             "building": self.building,
             "sp_hist": {str(k): v for k, v in self.sp_hist.items() if k > time.time() - SP_HIST_DAYS * 86400},
-            "room_models": {k: v.as_dict() for k, v in self.room_models.items() if any(r.id == k for r in self.rooms)}})
+            "room_models": {k: v.as_dict() for k, v in self.room_models.items() if any(r.id == k for r in self.rooms)},
+            "events": list(self.events)})
 
     def _price_seen_recent(self) -> dict[str, dict[str, float]]:
         cut = time.time() - 3 * 86400
@@ -289,7 +299,13 @@ class RoostManager:
         await self._hist_store.async_save({"weheat": {str(k): v for k, v in self._weheat_hours.items()},
                                            "weather": {str(k): list(v) for k, v in self._weather_hist.items()}})
 
+    def event(self, kind: str, **data: Any) -> None:
+        """Remember what happened (kept: the last EVENTS_KEPT, also over restarts)."""
+        self.events.append({"t": dt_util.now().isoformat(timespec="seconds"), "kind": kind, **data})
+
     async def async_set_mode(self, mode: str) -> None:
+        if mode != self.mode:
+            self.event("mode", old=self.mode, new=mode)
         self.mode = mode
         self.mem.virtual_sp = None
         self._issue_ready()
@@ -487,6 +503,11 @@ class RoostManager:
             self._issue(f"room_cold_{r.id}", rooms.too_cold(log), translation_key="room_cold",
                         placeholders={"room": r.name, "minimum": f"{lo:g}", "hours": f"{a}:00–{b}:00"})
 
+    def _note_no_plan(self) -> None:
+        if self.reason.code != self._last_reason_code:
+            self._last_reason_code = self.reason.code
+            self.event("no_plan", reason=self.reason.code, sources=dict(self.sources))
+
     def house_start(self) -> dict:
         """Starting values for the house model: heat emitter and (opt-in) the building register."""
         return model.starting_values(self.conf.get(CONF_EMITTER, "floor"), building.prior(self.building))
@@ -560,8 +581,9 @@ class RoostManager:
             if due and not self._planning:
                 await self._async_plan(now)
             await self._async_control(t)
-        except Exception:  # noqa: BLE001 - one bad run must not stop the integration
+        except Exception as err:  # noqa: BLE001 - one bad run must not stop the integration
             _LOGGER.exception("Roost run failed")
+            self.event("error", where="run", error=repr(err)[:200], trace=traceback.format_exc(limit=4)[-800:])
         self._last_tick = t
         self._notify()
 
@@ -652,6 +674,7 @@ class RoostManager:
             room = self.room()
             if e is None or room is None:
                 self.reason = Reason("no_price" if e is None else "no_room")
+                self._note_no_plan()
                 return
             inp, ev = e
             prices = value.planner_prices(inp, ev)
@@ -659,6 +682,7 @@ class RoostManager:
             hours = self._hours_ahead(now, prices)
             if not hours:
                 self.reason = Reason("no_weather")
+                self._note_no_plan()
                 return
             s = self.settings()
             w_now = self._kw(self.ent.get("power_out")) if self.pump_state() == "heating" else 0.0
@@ -670,6 +694,7 @@ class RoostManager:
             self.plan_tariff = list(inp.import_price)
             self.plan_guess = [] if self.conf.get(CONF_PRICE_MODE) == "fixed" else list(self._price_guess.get(self.conf.get(CONF_IMPORT_PRICE)) or [])
             self.reason = planner.explain(p, hours, room, s, self.pump, self.house, self.conf.get(CONF_EMITTER, "floor") == "floor")
+            self._last_reason_code = None
         finally:
             self._planning = False
 
@@ -683,12 +708,15 @@ class RoostManager:
         if d.setpoint is not None and self.mode == "active":
             ctx = Context()
             self._contexts[ctx.id] = time.time()
+            before = self.thermostat_sp()
             try:
                 await self.hass.services.async_call("climate", "set_temperature",
                                                     {ATTR_ENTITY_ID: self.conf[CONF_THERMOSTAT], "temperature": self._c_to_sys(d.setpoint)},
                                                     blocking=True, context=ctx)
+                self.event("set", old=before, new=d.setpoint, why=d.why.code, reason=self.reason.code, room=self.room())
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning("Roost could not set the thermostat: %s", err)
+                self.event("set_failed", new=d.setpoint, error=str(err)[:200])
         if d.setpoint is not None:
             await self.async_save()
 
@@ -705,6 +733,8 @@ class RoostManager:
         self.mem.pause_until = time.time() + self.control_settings().pause_hours * 3600
         room = self.room()
         self.changes.append({"ts": round(time.time()), "from": a, "to": b, "room": round(room, 2) if room is not None else None})
+        self.event("by_hand", old=a, new=b, room=room, pause_h=self.control_settings().pause_hours,
+                   context_user=bool(event.context.user_id), context_parent=bool(event.context.parent_id))
         self.hass.async_create_task(self.async_save())
         self._notify()
 
@@ -712,6 +742,8 @@ class RoostManager:
     def _issue(self, key: str, active: bool, fixable: bool = False, placeholders: dict | None = None,
                translation_key: str | None = None, data: dict | None = None) -> None:
         iid = f"{self.entry.entry_id}_{key}"
+        if active != (key in self.health.issues):
+            self.event("repair", issue=key, active=active)
         if active and key not in self.health.issues:
             ir.async_create_issue(self.hass, DOMAIN, iid, is_fixable=fixable, severity=ir.IssueSeverity.WARNING,
                                   translation_key=translation_key or key,
@@ -830,11 +862,13 @@ class RoostManager:
 
     # ------------------------------------------------------------ services
     async def async_pause(self, hours: float) -> None:
+        self.event("pause", hours=hours)
         self.mem.pause_until = time.time() + hours * 3600
         await self.async_save()
         self._notify()
 
     async def async_resume(self) -> None:
+        self.event("resume")
         self.mem.pause_until = None
         self.mem.last_write = None
         await self.async_save()
@@ -913,9 +947,12 @@ class RoostManager:
                                "last_row": datetime.fromtimestamp(max(r.ts for r in rows), tz=timezone.utc).isoformat() if rows else None,
                                "weheat_hours": sum(1 for r in rows if r.ts in self._weheat_hours)}
             self._issue("learning_failed", False)
-        except Exception:  # noqa: BLE001
+            self.event("learned", house=house.reason, heat_pump=note[:300], plan_error_6h=self.check.get("rmse_6h"),
+                       ready=self.ready, rows=len(rows))
+        except Exception as err:  # noqa: BLE001
             _LOGGER.exception("Roost learning failed")
             self._issue("learning_failed", True)
+            self.event("error", where="learning", error=repr(err)[:200], trace=traceback.format_exc(limit=4)[-800:])
         finally:
             self._learning = False
         await self.async_save()
@@ -944,14 +981,17 @@ class RoostManager:
             self._weheat_hours.update(rows)
             await self._async_save_history()
             first = min(rows) if rows else None
+            self.event("import", hours=len(rows))
             self.import_info = {"status": "done", "done": True, "fields": WEHEAT_FIELDS, "hours": len(rows),
                                 "from": first and datetime.fromtimestamp(first, tz=timezone.utc).isoformat(),
                                 "to": end.isoformat(), "at": dt_util.now().isoformat(timespec="seconds")}
         except WeheatUnavailable as err:
             self.import_info = {"status": f"waiting for the Weheat login ({err})"}
+            self.event("import_waiting", error=str(err)[:200])
         except Exception as err:  # noqa: BLE001
             _LOGGER.exception("Roost: Weheat import failed")
             self.import_info = {"status": f"failed: {err}"}
+            self.event("error", where="import", error=repr(err)[:200], trace=traceback.format_exc(limit=4)[-800:])
         finally:
             self.importing = False
         await self.async_save()
