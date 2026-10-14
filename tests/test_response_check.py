@@ -72,6 +72,14 @@ def test_response_skips_days_without_heating():
     assert m.resp_source == "learned" and m.k >= 0.5, note
 
 
+def test_a_heat_pump_on_its_own_curve_has_no_lever():
+    hp = true_pump()
+    hp.k = 0.0                                   # the setpoint does nothing (heating curve)
+    m, note = response.learn(simulate(hp), HOUSE, heatpump.HeatPumpModel())
+    assert m.resp_source == "learned" and m.k < 0.2, note
+    assert check.readiness({"heating_hours": 100, "rmse_6h": 0.2, "heat_ratio": 1.0}, True, lever=False) == (False, ["lever"])
+
+
 def test_response_needs_hours_with_a_setpoint():
     rows = simulate(true_pump(), days=2)
     for r in rows:

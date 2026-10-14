@@ -52,6 +52,20 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
    then (optionally) solar, battery and weather, and your comfort temperatures.
 4. Add the card: *Edit dashboard → Add card → Roost*.
 
+## Thermostats
+
+Roost steers by changing the room setpoint of the thermostat in Home Assistant, like you would. The heat pump must
+follow the thermostat, not only its own heating curve.
+
+| Setup | How well |
+|---|---|
+| OpenTherm thermostat (Lyric T6, Nest, Tado, …) | Best. How the heat pump responds to the setpoint is learned from the Weheat history (also last winter) |
+| On/off thermostat, heat pump on its heating curve when asked | Works. Roost records the setpoint itself, so the response is learned after a few weeks |
+| Heat pump only on its heating curve (ignores the thermostat) | Roost cannot steer; a repair says so |
+
+A thermostat with its own schedule or learning (Nest, Tado) works against Roost: turn that schedule off. Roost notices
+changes that come back at the same time every day and says so in Repairs.
+
 ## Card options
 
 All options are also in the visual editor.

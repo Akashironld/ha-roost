@@ -36,6 +36,8 @@ from .weheat_api import WeheatUnavailable, async_fetch_history, heat_pump_id
 _LOGGER = logging.getLogger(__name__)
 DHW_STATES = ("dhw", "legionella_prevention")
 DHW_WEEKS = 8                 # hot water profile from the last weeks
+SP_HIST_DAYS = 120            # own record of the thermostat's setpoint per hour
+NO_LEVER_KW = 0.2             # learned gain below this (kW per °C): the setpoint hardly moves the heat pump
 WEHEAT_FIELDS = 2             # 2: the import includes the setpoint per hour
 NOT_FOLLOWING_MIN = 45
 ROOM_SILENT_MIN = 30
@@ -113,6 +115,10 @@ class RoostManager:
         self._acc_hour: int | None = None           # the current hour: seconds on hot water, heat for the house
         self._dhw_acc = 0.0
         self._heat_acc = 0.0
+        # per hour: mean room setpoint and the thermostat's own reading, from the thermostat entity (an on/off thermostat
+        # never tells the heat pump its setpoint, so the Weheat logs do not have it; HA statistics keep no attributes)
+        self.sp_hist: dict[int, list] = {}
+        self._sp_acc = [0.0, 0.0, 0.0, 0.0]      # setpoint × s, s, reading × s, s
 
     # ------------------------------------------------------------ config
     @property
@@ -155,6 +161,7 @@ class RoostManager:
         self.price_seen = {e: {int(k): v for k, v in d.items()} for e, d in (data.get("price_seen") or {}).items()}
         self.check = data.get("check") or {}
         self.changes = data.get("changes") or []
+        self.sp_hist = {int(k): v for k, v in (data.get("sp_hist") or {}).items()}
         self.building = data.get("building") if self.conf.get(CONF_USE_BAG) else None
         if self.house.source != "learned" and building.prior(self.building):
             self.house = model.HouseModel(**{**model.PRIOR, **building.prior(self.building)}, source="building register")
@@ -224,7 +231,8 @@ class RoostManager:
             "hour_log": self.hour_log[-60:], "saving_days": dict(sorted(self.saving_days.items())[-62:]),
             "pv_k": self.pv_k, "load_profile": self.load_profile, "price_seen": self._price_seen_recent(),
             "check": self.check, "changes": [c for c in self.changes if c["ts"] > time.time() - 30 * 86400],
-            "building": self.building})
+            "building": self.building,
+            "sp_hist": {str(k): v for k, v in self.sp_hist.items() if k > time.time() - SP_HIST_DAYS * 86400}})
 
     def _price_seen_recent(self) -> dict[str, dict[str, float]]:
         cut = time.time() - 3 * 86400
@@ -326,6 +334,10 @@ class RoostManager:
     def thermostat_sp(self) -> float | None:
         st = self._state(self.conf[CONF_THERMOSTAT])
         return self._sys_to_c(_f(st.attributes.get("temperature"))) if st else None
+
+    def thermostat_reading(self) -> float | None:
+        st = self._state(self.conf[CONF_THERMOSTAT])
+        return self._sys_to_c(_f(st.attributes.get("current_temperature"))) if st else None
 
     def pump_state(self) -> str | None:
         st = self._state(self.ent.get("state"))
@@ -653,7 +665,15 @@ class RoostManager:
         def local(ts: float) -> tuple[str, int]:
             loc = dt_util.as_local(datetime.fromtimestamp(ts, tz=timezone.utc))
             return loc.date().isoformat(), loc.hour
-        sug = comfort.suggest(self.changes, local, time.time(), int(c[CONF_DAY_FROM]), int(c[CONF_DAY_TO]),
+        def local_minute(ts: float) -> tuple[str, int]:
+            loc = dt_util.as_local(datetime.fromtimestamp(ts, tz=timezone.utc))
+            return loc.date().isoformat(), loc.hour * 60 + loc.minute
+        sched = comfort.scheduled(self.changes, local_minute, time.time())
+        self._issue("thermostat_schedule", bool(sched), placeholders={
+            "times": ", ".join(f"{s['minute'] // 60:02d}:{s['minute'] % 60:02d} → {s['to']:g} °C" for s in sched)})
+        by_schedule = {t for s in sched for t in s["ts"]}
+        own = [x for x in self.changes if x["ts"] not in by_schedule]
+        sug = comfort.suggest(own, local, time.time(), int(c[CONF_DAY_FROM]), int(c[CONF_DAY_TO]),
                               float(c[CONF_COMFORT]), float(c[CONF_DAY_MIN]))
         if self.suggestion is not None and (sug is None or sug.as_dict() != self.suggestion.as_dict()):
             self._issue("comfort", False)
@@ -689,10 +709,21 @@ class RoostManager:
                     if e["ts"] == self._acc_hour:
                         e["dhw"] = round(min(1.0, self._dhw_acc / 3600), 2)
                         e["q"] = round(self._heat_acc, 2)
+                a = self._sp_acc
+                if a[1] >= 1800:                      # at least half the hour seen
+                    self.sp_hist[self._acc_hour] = [round(a[0] / a[1], 2), round(a[2] / a[3], 2) if a[3] >= 1800 else None]
             self._acc_hour, self._dhw_acc, self._heat_acc = hour, 0.0, 0.0
+            self._sp_acc = [0.0, 0.0, 0.0, 0.0]
         if self._last_tick is None:
             return
         dt = min(600.0, max(0.0, t - self._last_tick))
+        sp, reading = self.thermostat_sp(), self.thermostat_reading()
+        if sp is not None:
+            self._sp_acc[0] += sp * dt
+            self._sp_acc[1] += dt
+        if reading is not None:
+            self._sp_acc[2] += reading * dt
+            self._sp_acc[3] += dt
         state = self.pump_state()
         if state in DHW_STATES:
             self._dhw_acc += dt
@@ -775,6 +806,9 @@ class RoostManager:
         try:
             from .learning import async_rows
             rows, extra = await async_rows(self)
+            # hours without the setpoint in the Weheat logs (an on/off thermostat): Roost's own record of the thermostat
+            rows = [replace(r, sp=self.sp_hist[r.ts][0] if r.sp is None else r.sp,
+                            T_th=self.sp_hist[r.ts][1] if r.T_th is None else r.T_th) if r.ts in self.sp_hist else r for r in rows]
             wx_all = {**self._weather_hist, **self._weather}
             lat, lon = self.hass.config.latitude, self.hass.config.longitude
 
@@ -797,7 +831,9 @@ class RoostManager:
             self.house, self.pump = house.model, pump
             self.check = await self.hass.async_add_executor_job(check.self_check, rows, self.house, self.pump)
             self.check["at"] = dt_util.now().isoformat(timespec="seconds")
-            self.ready, self.ready_missing = check.readiness(self.check, self.following)
+            lever = not (self.pump.resp_source == "learned" and self.pump.k is not None and self.pump.k < NO_LEVER_KW)
+            self._issue("no_lever", not lever, placeholders={"k": f"{self.pump.k or 0:.2f}"})
+            self.ready, self.ready_missing = check.readiness(self.check, self.following, lever)
             self._issue_ready()
             self._issue_comfort()
             if extra.get("pv_k"):

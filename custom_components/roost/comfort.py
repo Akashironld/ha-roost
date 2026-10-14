@@ -15,6 +15,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+SCHEDULE_MIN = 3        # minutes: changes this close in time of day, to the same temperature, on 3+ days = a schedule
+
 WINDOW_DAYS = 14
 MIN_DAYS = 3            # the same kind of change on at least this many different days
 MIN_STEP = 0.4          # °C: smaller changes are fiddling
@@ -39,9 +41,29 @@ def _median(xs: list[float]) -> float:
     return xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2
 
 
+def scheduled(changes: list[dict], local_minute: Callable[[float], tuple[str, int]], now_ts: float) -> list[dict]:
+    """Changes that come back at the same time of day (within SCHEDULE_MIN minutes) to the same temperature on at least
+    MIN_DAYS different days: a schedule in the thermostat itself, or another automation — not a person. -> one entry
+    per schedule: {"minute", "to", "days", "ts": [the changes]}. local_minute(ts) -> (local date, minute of the day)."""
+    recent = [c for c in changes if now_ts - c["ts"] <= WINDOW_DAYS * 86400]
+    pts = sorted(((local_minute(c["ts"]), c) for c in recent), key=lambda x: (round(x[1]["to"] * 2), x[0][1]))
+    out, used = [], set()
+    for i, ((_d, m), c) in enumerate(pts):
+        if c["ts"] in used:
+            continue
+        group = [(d2, c2) for (d2, m2), c2 in pts[i:] if abs(c2["to"] - c["to"]) < 0.05 and 0 <= m2 - m <= 2 * SCHEDULE_MIN
+                 and c2["ts"] not in used]
+        days = {d2 for d2, _c2 in group}
+        if len(days) >= MIN_DAYS:
+            used |= {c2["ts"] for _d2, c2 in group}
+            out.append({"minute": m, "to": c["to"], "days": len(days), "ts": [c2["ts"] for _d2, c2 in group]})
+    return out
+
+
 def suggest(changes: list[dict], local: Callable[[float], tuple[str, int]], now_ts: float, day_from: int, day_to: int,
             comfort: float, day_min: float) -> Suggestion | None:
-    """changes: [{"ts", "from", "to"}]; local(ts) -> (local date, local hour). The pattern seen on the most days wins."""
+    """changes: [{"ts", "from", "to"}]; local(ts) -> (local date, local hour). The pattern seen on the most days wins.
+    Leave out changes made by a schedule (scheduled()) first."""
     groups: dict[str, list[tuple[str, int, float]]] = {k: [] for k in ("raise_comfort", "lower_comfort", "earlier_day", "later_day", "earlier_night")}
     for c in changes:
         if now_ts - c["ts"] > WINDOW_DAYS * 86400:

@@ -308,6 +308,14 @@
       "title": "{name}: Weheat heat pump not found",
       "description": "The Weheat heat pump's sensors are not available. Check that the Weheat integration works."
     },
+    "thermostat_schedule": {
+      "title": "{name}: the thermostat is also changed by a schedule",
+      "description": "Changes that Roost did not make come back at the same time every day: {times}. That is a schedule in the thermostat itself, or another automation. It works against Roost: after each change Roost pauses. Turn that schedule off (Roost plans the whole day) or remove the automation. These changes are not used for comfort suggestions."
+    },
+    "no_lever": {
+      "title": "{name}: the setpoint hardly moves the heat pump",
+      "description": "Roost learned that changing the thermostat changes the heat pump's output by only {k} kW per °C. The heat pump probably runs on its own heating curve, or the thermostat does not pass the setpoint on. Roost keeps planning, but cannot shift heat to cheaper hours this way. Check that the heat pump follows the thermostat (Weheat app)."
+    },
     "learning_failed": {
       "title": "{name}: learning failed",
       "description": "Roost could not learn from the history this time. It keeps using the previous model. The log has the details."

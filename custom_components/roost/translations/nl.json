@@ -308,6 +308,14 @@
       "title": "{name}: Weheat-warmtepomp niet gevonden",
       "description": "De sensoren van de Weheat-warmtepomp zijn niet beschikbaar. Controleer of de Weheat-integratie werkt."
     },
+    "thermostat_schedule": {
+      "title": "{name}: de thermostaat wordt ook door een schema verzet",
+      "description": "Wijzigingen die Roost niet deed, komen elke dag op hetzelfde tijdstip terug: {times}. Dat is een schema in de thermostaat zelf, of een andere automatisering. Het werkt Roost tegen: na elke wijziging pauzeert Roost. Zet dat schema uit (Roost plant de hele dag) of haal de automatisering weg. Deze wijzigingen tellen niet mee voor comfortvoorstellen."
+    },
+    "no_lever": {
+      "title": "{name}: het setpoint stuurt de warmtepomp nauwelijks",
+      "description": "Roost heeft geleerd dat de thermostaat verzetten de warmtepomp maar {k} kW per °C laat veranderen. Waarschijnlijk draait de warmtepomp op zijn eigen stooklijn, of geeft de thermostaat het setpoint niet door. Roost blijft plannen, maar kan zo geen warmte naar goedkopere uren schuiven. Controleer of de warmtepomp de thermostaat volgt (Weheat-app)."
+    },
     "learning_failed": {
       "title": "{name}: leren mislukt",
       "description": "Roost kon deze keer niet leren uit de historie. Het vorige model blijft in gebruik. Details staan in het logboek."

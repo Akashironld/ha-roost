@@ -48,5 +48,22 @@ def test_lower_comfort_never_below_the_day_minimum():
     assert s and s.kind == "lower_comfort" and s.value == 20.0, s
 
 
+
+def local_minute(ts):
+    return str(int(ts // 86400)), int(ts % 86400 // 60)
+
+
+def test_a_schedule_is_not_a_person():
+    sched = [{"ts": NOW - d * 86400 - (NOW % 86400) + 6 * 3600 + 30 * 60 + m * 60, "from": 19.0, "to": 20.0}
+             for d, m in ((1, 0), (2, 1), (3, 0), (5, 2))]                    # every morning 06:30 -> 20.0
+    person = [at(1, 19, 20.5, 21.5), at(3, 18, 20.5, 21.0)]
+    found = comfort.scheduled(sched + person, local_minute, NOW)
+    assert len(found) == 1 and found[0]["minute"] == 390 and found[0]["to"] == 20.0 and found[0]["days"] == 4, found
+    assert sorted(found[0]["ts"]) == sorted(c["ts"] for c in sched)
+    # a person turning up around the same time but not to the minute is not a schedule
+    human = [at(1, 6, 19.0, 20.5), {"ts": at(2, 6, 19.0, 20.5)["ts"] + 25 * 60, "from": 19.0, "to": 20.5}, at(4, 6, 19.0, 21.0)]
+    assert comfort.scheduled(human, local_minute, NOW) == []
+
+
 if __name__ == "__main__":
     run_all(dict(globals()))

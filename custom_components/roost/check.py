@@ -83,9 +83,9 @@ def self_check(rows: list[HourRow], house: HouseModel, hp: HeatPumpModel, days: 
     return out
 
 
-def readiness(chk: dict, following: bool | None) -> tuple[bool, list[str]]:
-    """Ready to steer? -> (ready, what is still missing as short codes)."""
-    missing = []
+def readiness(chk: dict, following: bool | None, lever: bool = True) -> tuple[bool, list[str]]:
+    """Ready to steer? -> (ready, what is still missing as short codes). lever: the setpoint moves the heat pump."""
+    missing = [] if lever else ["lever"]
     if chk.get("heating_hours", 0) < READY_HEATING_HOURS:
         missing.append("heating_hours")
     rmse = chk.get("rmse_6h")
