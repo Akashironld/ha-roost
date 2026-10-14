@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.3.2 — fixed price contracts, comfort suggestions, sun on the facades, internal gains per hour, building register (unreleased)
+## v0.3.3 — fixed price contracts, comfort suggestions, sun on the facades, internal gains per hour, building register (unreleased)
 
 - Price: dynamic (a price sensor, as before) or a fixed contract: one rate, optionally a low rate with its hours and
   the weekend, optionally a fixed export price (empty = net metering)
@@ -15,7 +15,9 @@
 - The weather archive is read again once, for the direct and diffuse radiation
 - Optional (off by default, the Netherlands only): building data from the BAG through PDOK, looked up once at the
   home location — construction year and floor area give starting values for the house model, the outside walls
-  (walls shared with neighbours left out) limit the facade directions tried. No address is kept; off removes it
+  (walls shared with neighbours left out) limit the facade directions tried. No address is kept; off removes it.
+  Not used when the home location is not in or within 25 m of the dwelling; for flats only year and area
+- Options: each part saves when it is submitted (the separate *Save* step was easy to miss)
 - Card: under *Planned* the room temperature expected with it (the planned setpoint is a thermostat setting and
   may be well below the room for a slow unit); clearer reasons: charging the floor, living off the heat in the floor
 

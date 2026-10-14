@@ -17,11 +17,14 @@ WFS = ("https://service.pdok.nl/lv/bag/wfs/v2_0?service=WFS&version=2.0.0&reques
        "&outputFormat=application/json&srsName=EPSG:4326&count=50&bbox={s},{w},{n},{e},urn:ogc:def:crs:EPSG::4326")
 RADIUS_M = 40.0
 SHARED_M = 0.6             # a wall within this distance of a neighbour's wall is shared
-FACADE_STEP = 45.0         # model.FACADES spacing; an outside wall counts for the directions within half of it
+FACADE_REACH = 45.0        # an outside wall counts for the directions within this (south + east walls: south-east too)
 # heat loss per m² of floor (W/K, walls + windows + roof + ventilation) by construction year: rough Dutch typology;
 # a renovated house is better, the data corrects it
 LOSS_BY_YEAR = ((1946, 3.0), (1965, 2.6), (1975, 2.2), (1992, 1.7), (2006, 1.35), (2015, 1.1), (9999, 0.85))
 STORAGE_PER_M2 = 0.13      # kWh/K per m² of floor (a stone house with floor heating)
+MAX_DIST_M = 25.0          # the home location must be in the building or this close to the dwelling (a rough or shifted
+                           # pin would otherwise give the neighbours' house)
+MAX_DWELLINGS = 2          # a building with more dwellings (flats): its outside walls say little about one home's windows
 
 
 def bbox(lat: float, lon: float, radius: float = RADIUS_M) -> dict:
@@ -91,14 +94,29 @@ def parse(pand_json: dict, vbo_json: dict, lat: float, lon: float) -> dict | Non
     pid = p.get("pandidentificatie")
     pands = (pand_json or {}).get("features", [])
     own = next((f for f in pands if f.get("properties", {}).get("identificatie") == pid), None)
+    inside = own is not None and any(_inside((0.0, 0.0), [_xy(lat, lon, x, y) for x, y in r]) for r in _rings(own["geometry"]))
+    if not inside and dist(home) > MAX_DIST_M:
+        return None
+    dwellings = int((own or {}).get("properties", {}).get("aantal_verblijfsobjecten") or 1)
     walls = []
-    if own:
+    if own and dwellings <= MAX_DWELLINGS:
         rings = _rings(own["geometry"])
         others = [r for f in pands if f is not own for r in _rings(f["geometry"])]
         for ring in rings:
             walls += outside_walls(ring, others, lat, lon)
     year = p.get("bouwjaar") or (own or {}).get("properties", {}).get("bouwjaar")
-    return {"year": int(year) if year else None, "area_m2": float(p["oppervlakte"]) if p.get("oppervlakte") else None, "walls": walls}
+    return {"year": int(year) if year else None, "area_m2": float(p["oppervlakte"]) if p.get("oppervlakte") else None, "walls": walls,
+            "dwellings": dwellings}
+
+
+def _inside(pt, poly) -> bool:
+    x, y = pt
+    n, hit = len(poly), False
+    for i in range(n - 1):
+        (x1, y1), (x2, y2) = poly[i], poly[i + 1]
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            hit = not hit
+    return hit
 
 
 def prior(b: dict | None) -> dict | None:
@@ -111,12 +129,13 @@ def prior(b: dict | None) -> dict | None:
 
 
 def facades(b: dict | None, candidates: tuple[float, ...]) -> tuple[float, ...] | None:
-    """The facade directions to try: those within half a step of an outside wall of some length (None: try all)."""
+    """The facade directions to try: those within FACADE_REACH of outside walls of some length (None: try all). A
+    direction between two outside walls stands for windows on both (the author's house: south + east -> south-east)."""
     if not b or not b.get("walls"):
         return None
     out = []
     for c in candidates:
-        L = sum(m for az, m in b["walls"] if abs((az - c + 180) % 360 - 180) <= FACADE_STEP / 2)
+        L = sum(m for az, m in b["walls"] if abs((az - c + 180) % 360 - 180) <= FACADE_REACH)
         if L >= 2.0:
             out.append(c)
     return tuple(out)

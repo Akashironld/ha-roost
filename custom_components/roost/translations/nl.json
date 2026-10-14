@@ -106,8 +106,7 @@
         "menu_options": {
           "basics": "Thermostaat en prijzen",
           "energy": "Zon, accu en weer",
-          "comfort": "Comfort",
-          "save": "Opslaan"
+          "comfort": "Comfort"
         }
       },
       "basics": {

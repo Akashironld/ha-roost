@@ -201,7 +201,8 @@ class RoostOptionsFlow(OptionsFlow):
         return self._opts
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        return self.async_show_menu(step_id="init", menu_options=["basics", "energy", "comfort", "save"])
+        # each part saves when it is submitted (a separate "save" step was easy to miss: changes got lost)
+        return self.async_show_menu(step_id="init", menu_options=["basics", "energy", "comfort"])
 
     def _update(self, schema: vol.Schema, user_input: dict) -> None:
         for key in schema.schema:
@@ -216,7 +217,7 @@ class RoostOptionsFlow(OptionsFlow):
                 self._update(basics_schema(False), user_input)
                 if user_input.get(CONF_PRICE_MODE) == "fixed":
                     return await self.async_step_price()
-                return await self.async_step_init()
+                return self.async_create_entry(data=self.opts)
         return self.async_show_form(step_id="basics", data_schema=self.add_suggested_values_to_schema(basics_schema(False), self.opts),
                                     errors=errors)
 
@@ -224,7 +225,7 @@ class RoostOptionsFlow(OptionsFlow):
         schema = price_schema(self.hass.config.currency or "EUR")
         if user_input is not None:
             self._update(schema, user_input)
-            return await self.async_step_init()
+            return self.async_create_entry(data=self.opts)
         return self.async_show_form(step_id="price", data_schema=self.add_suggested_values_to_schema(schema, self.opts))
 
     async def async_step_energy(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -233,7 +234,7 @@ class RoostOptionsFlow(OptionsFlow):
             errors = _check_weather(user_input)
             if not errors:
                 self._update(energy_schema(), user_input)
-                return await self.async_step_init()
+                return self.async_create_entry(data=self.opts)
         return self.async_show_form(step_id="energy", data_schema=self.add_suggested_values_to_schema(energy_schema(), self.opts), errors=errors)
 
     async def async_step_comfort(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -242,8 +243,6 @@ class RoostOptionsFlow(OptionsFlow):
             errors = _check_comfort(user_input)
             if not errors:
                 self._update(comfort_schema(), user_input)
-                return await self.async_step_init()
+                return self.async_create_entry(data=self.opts)
         return self.async_show_form(step_id="comfort", data_schema=self.add_suggested_values_to_schema(comfort_schema(), self.opts), errors=errors)
 
-    async def async_step_save(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        return self.async_create_entry(data=self.opts)

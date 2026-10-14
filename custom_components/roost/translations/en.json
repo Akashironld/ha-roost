@@ -106,8 +106,7 @@
         "menu_options": {
           "basics": "Thermostat and prices",
           "energy": "Solar, battery and weather",
-          "comfort": "Comfort",
-          "save": "Save"
+          "comfort": "Comfort"
         }
       },
       "basics": {

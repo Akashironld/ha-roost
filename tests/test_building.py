@@ -43,7 +43,9 @@ def test_terraced_house_has_only_front_and_back():
     assert b["year"] == 1978 and b["area_m2"] == 120
     dirs = sorted(round(az) for az, _m in b["walls"])
     assert dirs == [0, 180], b["walls"]                       # north and south; east and west are shared
-    assert building.facades(b, model.FACADES) == (180.0,)    # of east..west only the south facade has windows
+    assert building.facades(b, model.FACADES) == (135.0, 180.0, 225.0)   # around the south front; east/west are shared
+    corner = {"year": 1976, "area_m2": 152, "walls": [(180.0, 9.1), (0.0, 9.1), (90.0, 4.9), (270.0, 1.0)]}
+    assert building.facades(corner, model.FACADES) == (90.0, 135.0, 180.0, 225.0)   # west: 1 m, too little
 
 
 def test_starting_values_from_age_and_area():
@@ -51,6 +53,15 @@ def test_starting_values_from_age_and_area():
     assert p == {"H": round(120 * 1.7 / 1000, 3), "C": round(120 * 0.13, 1)}
     assert building.prior({"year": None, "area_m2": 120}) is None
     assert building.prior(None) is None and building.facades(None, model.FACADES) is None
+
+
+def test_far_pin_and_flats():
+    pand, vbo = terrace()
+    far = building.parse(pand, vbo, LAT + 60 * M_LAT, LON)          # pin 60 m off: not trusted
+    assert far is None
+    pand["features"][1]["properties"]["aantal_verblijfsobjecten"] = 12   # a block of flats
+    flat = building.parse(pand, vbo, LAT, LON)
+    assert flat["area_m2"] == 120 and flat["walls"] == [] and building.facades(flat, model.FACADES) is None
 
 
 def test_no_dwelling_nearby():
