@@ -1,0 +1,275 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Roost",
+        "description": "Roost plans your Weheat heat pump's thermostat 24 hours ahead on price, weather and the heat your house stores. It starts in shadow mode: it only shows what it would do.",
+        "data": {
+          "name": "Name",
+          "heat_pump": "Weheat heat pump",
+          "thermostat": "Thermostat that drives the heat pump",
+          "room_temperature": "Room temperature sensor (optional, better than the thermostat's)",
+          "import_price": "Electricity price (with forecast)",
+          "export_price": "Export price",
+          "import_weheat_history": "Import the heat pump's history from Weheat now"
+        },
+        "data_description": {
+          "heat_pump": "The device of the official Weheat integration. Its sensors are found automatically.",
+          "thermostat": "Roost only changes this thermostat's target temperature, like you would. The heat pump must follow the thermostat (not its own heating curve).",
+          "import_price": "A sensor with prices for the coming hours in its attributes (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Without a forecast every hour costs the same.",
+          "export_price": "Leave empty with net metering: export is then worth the import price.",
+          "import_weheat_history": "Read-only, through the login of your Weheat integration: up to 13 months of hourly logs (heat, electricity, states), so Roost knows your house and heat pump from day one. Takes a few minutes."
+        }
+      },
+      "energy": {
+        "title": "Solar, battery and weather (optional)",
+        "data": {
+          "grid_power": "Grid power",
+          "grid_sign": "Sign of the grid power",
+          "pv_power": "Solar power",
+          "pv_forecast": "Solar forecast today",
+          "pv_forecast_tomorrow": "Solar forecast tomorrow",
+          "battery_soc": "Home battery state of charge",
+          "battery_power": "Home battery power (+ = discharging)",
+          "battery_kwh": "Usable battery capacity",
+          "battery_kw": "Maximum battery charge power",
+          "battery_reserve": "Battery reserve",
+          "house_power": "House power (for the usage profile)",
+          "grid_preference": "Preference for own energy (added per kWh from the grid)",
+          "weather_source": "Weather forecast",
+          "weather_entity": "Weather entity"
+        },
+        "data_description": {
+          "grid_power": "All optional. With solar, Roost sees real solar surplus (export minus battery discharge, at most the solar power).",
+          "battery_power": "Needed to tell solar export from a battery selling to the grid.",
+          "weather_source": "Open-Meteo needs no account and gives radiation and wind (the house model uses both)."
+        }
+      },
+      "comfort": {
+        "title": "Comfort",
+        "data": {
+          "day_from": "Comfort hours start",
+          "day_to": "Comfort hours end",
+          "comfort": "Comfort temperature (day)",
+          "day_min": "Never below in the day",
+          "night_min": "Never below at night",
+          "store_max": "Warmest while storing heat",
+          "max_above_room": "Setpoint at most this above the room",
+          "min_interval": "At most one change per",
+          "pause_hours": "Pause after a change by hand",
+          "baseline_night": "Night setback of the thermostat to compare with (0 = none)"
+        },
+        "data_description": {
+          "store_max": "Roost stores heat in the floor when an hour is cheap (or solar earns little) and an expensive one follows. Set it equal to the comfort temperature to switch that off.",
+          "max_above_room": "Keeps an OpenTherm thermostat asking for lukewarm water (high COP).",
+          "baseline_night": "The saving is shown against a steady thermostat at the comfort temperature, the usual advice for heat pumps."
+        }
+      }
+    },
+    "error": {
+      "not_weheat": "This device has no Weheat heat pump sensors.",
+      "comfort_below_min": "The comfort temperature must be at least the day minimum.",
+      "store_below_comfort": "Storing heat must allow at least the comfort temperature.",
+      "day_order": "The comfort hours must end after they start.",
+      "weather_needed": "Choose a weather entity."
+    },
+    "abort": {
+      "already_configured": "This heat pump is already set up."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Roost",
+        "menu_options": {
+          "basics": "Thermostat and prices",
+          "energy": "Solar, battery and weather",
+          "comfort": "Comfort",
+          "save": "Save"
+        }
+      },
+      "basics": {
+        "title": "Thermostat and prices",
+        "data": {
+          "thermostat": "Thermostat that drives the heat pump",
+          "room_temperature": "Room temperature sensor (optional, better than the thermostat's)",
+          "import_price": "Electricity price (with forecast)",
+          "export_price": "Export price"
+        },
+        "data_description": {
+          "thermostat": "Roost only changes this thermostat's target temperature, like you would. The heat pump must follow the thermostat (not its own heating curve).",
+          "import_price": "A sensor with prices for the coming hours in its attributes (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Without a forecast every hour costs the same.",
+          "export_price": "Leave empty with net metering: export is then worth the import price."
+        }
+      },
+      "energy": {
+        "title": "Solar, battery and weather (optional)",
+        "data": {
+          "grid_power": "Grid power",
+          "grid_sign": "Sign of the grid power",
+          "pv_power": "Solar power",
+          "pv_forecast": "Solar forecast today",
+          "pv_forecast_tomorrow": "Solar forecast tomorrow",
+          "battery_soc": "Home battery state of charge",
+          "battery_power": "Home battery power (+ = discharging)",
+          "battery_kwh": "Usable battery capacity",
+          "battery_kw": "Maximum battery charge power",
+          "battery_reserve": "Battery reserve",
+          "house_power": "House power (for the usage profile)",
+          "grid_preference": "Preference for own energy (added per kWh from the grid)",
+          "weather_source": "Weather forecast",
+          "weather_entity": "Weather entity"
+        },
+        "data_description": {
+          "grid_power": "All optional. With solar, Roost sees real solar surplus (export minus battery discharge, at most the solar power).",
+          "battery_power": "Needed to tell solar export from a battery selling to the grid.",
+          "weather_source": "Open-Meteo needs no account and gives radiation and wind (the house model uses both)."
+        }
+      },
+      "comfort": {
+        "title": "Comfort",
+        "data": {
+          "day_from": "Comfort hours start",
+          "day_to": "Comfort hours end",
+          "comfort": "Comfort temperature (day)",
+          "day_min": "Never below in the day",
+          "night_min": "Never below at night",
+          "store_max": "Warmest while storing heat",
+          "max_above_room": "Setpoint at most this above the room",
+          "min_interval": "At most one change per",
+          "pause_hours": "Pause after a change by hand",
+          "baseline_night": "Night setback of the thermostat to compare with (0 = none)"
+        },
+        "data_description": {
+          "store_max": "Roost stores heat in the floor when an hour is cheap (or solar earns little) and an expensive one follows. Set it equal to the comfort temperature to switch that off.",
+          "max_above_room": "Keeps an OpenTherm thermostat asking for lukewarm water (high COP).",
+          "baseline_night": "The saving is shown against a steady thermostat at the comfort temperature, the usual advice for heat pumps."
+        }
+      }
+    },
+    "error": {
+      "not_weheat": "This device has no Weheat heat pump sensors.",
+      "comfort_below_min": "The comfort temperature must be at least the day minimum.",
+      "store_below_comfort": "Storing heat must allow at least the comfort temperature.",
+      "day_order": "The comfort hours must end after they start.",
+      "weather_needed": "Choose a weather entity."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "setpoint": {
+        "name": "Planned setpoint"
+      },
+      "saving_next_24h": {
+        "name": "Expected saving next 24 h"
+      },
+      "saving_yesterday": {
+        "name": "Saving yesterday"
+      },
+      "saving_month": {
+        "name": "Saving this month"
+      },
+      "cost_today": {
+        "name": "Heating cost today"
+      },
+      "energy_today": {
+        "name": "Heating electricity today"
+      },
+      "energy_value": {
+        "name": "Energy value now"
+      },
+      "house_model": {
+        "name": "House model error"
+      },
+      "heat_pump_model": {
+        "name": "Heat pump model"
+      },
+      "weheat_import": {
+        "name": "Weheat import"
+      }
+    },
+    "binary_sensor": {
+      "paused": {
+        "name": "Paused (changed by hand)"
+      },
+      "following": {
+        "name": "Heat pump follows the thermostat"
+      }
+    },
+    "select": {
+      "mode": {
+        "name": "Mode",
+        "state": {
+          "off": "Off",
+          "shadow": "Shadow (plan only)",
+          "active": "Active"
+        }
+      }
+    },
+    "button": {
+      "learn_now": {
+        "name": "Learn now"
+      },
+      "import_history": {
+        "name": "Import history from Weheat"
+      }
+    }
+  },
+  "selector": {
+    "grid_sign": {
+      "options": {
+        "import_positive": "Import is positive",
+        "export_positive": "Export is positive"
+      }
+    },
+    "weather_source": {
+      "options": {
+        "open_meteo": "Open-Meteo (free, with radiation and wind)",
+        "entity": "A weather entity"
+      }
+    }
+  },
+  "issues": {
+    "not_following": {
+      "title": "{name}: the heat pump does not follow the thermostat",
+      "description": "The heat pump has been heating for over 45 minutes while the thermostat asks for no heat. It probably runs on its own heating curve. Set it to follow the thermostat (in the Weheat app), otherwise Roost cannot steer it."
+    },
+    "room_missing": {
+      "title": "{name}: no room temperature",
+      "description": "Neither the room sensor nor the thermostat has reported a room temperature for 30 minutes. Roost does not plan without it."
+    },
+    "weheat_missing": {
+      "title": "{name}: Weheat heat pump not found",
+      "description": "The Weheat heat pump's sensors are not available. Check that the Weheat integration works."
+    },
+    "learning_failed": {
+      "title": "{name}: learning failed",
+      "description": "Roost could not learn from the history this time. It keeps using the previous model. The log has the details."
+    }
+  },
+  "services": {
+    "pause": {
+      "name": "Pause",
+      "description": "Leave the thermostat alone for a while.",
+      "fields": {
+        "hours": {
+          "name": "Hours"
+        }
+      }
+    },
+    "resume": {
+      "name": "Resume",
+      "description": "End a pause and plan again.",
+      "fields": {}
+    },
+    "import_history": {
+      "name": "Import history from Weheat",
+      "description": "Read the heat pump's hourly history from Weheat (read-only) and learn from it.",
+      "fields": {
+        "days": {
+          "name": "Days"
+        }
+      }
+    }
+  }
+}

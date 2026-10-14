@@ -1,0 +1,117 @@
+"""Collect the hourly history for learning: Home Assistant statistics, the Weheat import and past weather."""
+from __future__ import annotations
+
+import logging
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING
+
+from homeassistant.components.recorder import get_instance, statistics
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.util import dt as dt_util
+
+from . import history, weather as om
+from .const import CONF_HOUSE_POWER, CONF_PV_POWER, CONF_ROOM, HISTORY_DAYS
+
+if TYPE_CHECKING:
+    from .manager import RoostManager
+
+_LOGGER = logging.getLogger(__name__)
+ENERGY_ROLES = ("heat", "heat_defrost", "elec", "elec_defrost", "elec_dhw")
+
+
+def _ts(v) -> int:
+    return int(v.timestamp() if isinstance(v, datetime) else float(v))
+
+
+async def _async_archive(mgr: "RoostManager", start: datetime, end: datetime) -> None:
+    """Fill the weather cache for [start, end) from the Open-Meteo archive (90 days per request)."""
+    have = mgr._weather_hist
+    t = start
+    session = async_get_clientsession(mgr.hass)
+    changed = False
+    while t < end:
+        t2 = min(end, t + timedelta(days=90))
+        probe = [int(x) for x in range(int(t.timestamp()) // 3600 * 3600, int(t2.timestamp()), 6 * 3600)]
+        if sum(1 for p in probe if p in have) >= 0.9 * len(probe):
+            t = t2
+            continue
+        url = om.ARCHIVE.format(lat=mgr.hass.config.latitude, lon=mgr.hass.config.longitude,
+                                start=t.date().isoformat(), end=(t2 - timedelta(hours=1)).date().isoformat())
+        try:
+            async with session.get(url, timeout=60) as r:
+                r.raise_for_status()
+                have.update(om.parse(await r.json()))
+                changed = True
+        except Exception as err:  # noqa: BLE001 - learn with what there is
+            _LOGGER.warning("Roost: weather archive %s – %s not available: %s", t.date(), t2.date(), err)
+        t = t2
+    if changed:
+        await mgr._async_save_history()
+
+
+async def async_rows(mgr: "RoostManager") -> tuple[list, dict]:
+    hass = mgr.hass
+    end = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
+    start = end - timedelta(days=HISTORY_DAYS)
+    if mgr._weheat_hours:
+        start = min(start, datetime.fromtimestamp(min(mgr._weheat_hours), tz=timezone.utc))
+    conf = mgr.conf
+    ids: dict[str, str] = {}
+    if conf.get(CONF_ROOM):
+        ids["room"] = conf[CONF_ROOM]
+    for role in ("thermostat_room", "outdoor", *ENERGY_ROLES):
+        if mgr.ent.get(role):
+            ids[role] = mgr.ent[role]
+    if conf.get(CONF_PV_POWER):
+        ids["pv"] = conf[CONF_PV_POWER]
+    if conf.get(CONF_HOUSE_POWER):
+        ids["house"] = conf[CONF_HOUSE_POWER]
+    stats = await get_instance(hass).async_add_executor_job(
+        statistics.statistics_during_period, hass, start, end, set(ids.values()), "hour", None, {"mean", "change"})
+
+    ha: dict[int, dict] = defaultdict(dict)
+    for role, eid in ids.items():
+        for r in stats.get(eid, []):
+            t = _ts(r["start"])
+            v = r.get("change") if role in ENERGY_ROLES else r.get("mean")
+            if v is not None:
+                ha[t][role] = float(v)
+    for t, v in ha.items():
+        if "heat" in v:
+            v["q"] = v["heat"] + v.get("heat_defrost", 0.0)
+        if "elec" in v:
+            v["e"] = v["elec"] + v.get("elec_defrost", 0.0)
+        if "elec_dhw" in v:
+            v["dhw_e"] = v["elec_dhw"]
+        if "outdoor" in v:
+            v["sensor_out"] = v["outdoor"]
+        if "room" in v and not (history.BAD_LOW < v["room"] < history.BAD_HIGH):
+            del v["room"]
+
+    # weather: the forecast service keeps ~3 months of past days, older from the archive (cached)
+    recent_from = end - timedelta(days=88)
+    if start < recent_from:
+        await _async_archive(mgr, start, min(recent_from, end - timedelta(days=5)))
+    wx = dict(mgr._weather_hist)
+    wx.update(mgr._weather)
+    rows = history.build_rows(mgr._weheat_hours, dict(ha), wx)
+
+    extra: dict = {}
+    pv = [(v["pv"], wx[t][1]) for t, v in ha.items() if "pv" in v and t in wx and wx[t][1] >= 0.3]
+    if len(pv) >= 30:
+        unit = (hass.states.get(conf[CONF_PV_POWER]).attributes.get("unit_of_measurement", "W") if hass.states.get(conf[CONF_PV_POWER]) else "W")
+        k = 0.001 if str(unit).lower() == "w" else 1.0
+        ratios = sorted(p * k / r for p, r in pv)
+        extra["pv_k"] = round(min(50.0, max(0.0, ratios[len(ratios) // 2])), 3)
+    if conf.get(CONF_HOUSE_POWER):
+        st = hass.states.get(conf[CONF_HOUSE_POWER])
+        k = 0.001 if st is None or str(st.attributes.get("unit_of_measurement", "W")).lower() == "w" else 1.0
+        per: dict[int, list[float]] = defaultdict(list)
+        for t, v in ha.items():
+            if "house" in v and t >= end.timestamp() - 21 * 86400:
+                hp_kwh = v.get("e", 0.0) + v.get("dhw_e", 0.0)
+                per[dt_util.as_local(datetime.fromtimestamp(t, tz=timezone.utc)).hour].append(max(0.0, v["house"] * k - hp_kwh))
+        if len(per) == 24 and all(len(x) >= 3 for x in per.values()):
+            extra["load_profile"] = [round(sorted(per[h])[len(per[h]) // 2], 3) for h in range(24)]
+    return rows, extra

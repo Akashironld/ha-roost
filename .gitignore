@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# home-specific tools (hosts, entity ids): not for the public repo
+tools/local/

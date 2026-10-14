@@ -1,0 +1,275 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Roost",
+        "description": "Roost plant de thermostaat van je Weheat-warmtepomp 24 uur vooruit op prijs, weer en de warmte die je huis opslaat. Hij begint in meekijkmodus: hij laat alleen zien wat hij zou doen.",
+        "data": {
+          "name": "Naam",
+          "heat_pump": "Weheat-warmtepomp",
+          "thermostat": "Thermostaat die de warmtepomp aanstuurt",
+          "room_temperature": "Kamertemperatuursensor (optioneel, beter dan die van de thermostaat)",
+          "import_price": "Stroomprijs (met verwachting)",
+          "export_price": "Terugleverprijs",
+          "import_weheat_history": "Historie van de warmtepomp nu uit Weheat importeren"
+        },
+        "data_description": {
+          "heat_pump": "Het apparaat van de officiële Weheat-integratie. De sensoren worden automatisch gevonden.",
+          "thermostat": "Roost verandert alleen de ingestelde temperatuur van deze thermostaat, zoals jij dat ook doet. De warmtepomp moet de thermostaat volgen (niet zijn eigen stooklijn).",
+          "import_price": "Een sensor met prijzen voor de komende uren in de attributen (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Zonder verwachting kost elk uur hetzelfde.",
+          "export_price": "Leeg laten bij salderen: teruglevering is dan de afnameprijs waard.",
+          "import_weheat_history": "Alleen lezen, via de login van je Weheat-integratie: tot 13 maanden aan uurlogboeken (warmte, stroom, standen), zodat Roost je huis en warmtepomp vanaf dag één kent. Duurt een paar minuten."
+        }
+      },
+      "energy": {
+        "title": "Zon, accu en weer (optioneel)",
+        "data": {
+          "grid_power": "Netvermogen",
+          "grid_sign": "Teken van het netvermogen",
+          "pv_power": "Zonnevermogen",
+          "pv_forecast": "Zonverwachting vandaag",
+          "pv_forecast_tomorrow": "Zonverwachting morgen",
+          "battery_soc": "Laadtoestand thuisaccu",
+          "battery_power": "Vermogen thuisaccu (+ = ontladen)",
+          "battery_kwh": "Bruikbare accucapaciteit",
+          "battery_kw": "Maximaal laadvermogen accu",
+          "battery_reserve": "Accureserve",
+          "house_power": "Huisvermogen (voor het verbruiksprofiel)",
+          "grid_preference": "Voorkeur voor eigen energie (bovenop elke kWh uit het net)",
+          "weather_source": "Weersverwachting",
+          "weather_entity": "Weerentiteit"
+        },
+        "data_description": {
+          "grid_power": "Allemaal optioneel. Met zonnepanelen ziet Roost echt zon-overschot (teruglevering min accu-ontladen, hooguit het zonnevermogen).",
+          "battery_power": "Nodig om zonneteruglevering te onderscheiden van een accu die aan het net verkoopt.",
+          "weather_source": "Open-Meteo heeft geen account nodig en geeft straling en wind (het huismodel gebruikt beide)."
+        }
+      },
+      "comfort": {
+        "title": "Comfort",
+        "data": {
+          "day_from": "Comforturen beginnen om",
+          "day_to": "Comforturen eindigen om",
+          "comfort": "Comforttemperatuur (overdag)",
+          "day_min": "Overdag nooit kouder dan",
+          "night_min": "'s Nachts nooit kouder dan",
+          "store_max": "Hoogstens zo warm bij warmte opslaan",
+          "max_above_room": "Setpoint hoogstens zoveel boven de kamer",
+          "min_interval": "Hoogstens één wijziging per",
+          "pause_hours": "Pauze na een handmatige wijziging",
+          "baseline_night": "Nachtverlaging van de vergelijkingsthermostaat (0 = geen)"
+        },
+        "data_description": {
+          "store_max": "Roost slaat warmte op in de vloer als een uur goedkoop is (of zonnestroom weinig opbrengt) en er een duur uur volgt. Gelijk aan de comforttemperatuur zetten schakelt dat uit.",
+          "max_above_room": "Zo blijft een OpenTherm-thermostaat om lauw water vragen (hoge COP).",
+          "baseline_night": "De besparing wordt getoond tegenover een vaste thermostaat op de comforttemperatuur, het gebruikelijke advies bij warmtepompen."
+        }
+      }
+    },
+    "error": {
+      "not_weheat": "Dit apparaat heeft geen Weheat-warmtepompsensoren.",
+      "comfort_below_min": "De comforttemperatuur moet minstens het dagminimum zijn.",
+      "store_below_comfort": "Warmte opslaan moet minstens de comforttemperatuur toestaan.",
+      "day_order": "De comforturen moeten eindigen na het begin.",
+      "weather_needed": "Kies een weerentiteit."
+    },
+    "abort": {
+      "already_configured": "Deze warmtepomp is al ingesteld."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Roost",
+        "menu_options": {
+          "basics": "Thermostaat en prijzen",
+          "energy": "Zon, accu en weer",
+          "comfort": "Comfort",
+          "save": "Opslaan"
+        }
+      },
+      "basics": {
+        "title": "Thermostaat en prijzen",
+        "data": {
+          "thermostat": "Thermostaat die de warmtepomp aanstuurt",
+          "room_temperature": "Kamertemperatuursensor (optioneel, beter dan die van de thermostaat)",
+          "import_price": "Stroomprijs (met verwachting)",
+          "export_price": "Terugleverprijs"
+        },
+        "data_description": {
+          "thermostat": "Roost verandert alleen de ingestelde temperatuur van deze thermostaat, zoals jij dat ook doet. De warmtepomp moet de thermostaat volgen (niet zijn eigen stooklijn).",
+          "import_price": "Een sensor met prijzen voor de komende uren in de attributen (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Zonder verwachting kost elk uur hetzelfde.",
+          "export_price": "Leeg laten bij salderen: teruglevering is dan de afnameprijs waard."
+        }
+      },
+      "energy": {
+        "title": "Zon, accu en weer (optioneel)",
+        "data": {
+          "grid_power": "Netvermogen",
+          "grid_sign": "Teken van het netvermogen",
+          "pv_power": "Zonnevermogen",
+          "pv_forecast": "Zonverwachting vandaag",
+          "pv_forecast_tomorrow": "Zonverwachting morgen",
+          "battery_soc": "Laadtoestand thuisaccu",
+          "battery_power": "Vermogen thuisaccu (+ = ontladen)",
+          "battery_kwh": "Bruikbare accucapaciteit",
+          "battery_kw": "Maximaal laadvermogen accu",
+          "battery_reserve": "Accureserve",
+          "house_power": "Huisvermogen (voor het verbruiksprofiel)",
+          "grid_preference": "Voorkeur voor eigen energie (bovenop elke kWh uit het net)",
+          "weather_source": "Weersverwachting",
+          "weather_entity": "Weerentiteit"
+        },
+        "data_description": {
+          "grid_power": "Allemaal optioneel. Met zonnepanelen ziet Roost echt zon-overschot (teruglevering min accu-ontladen, hooguit het zonnevermogen).",
+          "battery_power": "Nodig om zonneteruglevering te onderscheiden van een accu die aan het net verkoopt.",
+          "weather_source": "Open-Meteo heeft geen account nodig en geeft straling en wind (het huismodel gebruikt beide)."
+        }
+      },
+      "comfort": {
+        "title": "Comfort",
+        "data": {
+          "day_from": "Comforturen beginnen om",
+          "day_to": "Comforturen eindigen om",
+          "comfort": "Comforttemperatuur (overdag)",
+          "day_min": "Overdag nooit kouder dan",
+          "night_min": "'s Nachts nooit kouder dan",
+          "store_max": "Hoogstens zo warm bij warmte opslaan",
+          "max_above_room": "Setpoint hoogstens zoveel boven de kamer",
+          "min_interval": "Hoogstens één wijziging per",
+          "pause_hours": "Pauze na een handmatige wijziging",
+          "baseline_night": "Nachtverlaging van de vergelijkingsthermostaat (0 = geen)"
+        },
+        "data_description": {
+          "store_max": "Roost slaat warmte op in de vloer als een uur goedkoop is (of zonnestroom weinig opbrengt) en er een duur uur volgt. Gelijk aan de comforttemperatuur zetten schakelt dat uit.",
+          "max_above_room": "Zo blijft een OpenTherm-thermostaat om lauw water vragen (hoge COP).",
+          "baseline_night": "De besparing wordt getoond tegenover een vaste thermostaat op de comforttemperatuur, het gebruikelijke advies bij warmtepompen."
+        }
+      }
+    },
+    "error": {
+      "not_weheat": "Dit apparaat heeft geen Weheat-warmtepompsensoren.",
+      "comfort_below_min": "De comforttemperatuur moet minstens het dagminimum zijn.",
+      "store_below_comfort": "Warmte opslaan moet minstens de comforttemperatuur toestaan.",
+      "day_order": "De comforturen moeten eindigen na het begin.",
+      "weather_needed": "Kies een weerentiteit."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "setpoint": {
+        "name": "Gepland setpoint"
+      },
+      "saving_next_24h": {
+        "name": "Verwachte besparing komende 24 u"
+      },
+      "saving_yesterday": {
+        "name": "Besparing gisteren"
+      },
+      "saving_month": {
+        "name": "Besparing deze maand"
+      },
+      "cost_today": {
+        "name": "Stookkosten vandaag"
+      },
+      "energy_today": {
+        "name": "Stookstroom vandaag"
+      },
+      "energy_value": {
+        "name": "Energiewaarde nu"
+      },
+      "house_model": {
+        "name": "Fout huismodel"
+      },
+      "heat_pump_model": {
+        "name": "Warmtepompmodel"
+      },
+      "weheat_import": {
+        "name": "Weheat-import"
+      }
+    },
+    "binary_sensor": {
+      "paused": {
+        "name": "Gepauzeerd (handmatig gewijzigd)"
+      },
+      "following": {
+        "name": "Warmtepomp volgt de thermostaat"
+      }
+    },
+    "select": {
+      "mode": {
+        "name": "Modus",
+        "state": {
+          "off": "Uit",
+          "shadow": "Meekijken (alleen plannen)",
+          "active": "Actief"
+        }
+      }
+    },
+    "button": {
+      "learn_now": {
+        "name": "Nu leren"
+      },
+      "import_history": {
+        "name": "Historie importeren uit Weheat"
+      }
+    }
+  },
+  "selector": {
+    "grid_sign": {
+      "options": {
+        "import_positive": "Afname is positief",
+        "export_positive": "Teruglevering is positief"
+      }
+    },
+    "weather_source": {
+      "options": {
+        "open_meteo": "Open-Meteo (gratis, met straling en wind)",
+        "entity": "Een weerentiteit"
+      }
+    }
+  },
+  "issues": {
+    "not_following": {
+      "title": "{name}: de warmtepomp volgt de thermostaat niet",
+      "description": "De warmtepomp stookt al meer dan 45 minuten terwijl de thermostaat geen warmte vraagt. Waarschijnlijk staat hij op zijn eigen stooklijn. Zet hem op het volgen van de thermostaat (in de Weheat-app), anders kan Roost hem niet sturen."
+    },
+    "room_missing": {
+      "title": "{name}: geen kamertemperatuur",
+      "description": "De kamersensor en de thermostaat geven al 30 minuten geen kamertemperatuur. Zonder plant Roost niet."
+    },
+    "weheat_missing": {
+      "title": "{name}: Weheat-warmtepomp niet gevonden",
+      "description": "De sensoren van de Weheat-warmtepomp zijn niet beschikbaar. Controleer of de Weheat-integratie werkt."
+    },
+    "learning_failed": {
+      "title": "{name}: leren mislukt",
+      "description": "Roost kon deze keer niet leren uit de historie. Het vorige model blijft in gebruik. Details staan in het logboek."
+    }
+  },
+  "services": {
+    "pause": {
+      "name": "Pauzeren",
+      "description": "De thermostaat een tijd met rust laten.",
+      "fields": {
+        "hours": {
+          "name": "Uren"
+        }
+      }
+    },
+    "resume": {
+      "name": "Hervatten",
+      "description": "Een pauze beëindigen en opnieuw plannen.",
+      "fields": {}
+    },
+    "import_history": {
+      "name": "Historie importeren uit Weheat",
+      "description": "De uurhistorie van de warmtepomp uit Weheat lezen (alleen lezen) en daarvan leren.",
+      "fields": {
+        "days": {
+          "name": "Dagen"
+        }
+      }
+    }
+  }
+}
