@@ -66,7 +66,8 @@ Everything else — every screen, every setting, the card, repairs, troubleshoot
 - The **thermostat** that drives it, as a `climate` entity in Home Assistant (OpenTherm best; on/off works). The heat
   pump must follow the thermostat, not only its own heating curve — Roost checks this.
 - An **electricity price**: a sensor with the prices of the coming hours (evcc, Nord Pool, Tibber, ENTSO-e, Frank
-  Energie, … are read automatically), or your fixed contract's rate.
+  Energie, Zonneplan, … are read automatically) — or, without one, the **built-in day-ahead prices** with your
+  supplier's formula — or your fixed contract's rate.
 - Optional: a room sensor, solar and battery sensors, solar forecast, extra room sensors.
 
 ## Thermostats and heating
@@ -89,8 +90,8 @@ saving is smaller. A thermostat with its own schedule or learning works against 
 ## Privacy
 
 Roost talks to **Open-Meteo** (weather, with your home location), to **Weheat** (read-only, with the Weheat login you make in
-the setup, for the history) and — only if you turn it on — once to **PDOK** (Dutch building register). Nothing
-else, no account, no telemetry. Details in the [guide](docs/GUIDE.md#15-privacy-and-safety).
+the setup, for the history), with the built-in day-ahead prices to **Energy-Charts** (only the bidding zone) and — only
+if you turn it on — once to **PDOK** (Dutch building register). Nothing else, no account, no telemetry. Details in the [guide](docs/GUIDE.md#15-privacy-and-safety).
 
 ## How it decides
 
@@ -100,6 +101,11 @@ internal gains. The cost of an hour is the electricity (heat ÷ COP) times the e
 penalties and a small cost per change; extra rooms add their own. A dynamic-programming search over 36 hours finds a
 plan, which is then refined with the heat pump's real delay. Only the first hour is carried out; the plan is made again
 every 15 minutes. More in [docs/DESIGN.md](docs/DESIGN.md).
+
+## Credits
+
+Built-in day-ahead prices: [Energy-Charts](https://energy-charts.info) (Fraunhofer ISE), licensed
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Weather: [Open-Meteo](https://open-meteo.com) (CC BY 4.0).
 
 ## Support
 

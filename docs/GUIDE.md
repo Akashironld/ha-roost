@@ -124,9 +124,22 @@ next screen. Nothing else to fill in — see [The Weheat login](#the-weheat-logi
 
 | Field | What to fill in |
 |---|---|
-| Electricity price | **Dynamic (price sensor)** for an hourly or dynamic contract, **Fixed price (contract)** for a fixed rate |
+| Electricity price | **Dynamic (price sensor)** for a dynamic contract with a price sensor in Home Assistant; **Dynamic, day-ahead prices built in** for a dynamic contract without one; **Fixed price (contract)** for a fixed rate |
 | Electricity price sensor | Only for dynamic: the sensor whose attributes hold the prices of the coming hours. Roost proposes one it can read (evcc *tariff grid forecast*, Nord Pool, Tibber, ENTSO-e, Frank Energie, …) |
 | Export price | Leave empty with net metering (export is then worth the import price). After net metering ends, choose your export price sensor |
+
+With **day-ahead prices built in** Roost fetches the day-ahead (EPEX) prices itself, per quarter hour, from
+[Energy-Charts](https://energy-charts.info) — no sensor or account needed. A next screen asks:
+
+| Field | What to fill in |
+|---|---|
+| Bidding zone | Your country's day-ahead market (filled in from your Home Assistant country) |
+| Multiplier, fixed amount per kWh | What a kWh costs = day-ahead × multiplier + fixed amount. Netherlands: (day-ahead + purchase fee + energy tax) × 1.21 → multiplier **1.21**, fixed amount **(purchase fee + energy tax) × 1.21**. Look the fee up in your contract, the energy tax at the Belastingdienst |
+| Export has its own price | Off with net metering (export is worth the import price). On after net metering ends: export = day-ahead × multiplier + fixed amount (often multiplier 1 and a small negative amount: your supplier's export fee) |
+
+Roost plans per hour: quarter-hour prices are averaged per hour, which is what an hour of heating costs. Energy-Charts
+limits how often one address may ask, so Roost asks once an hour (every quarter hour in the afternoon until
+tomorrow's prices are in).
 
 With **Fixed price** a next screen asks your rate (all in: energy, taxes, VAT), optionally a low (night/weekend) rate
 with its hours, and optionally a fixed export price. With a single fixed rate Roost still saves a little: it heats more
@@ -458,6 +471,7 @@ automation:
 | To | What | When |
 |---|---|---|
 | Open-Meteo | Your home location (latitude/longitude) | Every 30 minutes for the forecast; once in a while for past weather |
+| Energy-Charts (api.energy-charts.info), only with the built-in day-ahead prices | Your bidding zone (e.g. NL) | Once an hour |
 | Weheat (auth.weheat.nl, api.weheat.nl) | Your Weheat login (made on Weheat's own page, refreshed by Home Assistant's OAuth helper); read-only requests, within Weheat's limits for developers | The history import (a month per request, at most a year back), and once a night for the last hours |
 | PDOK (Kadaster), only if you turned it on | Your home location, once | Building register lookup |
 

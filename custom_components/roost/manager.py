@@ -23,7 +23,7 @@ from homeassistant.helpers.event import async_track_state_change_event, async_tr
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from . import building, check, comfort, control, heatpump, history, model, planner, response, rooms, series, sun, value, weather as om
+from . import building, check, comfort, control, epex, heatpump, history, model, planner, response, rooms, series, sun, value, weather as om
 from .const import (
     CONF_BASELINE_NIGHT, CONF_BATTERY_KW, CONF_BATTERY_KWH, CONF_BATTERY_POWER, CONF_BATTERY_RESERVE, CONF_BATTERY_SOC,
     CONF_COMFORT, CONF_DAY_FROM, CONF_DAY_MIN, CONF_DAY_TO, CONF_EXPORT_PRICE, CONF_GRID_POWER, CONF_GRID_PREFERENCE,
@@ -31,7 +31,8 @@ from .const import (
     CONF_MIN_INTERVAL, CONF_NIGHT_MIN, CONF_PAUSE_HOURS, CONF_PV_FORECAST, CONF_PV_FORECAST_TOMORROW, CONF_PV_POWER,
     CONF_ROOM, CONF_STORE_MAX, CONF_THERMOSTAT, CONF_WEATHER, CONF_WEATHER_SOURCE, DEFAULTS, DOMAIN,
     CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND, CONF_PRICE_MODE,
-    CONF_EMITTER, CONF_SP_MIN, CONF_USE_BAG,
+    CONF_EMITTER, CONF_SP_MIN, CONF_USE_BAG, CONF_EPEX_ZONE, CONF_IMPORT_MULT, CONF_IMPORT_ADD, CONF_EXPORT_FORMULA,
+    CONF_EXPORT_MULT, CONF_EXPORT_ADD,
     LEARN_HOUR, LEARN_MINUTE, PLAN_MINUTES, STORAGE_VERSION, TICK_SECONDS, WEATHER_MINUTES, WEHEAT, WEHEAT_IMPORT_DAYS,
 )
 from .reasons import Reason
@@ -130,6 +131,8 @@ class RoostManager:
         # import, repairs, plans that could not be made, errors
         self.events: deque = deque(maxlen=EVENTS_KEPT)
         self._tasks: set[asyncio.Task] = set()
+        self._epex: list[tuple[float, float, float]] = []   # built-in day-ahead prices (epex.py)
+        self._epex_at: float | None = None
         self._stop_unsub: Callable[[], None] | None = None
         self.weheat_last: dict[str, float] = {}       # unix time of the last Weheat call per kind (its limits, over restarts)
         self._last_reason_code: str | None = None
@@ -320,7 +323,7 @@ class RoostManager:
         now = dt_util.utcnow()
         start = now - timedelta(hours=49)
         for key in (CONF_IMPORT_PRICE, CONF_EXPORT_PRICE):
-            eid = self.conf.get(key) if self.conf.get(CONF_PRICE_MODE) != "fixed" else None
+            eid = self.conf.get(key) if self.conf.get(CONF_PRICE_MODE, "sensor") == "sensor" else None
             st = self._state(eid)
             if not eid or st is None:
                 continue
@@ -474,6 +477,47 @@ class RoostManager:
         return max(0.0, 0.9 * s)
 
     # ------------------------------------------------------------ energy value
+    def _filled(self, key: str, raw: list[float | None], now: datetime, cur: float | None) -> list[float]:
+        """Hours past the forecast (tomorrow's prices come in the afternoon) from the same hour a day earlier."""
+        seen = self.price_seen.setdefault(key, {})
+        base = int(now.timestamp() // 3600 * 3600)
+        for h, v in enumerate(raw):
+            if v is not None and h > 0:                     # hour 0 is only the rest of the hour: keep the full one
+                seen[base + h * 3600] = v
+            elif v is not None:
+                seen.setdefault(base, v)
+        vals, guess = series.fill_gaps(raw, now.timestamp(), seen, cur)
+        self._price_guess[key] = guess
+        return [v or 0.0 for v in vals]
+
+    def _epex_series(self, now: datetime, hours: int, mult_key: str, add_key: str, key: str) -> list[float] | None:
+        """The built-in day-ahead prices through the user's formula (day-ahead × multiplier + fixed amount)."""
+        if not self._epex:
+            return None
+        mult, add = _f(self.conf.get(mult_key)) or 0.0, _f(self.conf.get(add_key)) or 0.0
+        raw = [None if v is None else epex.formula(v, mult, add) for v in series.hourly(self._epex, now.timestamp(), hours, fill_last=False)]
+        cur = series.current_value(self._epex, now.timestamp())
+        return self._filled(key, raw, now, epex.formula(cur, mult, add) if cur is not None else None)
+
+    async def _async_epex(self, now: datetime) -> None:
+        """Fetch the built-in day-ahead prices when due (Energy-Charts limits how often an address may ask)."""
+        loc = dt_util.as_local(now)
+        tomorrow_end = (dt_util.start_of_local_day(loc) + timedelta(days=2)).timestamp()
+        if not epex.needs_refresh(self._epex, self._epex_at, now.timestamp(), loc.hour, tomorrow_end):
+            return
+        self._epex_at = now.timestamp()
+        zone = self.conf.get(CONF_EPEX_ZONE) or epex.zone_for(self.hass.config.country)
+        try:
+            slots = await epex.async_fetch(async_get_clientsession(self.hass), zone, loc.date())
+        except Exception as err:  # noqa: BLE001 - keep what there is, try again later
+            self.sources["epex"] = f"error: {err}"[:120]
+            self.event("epex", zone=zone, error=str(err)[:200])
+            return
+        if slots:
+            self._epex = slots
+            self.sources["epex"] = "ok"
+            self.event("epex", zone=zone, slots=len(slots), until=datetime.fromtimestamp(slots[-1][1], tz=timezone.utc).isoformat())
+
     def _price_series(self, eid: str | None, now: datetime, hours: int) -> list[float] | None:
         st = self._state(eid)
         if st is None:
@@ -486,16 +530,7 @@ class RoostManager:
         if slots:
             fscale = series.slot_scale(slots, unit, cur * scale if cur is not None else None, now.timestamp())
             raw = [None if v is None else v * fscale for v in series.hourly(slots, now.timestamp(), hours, fill_last=False)]
-            seen = self.price_seen.setdefault(eid, {})
-            base = int(now.timestamp() // 3600 * 3600)
-            for h, v in enumerate(raw):
-                if v is not None and h > 0:                     # hour 0 is only the rest of the hour: keep the full one
-                    seen[base + h * 3600] = v
-                elif v is not None:
-                    seen.setdefault(base, v)
-            vals, guess = series.fill_gaps(raw, now.timestamp(), seen, cur * scale if cur is not None else None)
-            self._price_guess[eid] = guess
-            return [v or 0.0 for v in vals]
+            return self._filled(eid, raw, now, cur * scale if cur is not None else None)
         self._price_guess[eid] = [h > 0 for h in range(hours)]
         return [cur * scale] * hours if cur is not None else None
 
@@ -620,6 +655,13 @@ class RoostManager:
                 self.sources["price"] = "missing"
                 return None
             self.sources["price"] = "fixed"
+        elif c.get(CONF_PRICE_MODE) == "epex":
+            imp = self._epex_series(now, hours, CONF_IMPORT_MULT, CONF_IMPORT_ADD, "epex_import")
+            if imp is None:
+                self.sources["price"] = "missing"
+                return None
+            self.sources["price"] = "epex"
+            exp = self._epex_series(now, hours, CONF_EXPORT_MULT, CONF_EXPORT_ADD, "epex_export") if c.get(CONF_EXPORT_FORMULA) else None
         else:
             imp = self._price_series(c.get(CONF_IMPORT_PRICE), now, hours)
             if imp is None:
@@ -649,6 +691,8 @@ class RoostManager:
             if not self.ent:
                 self._resolve_weheat()
             await self._async_weather()
+            if self.conf.get(CONF_PRICE_MODE) == "epex":
+                await self._async_epex(now)
             self._track_storage(t)
             self._track_hour(t)
             self._count_cost(now)
@@ -770,7 +814,8 @@ class RoostManager:
             self.room_status = [{**meta, "expected": temps[:24]} for meta, temps in zip(room_meta, p.rooms)]
             self.plan, self.plan_hours, self.plan_at = p, hours, now.timestamp()
             self.plan_tariff = list(inp.import_price)
-            self.plan_guess = [] if self.conf.get(CONF_PRICE_MODE) == "fixed" else list(self._price_guess.get(self.conf.get(CONF_IMPORT_PRICE)) or [])
+            mode = self.conf.get(CONF_PRICE_MODE)
+            self.plan_guess = [] if mode == "fixed" else list(self._price_guess.get("epex_import" if mode == "epex" else self.conf.get(CONF_IMPORT_PRICE)) or [])
             self.reason = planner.explain(p, hours, room, s, self.pump, self.house, self.conf.get(CONF_EMITTER, "floor") == "floor")
             self._last_reason_code = None
         finally:

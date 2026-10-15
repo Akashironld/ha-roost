@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.5.4 — built-in day-ahead prices, Zonneplan
+
+**For everyone with a dynamic contract** — no price sensor needed any more: Roost can fetch the day-ahead prices itself. And Zonneplan's price sensor now works.
+
+### Improvements
+- **Day-ahead prices built in**: under *Electricity price* choose *Dynamic, day-ahead prices built in*. Roost fetches the day-ahead (EPEX) prices per quarter hour from Energy-Charts — no sensor or account — and plans with your supplier's formula: day-ahead × multiplier + fixed amount (Netherlands: multiplier 1.21, fixed amount (purchase fee + energy tax) × 1.21). Export can have its own formula once net metering ends
+- **Zonneplan**: the forecast of *Current electricity tariff* (per hour) and *Current quarter hourly electricity tariff* is read; Roost matches the forecast's scale to the sensor's own value (Zonneplan keeps its forecast in 1e-7 euro)
+- Any price forecast in other units than its sensor is scaled the same way
+
+### After updating
+Update in HACS (or install the new `roost.zip`) and restart Home Assistant. To use the built-in prices: *Settings → Devices & services → Roost → Configure → Electricity price*.
+
 ## v0.5.3 — log in with your Weheat account
 
 **For everyone on 0.5.2** — Roost now logs in to Weheat itself: after updating, click *Re-authenticate* at Roost once. Also a calmer night forecast after a sunny day, a settings menu that stays open, and *Ready to steer* in mild weather.

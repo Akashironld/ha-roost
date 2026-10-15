@@ -31,7 +31,13 @@ CONF_EMITTER = "emitter"                # floor | radiators | both: starting val
 CONF_USE_BAG = "use_bag"                # opt-in: building data from the Dutch register (PDOK)
 CONF_WEHEAT_AUTH = "weheat_auth"           # 0.5.2 only (the login choice): kept out of the options, nothing reads it
 CONF_AUTH_FROM = "auth_from"               # Roost's Weheat login: whose app registration ("weheat": the Weheat integration's, or "roost")
-CONF_PRICE_MODE = "price_mode"          # sensor (dynamic, with a forecast) | fixed (a contract)
+CONF_PRICE_MODE = "price_mode"          # sensor (dynamic, with a forecast) | epex (built in) | fixed (a contract)
+CONF_EPEX_ZONE = "epex_zone"            # bidding zone for the built-in day-ahead prices
+CONF_IMPORT_MULT = "import_mult"        # built-in prices: what a kWh costs = day-ahead × multiplier + fixed amount
+CONF_IMPORT_ADD = "import_add"
+CONF_EXPORT_FORMULA = "export_formula"  # export by its own formula (off: net metering, export worth the import price)
+CONF_EXPORT_MULT = "export_mult"
+CONF_EXPORT_ADD = "export_add"
 CONF_FIXED_PRICE = "fixed_price"        # per kWh, all in
 CONF_FIXED_LOW_PRICE = "fixed_low_price"  # optional: the low (night/weekend) rate
 CONF_LOW_FROM = "low_from"
@@ -57,9 +63,10 @@ DEFAULTS = {
     CONF_DAY_FROM: 7, CONF_DAY_TO: 22, CONF_COMFORT: 20.5, CONF_DAY_MIN: 20.0, CONF_NIGHT_MIN: 19.0, CONF_STORE_MAX: 22.5, CONF_SP_MIN: 19.0,
     CONF_MAX_ABOVE: 1.0, CONF_MIN_INTERVAL: 60, CONF_PAUSE_HOURS: 2, CONF_BASELINE_NIGHT: 0, CONF_GRID_PREFERENCE: 0.0,
     CONF_GRID_SIGN: "import_positive", CONF_WEATHER_SOURCE: "open_meteo", CONF_BATTERY_RESERVE: 10, CONF_IMPORT_ON_SETUP: True,
-    CONF_PRICE_MODE: "sensor", CONF_USE_BAG: False, CONF_EMITTER: "floor", CONF_LOW_FROM: 23, CONF_LOW_TO: 7, CONF_LOW_WEEKEND: True,
+    CONF_PRICE_MODE: "sensor", CONF_IMPORT_MULT: 1.21, CONF_IMPORT_ADD: 0.0, CONF_EXPORT_FORMULA: False,
+    CONF_EXPORT_MULT: 1.0, CONF_EXPORT_ADD: 0.0, CONF_USE_BAG: False, CONF_EMITTER: "floor", CONF_LOW_FROM: 23, CONF_LOW_TO: 7, CONF_LOW_WEEKEND: True,
 }
-PRICE_MODES = ["sensor", "fixed"]
+PRICE_MODES = ["sensor", "epex", "fixed"]
 EMITTERS = ["floor", "radiators", "both"]
 MODES = ["off", "shadow", "active"]
 GRID_SIGNS = ["import_positive", "export_positive"]

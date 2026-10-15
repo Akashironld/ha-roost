@@ -34,7 +34,7 @@
       },
       "price": {
         "title": "Stroomprijs",
-        "description": "Een dynamisch contract: kies de sensor met de prijzen van de komende uren. Een vast contract: kies 'Vaste prijs' en vul die in de volgende stap in.",
+        "description": "Een dynamisch contract: kies de sensor met de prijzen van de komende uren — of, zonder zo'n sensor, 'day-ahead-prijzen ingebouwd' en vul in de volgende stap de formule van je leverancier in. Een vast contract: kies 'Vaste prijs'.",
         "data": {
           "price_mode": "Stroomprijs",
           "import_price": "Stroomprijssensor (met verwachting)",
@@ -42,8 +42,28 @@
         },
         "data_description": {
           "price_mode": "Dynamisch: een sensor met uurprijzen. Vast: je vult in de volgende stap het tarief van je contract in (en een daltarief als je dat hebt).",
-          "import_price": "Alleen bij een dynamische prijs. Een sensor met prijzen voor de komende uren in de attributen (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Zonder verwachting kost elk uur hetzelfde.",
+          "import_price": "Alleen bij een dynamische prijs. Een sensor met prijzen voor de komende uren in de attributen (Nord Pool, ENTSO-e, Frank Energie, Zonneplan, Tibber, evcc, …) — bij Zonneplan 'Huidig elektriciteitstarief'. Losse sensors per uur vooruit werken niet; kies dan de ingebouwde day-ahead-prijzen.",
           "export_price": "Leeg laten bij salderen: teruglevering is dan de afnameprijs waard."
+        }
+      },
+      "price_epex": {
+        "title": "Day-ahead-prijzen (ingebouwd)",
+        "description": "Roost haalt de day-ahead-prijzen (EPEX) zelf op, per kwartier, bij Energy-Charts — geen sensor nodig. Wat een kWh kost = day-ahead × vermenigvuldiger + vast bedrag; hetzelfde voor teruglevering als die een eigen prijs heeft.",
+        "data": {
+          "epex_zone": "Prijszone",
+          "import_mult": "Vermenigvuldiger",
+          "import_add": "Vast bedrag per kWh",
+          "export_formula": "Teruglevering heeft een eigen prijs (geen saldering)",
+          "export_mult": "Teruglevering: vermenigvuldiger",
+          "export_add": "Teruglevering: vast bedrag per kWh"
+        },
+        "data_description": {
+          "epex_zone": "De day-ahead-markt van je land (bijvoorbeeld NL, BE, DE-LU); ingevuld uit het land van je Home Assistant.",
+          "import_mult": "Meestal 1 + btw, bijvoorbeeld 1,21 in Nederland.",
+          "import_add": "De inkoopvergoeding van je leverancier plus de energiebelasting, inclusief btw. Voorbeeld NL: (inkoopvergoeding + energiebelasting) × 1,21.",
+          "export_formula": "Uit: saldering — teruglevering is evenveel waard als inkoop. Aan: de formule hieronder.",
+          "export_mult": "Vaak 1 (geen btw of belasting op teruglevering zonder saldering).",
+          "export_add": "De terugleververgoeding van je leverancier, negatief als het je kost, bijvoorbeeld -0,02."
         }
       },
       "price_fixed": {
@@ -204,7 +224,7 @@
       },
       "price": {
         "title": "Stroomprijs",
-        "description": "Een dynamisch contract: kies de sensor met de prijzen van de komende uren. Een vast contract: kies 'Vaste prijs' en vul die in de volgende stap in.",
+        "description": "Een dynamisch contract: kies de sensor met de prijzen van de komende uren — of, zonder zo'n sensor, 'day-ahead-prijzen ingebouwd' en vul in de volgende stap de formule van je leverancier in. Een vast contract: kies 'Vaste prijs'.",
         "data": {
           "price_mode": "Stroomprijs",
           "import_price": "Stroomprijssensor (met verwachting)",
@@ -212,7 +232,7 @@
         },
         "data_description": {
           "price_mode": "Dynamisch: een sensor met uurprijzen. Vast: je vult in de volgende stap het tarief van je contract in (en een daltarief als je dat hebt).",
-          "import_price": "Alleen bij een dynamische prijs. Een sensor met prijzen voor de komende uren in de attributen (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Zonder verwachting kost elk uur hetzelfde.",
+          "import_price": "Alleen bij een dynamische prijs. Een sensor met prijzen voor de komende uren in de attributen (Nord Pool, ENTSO-e, Frank Energie, Zonneplan, Tibber, evcc, …) — bij Zonneplan 'Huidig elektriciteitstarief'. Losse sensors per uur vooruit werken niet; kies dan de ingebouwde day-ahead-prijzen.",
           "export_price": "Leeg laten bij salderen: teruglevering is dan de afnameprijs waard."
         }
       },
@@ -232,6 +252,26 @@
           "fixed_low_price": "Leeg laten bij een enkel tarief.",
           "low_weekend": "Bij veel dubbele meters telt het hele weekend als dal.",
           "fixed_export_price": "Leeg laten bij salderen: teruglevering is dan de afnameprijs waard."
+        }
+      },
+      "price_epex": {
+        "title": "Day-ahead-prijzen (ingebouwd)",
+        "description": "Roost haalt de day-ahead-prijzen (EPEX) zelf op, per kwartier, bij Energy-Charts — geen sensor nodig. Wat een kWh kost = day-ahead × vermenigvuldiger + vast bedrag; hetzelfde voor teruglevering als die een eigen prijs heeft.",
+        "data": {
+          "epex_zone": "Prijszone",
+          "import_mult": "Vermenigvuldiger",
+          "import_add": "Vast bedrag per kWh",
+          "export_formula": "Teruglevering heeft een eigen prijs (geen saldering)",
+          "export_mult": "Teruglevering: vermenigvuldiger",
+          "export_add": "Teruglevering: vast bedrag per kWh"
+        },
+        "data_description": {
+          "epex_zone": "De day-ahead-markt van je land (bijvoorbeeld NL, BE, DE-LU); ingevuld uit het land van je Home Assistant.",
+          "import_mult": "Meestal 1 + btw, bijvoorbeeld 1,21 in Nederland.",
+          "import_add": "De inkoopvergoeding van je leverancier plus de energiebelasting, inclusief btw. Voorbeeld NL: (inkoopvergoeding + energiebelasting) × 1,21.",
+          "export_formula": "Uit: saldering — teruglevering is evenveel waard als inkoop. Aan: de formule hieronder.",
+          "export_mult": "Vaak 1 (geen btw of belasting op teruglevering zonder saldering).",
+          "export_add": "De terugleververgoeding van je leverancier, negatief als het je kost, bijvoorbeeld -0,02."
         }
       },
       "comfort": {
@@ -480,6 +520,7 @@
     "price_mode": {
       "options": {
         "sensor": "Dynamisch (prijssensor)",
+        "epex": "Dynamisch, day-ahead-prijzen ingebouwd (geen sensor)",
         "fixed": "Vaste prijs (contract)"
       }
     },

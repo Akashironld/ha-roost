@@ -65,3 +65,26 @@ async def test_without_a_weheat_login_it_asks_for_one(hass: HomeAssistant, entry
     """Installed without a Weheat login (or from before 0.5.3): Home Assistant shows the re-authenticate notice."""
     flows = hass.config_entries.flow.async_progress_by_handler("roost")
     assert any(f["context"]["source"] == "reauth" for f in flows), flows
+
+
+async def test_built_in_day_ahead_prices(hass: HomeAssistant, weheat: str, aioclient_mock, climate_calls) -> None:
+    """Price mode 'epex': Roost fetches the day-ahead prices itself and plans with day-ahead × multiplier + amount."""
+    from homeassistant.setup import async_setup_component
+    from homeassistant.util import dt as dt_util
+
+    from custom_components.roost import epex
+
+    from .conftest import setup_roost
+
+    t0 = int(dt_util.utcnow().timestamp() // 3600 * 3600) - 3600
+    quarters = list(range(0, 48 * 4))
+    aioclient_mock.get(epex.URL, json={"unix_seconds": [t0 + q * 900 for q in quarters],
+                                       "price": [100.0 if (q // 4) % 2 else 300.0 for q in quarters], "unit": "EUR / MWh"})
+    assert await async_setup_component(hass, "websocket_api", {})
+    entry = await setup_roost(hass, weheat, options={"price_mode": "epex", "epex_zone": "NL", "import_mult": 1.21,
+                                                     "import_add": 0.15})
+    m = entry.runtime_data
+    assert aioclient_mock.call_count == 1 and m.sources.get("epex") == "ok"
+    assert m.sources.get("price") == "epex"
+    tariff = [round(x, 4) for x in m.plan_tariff[:4]]
+    assert set(tariff[1:]) <= {round(0.1 * 1.21 + 0.15, 4), round(0.3 * 1.21 + 0.15, 4)}, tariff

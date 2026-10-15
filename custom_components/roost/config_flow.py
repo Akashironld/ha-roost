@@ -27,8 +27,9 @@ from .const import (
     CONF_ROOM, CONF_STORE_MAX, CONF_THERMOSTAT, CONF_WEATHER, CONF_WEATHER_SOURCE, DEFAULTS, DOMAIN, GRID_SIGNS, WEATHER_SOURCES,
     WEHEAT, CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND,
     CONF_EMITTER, CONF_HAS_BATTERY, CONF_HAS_SOLAR, CONF_PRICE_MODE, CONF_SP_MIN, CONF_USE_BAG, CONF_WEHEAT_AUTH, CONF_AUTH_FROM, EMITTERS, PRICE_MODES,
+    CONF_EPEX_ZONE, CONF_IMPORT_MULT, CONF_IMPORT_ADD, CONF_EXPORT_FORMULA, CONF_EXPORT_MULT, CONF_EXPORT_ADD,
 )
-from . import check, comfort, detect
+from . import check, comfort, detect, epex
 from .weheat_api import API_URL, heat_pump_id, weheat_implementation
 from .rooms import KINDS as ROOM_KINDS
 
@@ -106,6 +107,21 @@ def price_mode_schema() -> vol.Schema:
         vol.Required(CONF_PRICE_MODE, default=DEFAULTS[CONF_PRICE_MODE]): _sel(PRICE_MODES, "price_mode"),
         vol.Optional(CONF_IMPORT_PRICE): _ent(["sensor", "input_number"]),
         vol.Optional(CONF_EXPORT_PRICE): _ent(["sensor", "input_number"]),
+    })
+
+
+def price_epex_schema(currency: str, country: str | None) -> vol.Schema:
+    """Built-in day-ahead prices: the bidding zone, and what a kWh costs (and earns) = day-ahead × multiplier + amount."""
+    unit = f"{currency}/kWh"
+    zones = selector.SelectSelector(selector.SelectSelectorConfig(options=epex.ZONES, mode=selector.SelectSelectorMode.DROPDOWN))
+    d = DEFAULTS
+    return vol.Schema({
+        vol.Required(CONF_EPEX_ZONE, default=epex.zone_for(country)): zones,
+        vol.Required(CONF_IMPORT_MULT, default=d[CONF_IMPORT_MULT]): _num(0, 3, 0.001),
+        vol.Required(CONF_IMPORT_ADD, default=d[CONF_IMPORT_ADD]): _num(-1, 1, 0.001, unit),
+        vol.Required(CONF_EXPORT_FORMULA, default=d[CONF_EXPORT_FORMULA]): selector.BooleanSelector(),
+        vol.Required(CONF_EXPORT_MULT, default=d[CONF_EXPORT_MULT]): _num(0, 3, 0.001),
+        vol.Required(CONF_EXPORT_ADD, default=d[CONF_EXPORT_ADD]): _num(-1, 1, 0.001, unit),
     })
 
 
@@ -270,6 +286,9 @@ def _summary(hass: HomeAssistant, o: dict, rooms: int) -> dict[str, str]:
     cur = hass.config.currency or "EUR"
     if o.get(CONF_PRICE_MODE) == "fixed":
         price = f"{n(o.get(CONF_FIXED_PRICE, 0))} {cur}/kWh" + (f" / {n(o[CONF_FIXED_LOW_PRICE])}" if o.get(CONF_FIXED_LOW_PRICE) is not None else "")
+    elif o.get(CONF_PRICE_MODE) == "epex":
+        price = (f"EPEX {o.get(CONF_EPEX_ZONE) or epex.zone_for(hass.config.country)} × {n(o.get(CONF_IMPORT_MULT, 1))}"
+                 f" + {n(o.get(CONF_IMPORT_ADD, 0))} {cur}/kWh")
     else:
         price = detect.friendly(hass, o.get(CONF_IMPORT_PRICE))
     solar = []
@@ -452,9 +471,17 @@ class RoostConfigFlow(AbstractOAuth2FlowHandler, domain=DOMAIN):
                 self._data.update(_clean(user_input))
                 if user_input.get(CONF_PRICE_MODE) == "fixed":
                     return await self.async_step_price_fixed()
+                if user_input.get(CONF_PRICE_MODE) == "epex":
+                    return await self.async_step_price_epex()
                 return await self.async_step_solar()
         imp, exp = detect.prices(self.hass)
         return self._form("price", price_mode_schema(), _suggest(self.hass, user_input or {}, {CONF_IMPORT_PRICE: imp, CONF_EXPORT_PRICE: exp}), errors)
+
+    async def async_step_price_epex(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            self._data.update(_clean(user_input))
+            return await self.async_step_solar()
+        return self.async_show_form(step_id="price_epex", data_schema=price_epex_schema(self.hass.config.currency or "EUR", self.hass.config.country))
 
     async def async_step_price_fixed(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
@@ -525,7 +552,7 @@ class RoostOptionsFlow(OptionsFlow):
 
     async def _async_saved(self, part: str | None = None) -> ConfigFlowResult:
         """A part was submitted: save it right away (closing the window loses nothing) and go back to the menu."""
-        part = part or {"price_fixed": "price"}.get(step := (self.cur_step or {}).get("step_id", ""), step)
+        part = part or {"price_fixed": "price", "price_epex": "price"}.get(step := (self.cur_step or {}).get("step_id", ""), step)
         self.hass.config_entries.async_update_entry(self.config_entry, options=dict(self.opts))
         self._saved = part
         return await self.async_step_init()
@@ -584,8 +611,17 @@ class RoostOptionsFlow(OptionsFlow):
                 self._update(schema, user_input)
                 if user_input.get(CONF_PRICE_MODE) == "fixed":
                     return await self.async_step_price_fixed()
+                if user_input.get(CONF_PRICE_MODE) == "epex":
+                    return await self.async_step_price_epex()
                 return await self._async_saved()
         return self.async_show_form(step_id="price", data_schema=self.add_suggested_values_to_schema(schema, self.opts), errors=errors)
+
+    async def async_step_price_epex(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        schema = price_epex_schema(self.hass.config.currency or "EUR", self.hass.config.country)
+        if user_input is not None:
+            self._update(schema, user_input)
+            return await self._async_saved()
+        return self.async_show_form(step_id="price_epex", data_schema=self.add_suggested_values_to_schema(schema, self.opts))
 
     async def async_step_price_fixed(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         schema = price_schema(self.hass.config.currency or "EUR")

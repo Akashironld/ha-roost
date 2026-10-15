@@ -145,3 +145,15 @@ async def test_options_solar_and_battery_on_one_screen(hass: HomeAssistant, entr
         "grid_preference": 0.0})
     assert r["type"] is FlowResultType.MENU
     assert entry.options["pv_power"] == "sensor.pv" and "battery_soc" not in entry.options and "battery_kwh" not in entry.options
+
+
+async def test_built_in_day_ahead_prices_screen(hass: HomeAssistant, weheat: str) -> None:
+    r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"name": "Roost", "heat_pump": weheat, "thermostat": THERMOSTAT,
+                                                                       "import_weheat_history": False})
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"emitter": "floor", "use_bag": False})
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"price_mode": "epex"})      # no sensor needed
+    assert r["type"] is FlowResultType.FORM and r["step_id"] == "price_epex"
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"epex_zone": "NL", "import_mult": 1.21, "import_add": 0.15,
+                                                                       "export_formula": True, "export_mult": 1.0, "export_add": -0.02})
+    assert r["step_id"] == "solar"

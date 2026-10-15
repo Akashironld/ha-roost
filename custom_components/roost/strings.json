@@ -34,7 +34,7 @@
       },
       "price": {
         "title": "Electricity price",
-        "description": "A dynamic contract: choose the sensor with the prices of the coming hours. A fixed contract: choose 'Fixed price' and enter it in the next step.",
+        "description": "A dynamic contract: choose the sensor with the prices of the coming hours — or, without such a sensor, 'day-ahead prices built in' and enter your supplier's formula in the next step. A fixed contract: choose 'Fixed price'.",
         "data": {
           "price_mode": "Electricity price",
           "import_price": "Electricity price sensor (with forecast)",
@@ -42,8 +42,28 @@
         },
         "data_description": {
           "price_mode": "Dynamic: a sensor with hourly prices. Fixed: you enter your contract's rate (and a low rate if you have one) in the next step.",
-          "import_price": "Only with a dynamic price. A sensor with prices for the coming hours in its attributes (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Without a forecast every hour costs the same.",
+          "import_price": "Only with a dynamic price. A sensor with prices for the coming hours in its attributes (Nord Pool, ENTSO-e, Frank Energie, Zonneplan, Tibber, evcc, …) — for Zonneplan 'Current electricity tariff'. Sensors for one hour ahead each do not work; choose the built-in day-ahead prices instead.",
           "export_price": "Leave empty with net metering: export is then worth the import price."
+        }
+      },
+      "price_epex": {
+        "title": "Day-ahead prices (built in)",
+        "description": "Roost fetches the day-ahead (EPEX) prices itself, per quarter hour, from Energy-Charts — no sensor needed. What a kWh costs = day-ahead × multiplier + fixed amount; the same for export if it has its own price.",
+        "data": {
+          "epex_zone": "Bidding zone",
+          "import_mult": "Multiplier",
+          "import_add": "Fixed amount per kWh",
+          "export_formula": "Export has its own price (no net metering)",
+          "export_mult": "Export: multiplier",
+          "export_add": "Export: fixed amount per kWh"
+        },
+        "data_description": {
+          "epex_zone": "Your country's day-ahead market (e.g. NL, BE, DE-LU); filled in from your Home Assistant country.",
+          "import_mult": "Usually 1 + VAT, e.g. 1.21 in the Netherlands.",
+          "import_add": "Your supplier's purchase fee plus the energy tax, including VAT. Example NL: (fee + energy tax) × 1.21.",
+          "export_formula": "Off: net metering — export is worth what importing costs. On: the formula below.",
+          "export_mult": "Often 1 (no VAT or tax on export without net metering).",
+          "export_add": "Your supplier's export fee, negative when it costs you, e.g. -0.02."
         }
       },
       "price_fixed": {
@@ -204,7 +224,7 @@
       },
       "price": {
         "title": "Electricity price",
-        "description": "A dynamic contract: choose the sensor with the prices of the coming hours. A fixed contract: choose 'Fixed price' and enter it in the next step.",
+        "description": "A dynamic contract: choose the sensor with the prices of the coming hours — or, without such a sensor, 'day-ahead prices built in' and enter your supplier's formula in the next step. A fixed contract: choose 'Fixed price'.",
         "data": {
           "price_mode": "Electricity price",
           "import_price": "Electricity price sensor (with forecast)",
@@ -212,7 +232,7 @@
         },
         "data_description": {
           "price_mode": "Dynamic: a sensor with hourly prices. Fixed: you enter your contract's rate (and a low rate if you have one) in the next step.",
-          "import_price": "Only with a dynamic price. A sensor with prices for the coming hours in its attributes (Nord Pool, ENTSO-e, Frank Energie, evcc, …). Without a forecast every hour costs the same.",
+          "import_price": "Only with a dynamic price. A sensor with prices for the coming hours in its attributes (Nord Pool, ENTSO-e, Frank Energie, Zonneplan, Tibber, evcc, …) — for Zonneplan 'Current electricity tariff'. Sensors for one hour ahead each do not work; choose the built-in day-ahead prices instead.",
           "export_price": "Leave empty with net metering: export is then worth the import price."
         }
       },
@@ -232,6 +252,26 @@
           "fixed_low_price": "Leave empty with a single rate.",
           "low_weekend": "Many double-rate meters count the whole weekend as low.",
           "fixed_export_price": "Leave empty with net metering: export is then worth the import price."
+        }
+      },
+      "price_epex": {
+        "title": "Day-ahead prices (built in)",
+        "description": "Roost fetches the day-ahead (EPEX) prices itself, per quarter hour, from Energy-Charts — no sensor needed. What a kWh costs = day-ahead × multiplier + fixed amount; the same for export if it has its own price.",
+        "data": {
+          "epex_zone": "Bidding zone",
+          "import_mult": "Multiplier",
+          "import_add": "Fixed amount per kWh",
+          "export_formula": "Export has its own price (no net metering)",
+          "export_mult": "Export: multiplier",
+          "export_add": "Export: fixed amount per kWh"
+        },
+        "data_description": {
+          "epex_zone": "Your country's day-ahead market (e.g. NL, BE, DE-LU); filled in from your Home Assistant country.",
+          "import_mult": "Usually 1 + VAT, e.g. 1.21 in the Netherlands.",
+          "import_add": "Your supplier's purchase fee plus the energy tax, including VAT. Example NL: (fee + energy tax) × 1.21.",
+          "export_formula": "Off: net metering — export is worth what importing costs. On: the formula below.",
+          "export_mult": "Often 1 (no VAT or tax on export without net metering).",
+          "export_add": "Your supplier's export fee, negative when it costs you, e.g. -0.02."
         }
       },
       "comfort": {
@@ -480,6 +520,7 @@
     "price_mode": {
       "options": {
         "sensor": "Dynamic (price sensor)",
+        "epex": "Dynamic, day-ahead prices built in (no sensor)",
         "fixed": "Fixed price (contract)"
       }
     },
