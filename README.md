@@ -9,6 +9,8 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
 >
 > 📖 **New here? Follow the [setup and user guide](docs/GUIDE.md)** — from installing to letting Roost steer, step by step.
 > What to expect: [simulations](docs/SIMULATIONS.md).
+>
+> 🧪 **Testing the private beta?** Install and update without HACS: [docs/TESTERS.md](docs/TESTERS.md).
 
 ## What it does
 

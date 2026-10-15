@@ -1,10 +1,18 @@
 name: Release
 
-# Push a tag like v0.11.0 and this publishes the GitHub release, with the notes from CHANGELOG.md.
+# Push a tag like v0.5.2 and this publishes the GitHub release, with the notes from CHANGELOG.md and roost.zip (the
+# integration folder, for installing by hand). Versions below 1.0 are published as a pre-release (beta).
 # It refuses when the tag does not match the version in manifest.json or the changelog has no section for it.
+# Run it by hand (Actions → Release → Run workflow) to rewrite the notes and zip of a release, or to publish one whose
+# tag is there but whose release is missing.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release to (re)publish, e.g. v0.5.2"
+        required: true
 
 permissions:
   contents: write
@@ -14,10 +22,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - name: Check the version and take the release notes from the changelog
         id: notes
         run: |
-          tag="${GITHUB_REF_NAME}"
+          tag="${{ inputs.tag || github.ref_name }}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           version="$(python3 -c 'import json;print(json.load(open("custom_components/roost/manifest.json"))["version"])')"
           if [ "v${version}" != "${tag}" ]; then
             echo "::error::Tag ${tag} does not match manifest.json version ${version}"; exit 1
@@ -25,12 +36,23 @@ jobs:
           python3 .github/scripts/release_notes.py "${tag}" > notes.md
           echo "title=$(head -n 1 notes.md)" >> "$GITHUB_OUTPUT"
           tail -n +3 notes.md > body.md
+          case "${version}" in 0.*) echo "pre=--prerelease" >> "$GITHUB_OUTPUT" ;; *) echo "pre=--latest" >> "$GITHUB_OUTPUT" ;; esac
+      - name: Zip the integration
+        run: cd custom_components/roost && zip -r -q "${GITHUB_WORKSPACE}/roost.zip" . -x "__pycache__/*"
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.notes.outputs.tag }}
+          TITLE: ${{ steps.notes.outputs.title }}    # through the environment: quotes in a title stay text
+          PRE: ${{ steps.notes.outputs.pre }}
         run: |
-          if gh release view "${GITHUB_REF_NAME}" > /dev/null 2>&1; then
-            echo "Release ${GITHUB_REF_NAME} exists already, leaving it"
+          if gh release view "${TAG}" > /dev/null 2>&1; then
+            if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+              gh release edit "${TAG}" --title "${TITLE}" --notes-file body.md
+              gh release upload "${TAG}" roost.zip --clobber
+            else
+              echo "Release ${TAG} exists already, leaving it"
+            fi
           else
-            gh release create "${GITHUB_REF_NAME}" --title "${{ steps.notes.outputs.title }}" --notes-file body.md --latest
+            gh release create "${TAG}" --title "${TITLE}" --notes-file body.md ${PRE} roost.zip
           fi

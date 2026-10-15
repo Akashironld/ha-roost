@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.5.2 — first beta for testers
+
+**For the private beta testers** — the first version to install: everything in the sections below, in one beta.
+Roost starts in shadow mode and only steers when you switch it on.
+
+### Changes
+- **Install and update without HACS** while the repository is private: [docs/TESTERS.md](docs/TESTERS.md). Every
+  release now comes with `roost.zip` (the integration folder) and is marked as a pre-release until 1.0
+- What changed before this version is in the sections below
+
+### After updating
+First install: follow [docs/TESTERS.md](docs/TESTERS.md), then the [guide](docs/GUIDE.md) from section 4.
+
 ## v0.5.0 — beta (unreleased)
 
 - Weheat history within Weheat's limits for developers (logs at most every 2 minutes, energy logs at most every half

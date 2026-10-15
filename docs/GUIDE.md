@@ -81,6 +81,9 @@ you save the most. With radiators the house itself is the buffer: Roost learns h
 
 Roost is installed through [HACS](https://hacs.xyz) (the Home Assistant Community Store).
 
+> **Private beta:** while the repository is private HACS cannot install it. Testers install from the release's
+> `roost.zip` instead: see [TESTERS.md](TESTERS.md).
+
 1. In Home Assistant open **HACS**.
 2. Top right, click the **⋮** (three dots) → **Custom repositories**.
 3. Paste the address of this repository, choose type **Integration**, click **Add**.
