@@ -90,16 +90,32 @@ async def test_built_in_day_ahead_prices(hass: HomeAssistant, weheat: str, aiocl
     assert set(tariff[1:]) <= {round(0.1 * 1.21 + 0.15, 4), round(0.3 * 1.21 + 0.15, 4)}, tariff
 
 
-async def test_look_back_over_the_websocket(hass: HomeAssistant, entry, hass_ws_client) -> None:
-    """The card's look back: roost/history for the planned-setpoint entity gives the hours, events and days."""
+async def test_look_back_over_the_websocket(hass: HomeAssistant, entry) -> None:
+    """The card's look back: roost/history for the planned-setpoint entity gives the hours, events and days. (The
+    handler is called with a stand-in connection: the web server is a mock in these tests.)"""
+    from custom_components.roost import _ws_history
+
+    class Conn:
+        def __init__(self) -> None:
+            self.result, self.error = None, None
+
+        def send_result(self, msg_id, result) -> None:
+            self.result = result
+
+        def send_error(self, msg_id, code, message) -> None:
+            self.error = code
+
+        def async_handle_exception(self, msg, err) -> None:
+            raise err
+
     m = entry.runtime_data
     m.hour_log.append({"ts": int(time.time() // 3600 * 3600) - 3600, "T": 20.4, "sp_t": 20.5, "sp_plan": 20.5, "p6": 20.6,
                        "reason": "holding", "args": {}, "p_grid": 0.3, "q": 1.2, "day": True})
-    client = await hass_ws_client(hass)
-    await client.send_json({"id": 1, "type": "roost/history", "entity_id": _plan_entity(hass), "days": 2})
-    msg = await client.receive_json()
-    assert msg["success"], msg
-    res = msg["result"]
-    assert res["hours"] and res["hours"][-1]["p6"] == 20.6 and "events" in res and "days" in res
-    await client.send_json({"id": 2, "type": "roost/history", "entity_id": "sensor.not_roost"})
-    assert not (await client.receive_json())["success"]
+    ok = Conn()
+    _ws_history(hass, ok, {"id": 1, "type": "roost/history", "entity_id": _plan_entity(hass), "days": 2})
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert ok.result and ok.result["hours"][-1]["p6"] == 20.6 and "events" in ok.result and "days" in ok.result
+    bad = Conn()
+    _ws_history(hass, bad, {"id": 2, "type": "roost/history", "entity_id": "sensor.not_roost", "days": 7})
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert bad.error == "not_found" and bad.result is None
