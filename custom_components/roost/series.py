@@ -12,12 +12,15 @@ Supported shapes (detected automatically):
 """
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
-START_KEYS = ("start", "from", "time", "startsAt", "starts_at", "start_time", "period_start", "valid_from", "datetime", "date")
-END_KEYS = ("end", "till", "to", "end_time", "period_end", "valid_to", "endsAt", "ends_at")
-VALUE_KEYS = ("value", "price", "rate", "total", "value_inc_vat", "pv_estimate", "price_ct", "energy", "power")
+START_KEYS = ("start", "from", "time", "startsAt", "starts_at", "start_time", "period_start", "valid_from", "datetime", "date",
+              "start_date")
+END_KEYS = ("end", "till", "to", "end_time", "period_end", "valid_to", "endsAt", "ends_at", "end_date")
+VALUE_KEYS = ("value", "price", "rate", "total", "value_inc_vat", "pv_estimate", "price_ct", "energy", "power",
+              "electricity_price", "price_tax_included")   # Zonneplan: per hour, and per quarter as {"amount": …}
 
 Slot = tuple[float, float, float]          # (start epoch s, end epoch s, value)
 
@@ -88,7 +91,8 @@ def slots_from_list(items: list) -> list[Slot]:
     for it in items:
         if not isinstance(it, dict):
             continue
-        s, v = to_ts(_first(it, START_KEYS)), _num(_first(it, VALUE_KEYS))
+        raw = _first(it, VALUE_KEYS)
+        s, v = to_ts(_first(it, START_KEYS)), _num(raw.get("amount") if isinstance(raw, dict) else raw)
         if s is None or v is None:
             continue
         pts.append((s, to_ts(_first(it, END_KEYS)), v))
@@ -138,9 +142,27 @@ def price_scale(unit: str | None, values: list[float]) -> float:
         return 0.01
     if values:
         med = sorted(abs(v) for v in values)[len(values) // 2]
+        if med > 5000:                    # raw units, e.g. Zonneplan's 1e-7 euro: down to a price of 0.1–1 per kWh
+            return 10.0 ** -math.ceil(math.log10(med))
+        if med > 200:                     # per MWh
+            return 0.001
         if med > 5:                       # 5 per kWh is not a realistic price; it is cents
             return 0.01
     return 1.0
+
+
+def slot_scale(slots: list[Slot], unit: str | None, state: float | None, now_ts: float) -> float:
+    """Factor for a forecast's values to currency per kWh. When the sensor's own value is known (already in currency
+    per kWh), the power of ten that makes the forecast's value for now match it: some integrations keep the forecast in
+    other units than their state (Zonneplan: 1e-7 euro). Else from the unit, or a plausibility guess."""
+    now_v = current_value(slots, now_ts) if state is not None and abs(state) >= 0.01 else None
+    if now_v:
+        r = state / now_v
+        if r > 0:
+            p = round(math.log10(r))
+            if abs(math.log10(r) - p) < 0.35:           # the same price within about a factor 2
+                return 10.0 ** p
+    return price_scale(unit, [v for *_, v in slots])
 
 
 def hourly(slots: list[Slot], start_ts: float, hours: int, fill_last: bool = True) -> list[float | None]:

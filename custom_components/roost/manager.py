@@ -481,9 +481,11 @@ class RoostManager:
         mid = dt_util.start_of_local_day(dt_util.as_local(now)).timestamp()
         slots = series.find_slots(dict(st.attributes), mid)
         cur = _f(st.state)
-        scale = series.price_scale(st.attributes.get(ATTR_UNIT_OF_MEASUREMENT), [v for _, _, v in slots] or ([cur] if cur is not None else []))
+        unit = st.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+        scale = series.price_scale(unit, [cur] if cur is not None else [v for _, _, v in slots])     # for the state
         if slots:
-            raw = [None if v is None else v * scale for v in series.hourly(slots, now.timestamp(), hours, fill_last=False)]
+            fscale = series.slot_scale(slots, unit, cur * scale if cur is not None else None, now.timestamp())
+            raw = [None if v is None else v * fscale for v in series.hourly(slots, now.timestamp(), hours, fill_last=False)]
             seen = self.price_seen.setdefault(eid, {})
             base = int(now.timestamp() // 3600 * 3600)
             for h, v in enumerate(raw):

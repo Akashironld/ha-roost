@@ -156,6 +156,28 @@ def test_slots_from_state_changes():
 
 
 
+def test_zonneplan_prices():
+    """Zonneplan keeps its forecast in 1e-7 euro while the sensor's state is in euro per kWh; per hour with
+    'datetime'/'electricity_price', per quarter with 'start_date'/'end_date' and 'price_tax_included': {'amount': …}."""
+    series = load("series")
+    t0 = 1_800_000_000 - 1_800_000_000 % 3600
+    iso = lambda t: __import__("datetime").datetime.fromtimestamp(t, __import__("datetime").timezone.utc).isoformat()
+    hourly_attr = {"forecast": [{"datetime": iso(t0 + h * 3600), "electricity_price": 2_000_000 + h * 100_000,
+                                 "electricity_price_excl_tax": 1_500_000, "tariff_group": "normal"} for h in range(24)]}
+    slots = series.find_slots(hourly_attr)
+    assert len(slots) == 24
+    f = series.slot_scale(slots, "€/kWh", 0.2, t0 + 600)                    # the state: 0.20 €/kWh now
+    assert abs(f - 1e-7) < 1e-12
+    assert abs(series.hourly(slots, t0, 3)[2] * f - 0.22) < 1e-9
+    assert abs(series.slot_scale(slots, "€/kWh", 0.002, t0 + 600) - 1e-7) < 1e-12   # price near zero now: by size
+    quarter_attr = {"forecast": [{"start_date": iso(t0 + q * 900), "end_date": iso(t0 + (q + 1) * 900),
+                                  "price_tax_included": {"amount": 2_000_000 + q * 10_000}} for q in range(8)]}
+    qs = series.find_slots(quarter_attr)
+    assert len(qs) == 8 and abs(series.hourly(qs, t0, 2)[0] * 1e-7 - 0.2015) < 1e-9          # the hour's average
+    nordpool = series.find_slots({"raw_today": [{"start": iso(t0 + h * 3600), "end": iso(t0 + (h + 1) * 3600), "value": 0.25} for h in range(3)]})
+    assert series.slot_scale(nordpool, "EUR/kWh", 0.25, t0) == 1.0                          # an ordinary sensor
+
+
 def test_fixed_contract_prices():
     hours = [(0, 22), (0, 23), (1, 3), (1, 7), (5, 12), (6, 18)]       # Monday 22/23 h, Tuesday 3/7 h, Saturday, Sunday
     assert value.fixed_prices(hours, 0.30, 0.25) == [0.30, 0.25, 0.25, 0.30, 0.25, 0.25]
