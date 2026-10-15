@@ -183,5 +183,20 @@ def test_starting_values_by_heat_emitter():
     assert model.starting_values("unknown", None)["lag"] == 1.0
 
 
+
+def test_after_insulating_recent_heating_wins():
+    """60 heating days of the old house (heat loss 0.20 kW/K), then 45 of the same house insulated (0.12): the model
+    follows the insulated house, not the average of both."""
+    old = simulate_house(dict(TRUE, H=0.20), days=60, seed=11)
+    new = simulate_house(dict(TRUE, H=0.12), days=45, seed=12)
+    shift = 60 * 86400
+    rows = old + [model.HourRow(**{**r.__dict__, "ts": r.ts + shift}) for r in new]
+    m = model.learn(rows, model.HouseModel()).model
+    assert abs(m.H - 0.12) < abs(m.H - 0.16), m.H          # nearer the insulated house than the middle
+    w = model.recency_weights({r.ts: r for r in rows}, model.select_days(rows))
+    days = sorted(w)
+    assert w[days[-1]] == 1.0 and w[days[0]] < 0.6, (w[days[0]], w[days[-1]])
+
+
 if __name__ == "__main__":
     run_all(dict(globals()))

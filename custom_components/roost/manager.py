@@ -32,7 +32,7 @@ from .const import (
     LEARN_HOUR, LEARN_MINUTE, PLAN_MINUTES, STORAGE_VERSION, TICK_SECONDS, WEATHER_MINUTES, WEHEAT, WEHEAT_IMPORT_DAYS,
 )
 from .reasons import Reason
-from .weheat_api import WeheatUnavailable, async_fetch_history, heat_pump_id
+from .weheat_api import WeheatUnavailable, async_fetch_history, async_fetch_months, heat_pump_id
 
 _LOGGER = logging.getLogger(__name__)
 DHW_STATES = ("dhw", "legionella_prevention")
@@ -227,7 +227,10 @@ class RoostManager:
         await self._async_building()
         await self._async_seed_prices()
         await self._async_tick(None, force_plan=True)
-        if self.import_info.get("done") and self.import_info.get("fields", 1) < WEHEAT_FIELDS:
+        if not self.import_info.get("done") and self.import_info.get("oldest"):
+            # an import in months was cut off by a restart: carry on with the older months
+            self.hass.async_create_background_task(self.async_import(WEHEAT_IMPORT_DAYS), f"{DOMAIN} weheat import (resumed)")
+        elif self.import_info.get("done") and self.import_info.get("fields", 1) < WEHEAT_FIELDS:
             # imported by an older version: read again, now with the setpoint per hour (needed for the response)
             self.hass.async_create_background_task(self.async_import(WEHEAT_IMPORT_DAYS), f"{DOMAIN} weheat import")
         elif self.conf.get(CONF_IMPORT_ON_SETUP) and not self.import_info.get("done"):
@@ -889,7 +892,9 @@ class RoostManager:
         end = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
         start = max(end - timedelta(days=30), datetime.fromtimestamp(max(self._weheat_hours) - 3 * 3600, tz=timezone.utc))
         try:
-            logs, energy = await async_fetch_history(self.hass, weheat_entry, pump, start, end)
+            logs, energy, calls = await async_fetch_history(self.hass, weheat_entry, pump, start, end,
+                                                            note=lambda **k: self.event("weheat_call", **k))
+            self.event("weheat_refresh", calls=calls, hours=len(logs))
         except Exception as err:  # noqa: BLE001 - learn with what there is
             _LOGGER.debug("Roost: Weheat refresh skipped: %s", err)
             return
@@ -966,30 +971,45 @@ class RoostManager:
             self.import_info = {"status": "no Weheat heat pump found"}
             return
         self.importing = True
-        end = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
-        start = end - timedelta(days=days)
-        self.import_info = {"status": "importing", "from": start.isoformat(), "to": end.isoformat()}
+        prev = self.import_info if not self.import_info.get("done") and self.import_info.get("oldest") else None
+        end = datetime.fromisoformat(prev["oldest"]) if prev else dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
+        start = datetime.fromisoformat(prev["from"]) if prev else end - timedelta(days=days)
+        self.import_info = {"status": "importing", "from": start.isoformat(), "to": (prev or {}).get("to", end.isoformat()),
+                            "oldest": end.isoformat(), "months_done": (prev or {}).get("months_done", 0),
+                            "months": max(1, round((end - start).days / 31) + (prev or {}).get("months_done", 0)),
+                            "hours": (prev or {}).get("hours", 0)}
         self._notify()
+        learned_once = bool(prev)
 
-        def progress(t: datetime) -> None:
-            self.import_info["at"] = t.isoformat()
-            self._notify()
-        try:
-            logs, energy = await async_fetch_history(self.hass, weheat_entry, pump, start, end, progress)
+        async def on_month(logs: list, energy: list, oldest: datetime) -> None:
+            nonlocal learned_once
             rows = history.weheat_hours(logs, energy)
             self._weheat_hours.update(rows)
             await self._async_save_history()
-            first = min(rows) if rows else None
-            self.event("import", hours=len(rows))
-            self.import_info = {"status": "done", "done": True, "fields": WEHEAT_FIELDS, "hours": len(rows),
+            info = self.import_info
+            info.update(oldest=oldest.isoformat(), months_done=info["months_done"] + 1, hours=info["hours"] + len(rows),
+                        at=dt_util.now().isoformat(timespec="seconds"))
+            await self.async_save()                 # a restart carries on from here
+            self._notify()
+            if not learned_once:                    # the newest month is in: learn from it now, the rest follows
+                learned_once = True
+                self.hass.async_create_background_task(self.async_learn(), f"{DOMAIN} learning after the first month")
+        try:
+            calls = await async_fetch_months(self.hass, weheat_entry, pump, start, end, on_month,
+                                             lambda **k: self.event("weheat_call", **k))
+            info = self.import_info
+            first = min(self._weheat_hours) if self._weheat_hours else None
+            self.event("import", hours=info["hours"], calls=calls, months=info["months_done"])
+            self.import_info = {"status": "done", "done": True, "fields": WEHEAT_FIELDS, "hours": info["hours"], "calls": calls,
+                                "months": info["months_done"],
                                 "from": first and datetime.fromtimestamp(first, tz=timezone.utc).isoformat(),
-                                "to": end.isoformat(), "at": dt_util.now().isoformat(timespec="seconds")}
+                                "to": info["to"], "at": dt_util.now().isoformat(timespec="seconds")}
         except WeheatUnavailable as err:
-            self.import_info = {"status": f"waiting for the Weheat login ({err})"}
+            self.import_info.update(status=f"waiting for the Weheat login ({err})")        # keeps how far it got
             self.event("import_waiting", error=str(err)[:200])
         except Exception as err:  # noqa: BLE001
             _LOGGER.exception("Roost: Weheat import failed")
-            self.import_info = {"status": f"failed: {err}"}
+            self.import_info.update(status=f"failed: {err}")
             self.event("error", where="import", error=repr(err)[:200], trace=traceback.format_exc(limit=4)[-800:])
         finally:
             self.importing = False

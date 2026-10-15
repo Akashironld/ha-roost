@@ -51,6 +51,8 @@ class Scenario:
     forecast_sd: float = 1.0                       # °C forecast error after 24 h
     learned_bias: dict = field(default_factory=dict)   # after learning, multiply these true values (a model that is off)
     room: dict | None = None                       # an extra room: {"model": {...}, "min": .., "from": .., "to": ..}
+    before: dict | None = None                     # the house before a change (insulation): its history comes first
+    before_days: int = 0
     settings: dict = field(default_factory=dict)
 
 
@@ -72,6 +74,10 @@ SCENARIOS = {
                        dict(a=0.9, k=1.0, offset=0.3, follow=0.35, q_min=2.4), t_mean=9.0, sun=0.6),
     "onoff": Scenario("on/off thermostat, heating curve when asked", dict(C=16.0, H=0.15, g=4.0, lag=0.6, internal=0.2, Hw=0.007),
                       dict(a=1.0, k=None, offset=0.0, follow=1.0, q_min=2.5)),
+    "insulated": Scenario("insulated since last winter: 90 days of the old house (0.22 kW/K), then 40 of the new (0.12)",
+                          dict(C=18.0, H=0.12, g=5.0, lag=1.0, internal=0.2, Hw=0.007),
+                          dict(a=0.9, k=1.0, offset=0.3, follow=0.35, q_min=2.4),
+                          before=dict(C=18.0, H=0.22, g=5.0, lag=1.0, internal=0.2, Hw=0.007), before_days=90),
     "bedroom": Scenario("extra bedroom upstairs (radiators) with a minimum in the evening",
                         dict(C=18.0, H=0.15, g=5.0, lag=1.0, internal=0.2, Hw=0.007),
                         dict(a=0.9, k=1.0, offset=0.3, follow=0.35, q_min=2.4),
@@ -123,10 +129,14 @@ def internal(rnd: random.Random, h: int) -> float:
 def history(sc: Scenario, rnd: random.Random):
     """40 days under a schedule (day 20.5, night 19.5) with changes by hand, from the true house -> model.HourRow list."""
     house, hp = true_models(sc)
-    sim = planner.Simulator(house, hp, planner.Settings())
-    wx = weather(rnd, sc, HIST_DAYS, DAY0 - HIST_DAYS)
+    days = HIST_DAYS + sc.before_days
+    wx = weather(rnd, sc, days, DAY0 - days)
+    old = model.HouseModel(**sc.before, source="learned") if sc.before else house
+    change = (DAY0 - HIST_DAYS) * 86400
+    sims = {False: planner.Simulator(old, hp, planner.Settings()), True: planner.Simulator(house, hp, planner.Settings())}
     rows, T, E, w = [], 20.0, 1.0, 1.5
     for ts in sorted(wx):
+        sim = sims[ts >= change]
         h = ts % 86400 // 3600
         sp = 20.5 if 7 <= h < 22 else 19.5
         if rnd.random() < 0.08:
@@ -278,7 +288,7 @@ def table(results: list[dict]) -> str:
 
 
 if __name__ == "__main__":
-    names = [sys.argv[1]] if len(sys.argv) > 1 else list(SCENARIOS)
+    names = sys.argv[1].split(",") if len(sys.argv) > 1 and sys.argv[1] != "all" else list(SCENARIOS)
     days = int(sys.argv[2]) if len(sys.argv) > 2 else 7
     seed = int(os.environ.get("SIM_SEED", "1"))                    # another week of weather, prices and noise
     with ProcessPoolExecutor(max_workers=len(names)) as ex:

@@ -2,6 +2,16 @@
 
 ## v0.5.0 — beta (unreleased)
 
+- Weheat history within Weheat's limits for developers (logs at most every 2 minutes, energy logs at most every half
+  hour): a month per call (longer is refused), newest month first, Roost learns after the first month and the rest
+  comes in the background (a year takes some hours); a restart carries on where it was; from the commissioning date
+  at most a year back. Every call is in the event log
+- Learning: never more than a year; recent heating counts most — counted in heating days, so a summer without heating
+  does not age last winter; days without heating count a quarter; a model of only the newest heating days takes over
+  when it clearly predicts better (a house that was insulated)
+- Mode in Roost itself: *Configure → Mode* shows what the self-check says (plan error, heating hours, heat, follows,
+  lever) and switches off / shadow / active; a *Ready to steer* binary sensor; the card shows a *Let Roost steer*
+  button when it is ready (click twice)
 - Calmer: a thermostat change has to be worth more (about 1–2 a day instead of ~5), and the comfort temperature weighs
   more, so fewer changes do not cost comfort — chosen with closed-loop simulations of eight kinds of houses
   ([docs/SIMULATIONS.md](docs/SIMULATIONS.md), `tools/sim/sim.py`)

@@ -388,8 +388,26 @@ class RoostOptionsFlow(OptionsFlow):
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         rooms = sum(1 for s in self.config_entry.subentries.values() if s.subentry_type == "room")
-        return self.async_show_menu(step_id="init", menu_options=["house", "price", "solar", "comfort"],
+        return self.async_show_menu(step_id="init", menu_options=["mode", "house", "price", "solar", "comfort"],
                                     description_placeholders=_summary(self.hass, self.opts, rooms))
+
+    async def async_step_mode(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Off, shadow or active, with what the self-check says: here, in Roost itself."""
+        mgr = getattr(self.config_entry, "runtime_data", None)
+        if user_input is not None:
+            if mgr is not None:
+                await mgr.async_set_mode(user_input["mode"])
+            return self.async_abort(reason="mode_set")
+        c = mgr.check if mgr else {}
+        ok, no = "✅", "⏳"
+        missing = set(mgr.ready_missing) if mgr else {"temperature"}
+        ph = {"plan_error": f"{c['rmse_6h']:.2f}" if c.get("rmse_6h") is not None else "—", "plan_ok": no if "temperature" in missing else ok,
+              "hours": str(c.get("heating_hours", 0)), "hours_ok": no if "heating_hours" in missing else ok,
+              "heat": f"{c['heat_ratio']:.2f}" if c.get("heat_ratio") is not None else "—", "heat_ok": no if "heat" in missing else ok,
+              "follows": no if "following" in missing else ok, "lever": no if "lever" in missing else ok,
+              "verdict": ok if mgr and mgr.ready else no}
+        schema = vol.Schema({vol.Required("mode", default=mgr.mode if mgr else "shadow"): _sel(["off", "shadow", "active"], "mode")})
+        return self.async_show_form(step_id="mode", data_schema=schema, description_placeholders=ph)
 
     async def async_step_house(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         schema = house_schema(True)

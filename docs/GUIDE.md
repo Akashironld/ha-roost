@@ -184,7 +184,8 @@ Click **Submit**. Roost is set up — in shadow mode — and starts importing an
   hour (bars, faded where the price is not known yet), and the comfort hours (green band). **Slide over the graph** to
   read each hour; when the planner counts another price than the tariff (a battery's refill cost, own solar) it says so.
 - **Footer**: expected saving over the next 24 hours, yesterday and this month, against a steady thermostat; and the
-  **plan error 6 h** from the nightly self-check, with *ready to steer* when Roost thinks it is.
+  **plan error 6 h** from the nightly self-check, with *ready to steer* when Roost thinks it is — and then a
+  **Let Roost steer** button (click twice).
 
 Options (also in the visual editor): `compact: true` (header and tiles only, for a wall tablet), `show_tiles`,
 `show_chart`, `show_footer`, `language` (`en`, `nl`), `time_format` (`24`, `12`), `title`.
@@ -201,8 +202,11 @@ compact: true
 
 In shadow mode Roost plans and shows everything, but never touches the thermostat. Use these days to look along:
 
-1. **Weheat import** — sensor *Weheat import* goes *Importing* → *Done* (minutes). If it says *Waiting for the Weheat
-   login*, the Weheat integration was refreshing its login: Roost tries again by itself.
+1. **Weheat import** — the newest month comes in within a minute and Roost learns from it right away; the older months
+   (up to a year) follow one by one in the background, because Weheat asks developers to call the energy logs at most
+   once every half hour: a full year takes about six hours. Sensor *Weheat import* shows *Importing* with the months
+   done, then *Done*. A restart carries on where it was. *Waiting for the Weheat login*: the Weheat integration was
+   refreshing its login; Roost tries again by itself.
 2. **Learning** — right after the import, and every night at 03:30. Sensor *House model error* shows how well the house
    model predicts a day (°C; below about 0.6 is good). Its details hold what Roost learned (Settings → Devices &
    services → Roost → the sensor → ⋮ → **Details** → *Attributes*): heat loss, storage, floor delay, the facade the sun
@@ -219,9 +223,17 @@ is not ready yet. That is normal.
 
 ## 7. Letting Roost steer
 
-When the self-check has seen enough heating hours, predicts well, and the heat pump follows the thermostat, a notice
-appears in **Settings → Repairs**: *ready to steer the heat pump*. Open it and click **Submit** to switch to active.
-You can also switch any time yourself: entity **Roost Mode** (`select.roost_mode`) → *Active*.
+Roost tells you itself when it is ready, in three places:
+
+- **Settings → Devices & services → Roost → Configure → Mode.** It shows what the nightly self-check says, point by
+  point (✅ or ⏳): the plan error 6 hours ahead (0.5 °C or less needed), heating hours in the last week (30 needed), heat
+  predicted against measured, whether the heat pump follows the thermostat and whether the setpoint moves it. Choose
+  *Active* and submit — or *Shadow* / *Off* — right there.
+- **The card** shows a green **Let Roost steer** button once it is ready (click twice, so it never happens by accident).
+- **Settings → Repairs** gets a notice *ready to steer the heat pump*, and the entity *Ready to steer*
+  (`binary_sensor.roost_ready_to_steer`) turns on — handy for a notification on your phone.
+
+You can always switch yourself as well: entity **Roost Mode** (`select.roost_mode`).
 
 Before you do:
 
@@ -284,6 +296,7 @@ it.
 
 | Part | Holds |
 |---|---|
+| Mode | Off / shadow / active, with what the self-check says |
 | The house and the thermostat | Thermostat, room sensor, heat emitters, building register |
 | Electricity price | Dynamic or fixed, price sensors (a fixed rate on the next screen) |
 | Solar and home battery | What the house has, and the matching sensors |
@@ -307,6 +320,7 @@ Extra rooms are on the integration page (*Add room*, and ⋮ → *Reconfigure* p
 | `sensor.roost_weheat_import` | Status of the Weheat history import |
 | `binary_sensor.roost_paused_changed_by_hand` | On while Roost steps aside after a change by hand |
 | `binary_sensor.roost_heat_pump_follows_the_thermostat` | Off when the heat pump runs on its own heating curve |
+| `binary_sensor.roost_ready_to_steer` | On when the nightly self-check says Roost can steer; what is still missing in its details |
 | `button.roost_learn_now`, `button.roost_import_history_from_weheat` | Learn now; read the Weheat history again |
 
 Switched off by default (enable them if you want): heating electricity today, energy value now, heat pump model.
@@ -405,7 +419,7 @@ automation:
 | To | What | When |
 |---|---|---|
 | Open-Meteo | Your home location (latitude/longitude) | Every 30 minutes for the forecast; once in a while for past weather |
-| Weheat (api.weheat.nl) | A read-only request with the login of **your** Weheat integration | The history import, and nightly for the last hours |
+| Weheat (api.weheat.nl) | Read-only requests with the login of **your** Weheat integration, within Weheat's limits for developers | The history import (a month per request, at most a year back), and once a night for the last hours |
 | PDOK (Kadaster), only if you turned it on | Your home location, once | Building register lookup |
 
 Roost never stores or refreshes your Weheat login, never writes to the heat pump, has no account and sends nothing

@@ -127,7 +127,8 @@ def within(p: dict) -> bool:
     return all(BOUNDS[k][0] <= p[k] <= BOUNDS[k][1] for k in PARAMS)
 
 
-def replay(p: dict, idx: dict[int, HourRow], days: list[int], extra: Callable[[int], float] | None = None) -> tuple[float, int, float, int]:
+def replay(p: dict, idx: dict[int, HourRow], days: list[int], extra: Callable[[int], float] | None = None,
+           weights: dict[int, float] | None = None) -> tuple[float, float, float, float]:
     """Per day from 00:00 UTC: start at the measured room temperature, warm the storage up with the 6 hours before,
     then 24 hours with only heat, sun, wind and outdoor temperature. Also the energy balance per day.
     -> (sum of squared °C errors, hours, sum of squared daily balance errors in kW, days)"""
@@ -139,6 +140,7 @@ def replay(p: dict, idx: dict[int, HourRow], days: list[int], extra: Callable[[i
         r0 = idx.get(t)
         if r0 is None:
             continue
+        wd = weights.get(d, 1.0) if weights else 1.0
         T, E = r0.T, 0.0
         T0, q_meas, q_model, whole = T, 0.0, 0.0, True
         for k in range(6, 0, -1):
@@ -157,14 +159,14 @@ def replay(p: dict, idx: dict[int, HourRow], days: list[int], extra: Callable[[i
             E -= rel
             x = extra(t) if extra else 0.0
             T += (rel + g * u.rad + P + x - He * (T - u.T_out)) / C
-            se += (T - nx.T) ** 2
-            n += 1
+            se += wd * (T - nx.T) ** 2
+            n += wd
             q_meas += u.Q
             q_model += He * ((u.T + nx.T) / 2 - u.T_out) - g * u.rad - P - x
             t += 3600
         if whole and idx.get(t) is not None:
-            sb += ((q_model + C * (idx[t].T - T0) - q_meas) / 24) ** 2
-            nb += 1
+            sb += wd * ((q_model + C * (idx[t].T - T0) - q_meas) / 24) ** 2
+            nb += wd
     return se, n, sb, nb
 
 
@@ -204,13 +206,46 @@ def nelder_mead(f, x0: list[float], step: list[float], iterations: int = 300) ->
     return pts[0]
 
 
-def fit(idx: dict[int, HourRow], days: list[int], centre: dict, spread: dict = SPREAD) -> dict:
+RECENT_HEATING_DAYS = 30     # these newest heating days count fully ...
+HEATING_HALF_LIFE = 30.0     # ... older ones halve every this many heating days
+NO_HEATING_WEIGHT = 0.25     # a day without heating (summer: windows open, high sun, the heat pump idle) counts less
+CHANGED_BY = 0.15            # the newest heating days alone must predict this much better to replace the year's model
+
+
+def recency_weights(idx: dict[int, HourRow], days: list[int], full: int = RECENT_HEATING_DAYS,
+                    half_life: float = HEATING_HALF_LIFE) -> dict[int, float]:
+    """Weight per day for learning. Counted in heating days, not calendar days, so a summer without heating does not
+    age last winter: in autumn it still counts (there is little new heating yet), but once a new heating season runs it
+    takes over (after insulating, a new window, …). Days without heating count a quarter once there are at least 20
+    heating days: they say little about a house that is heated, and summer behaviour (open windows) misleads."""
+    def heated(d: int) -> bool:
+        return sum(idx[d * 86400 + h * 3600].Q for h in range(24) if d * 86400 + h * 3600 in idx) >= 5.0
+    heating = sorted((d for d in days if heated(d)), reverse=True)
+    damp = NO_HEATING_WEIGHT if len(heating) >= 20 else 1.0
+    out = {}
+    for d in days:
+        newer = sum(1 for x in heating if x > d)
+        w = 0.5 ** (max(0, newer - full) / half_life)
+        out[d] = w if d in heating else w * damp
+    return out
+
+
+def recent_days(idx: dict[int, HourRow], days: list[int], n: int = RECENT_HEATING_DAYS) -> list[int]:
+    """The days from the n-th newest heating day on: the house as it is now."""
+    heating = sorted((d for d in days if sum(idx[d * 86400 + h * 3600].Q for h in range(24) if d * 86400 + h * 3600 in idx) >= 5.0),
+                     reverse=True)
+    if len(heating) < n:
+        return []
+    return [d for d in days if d >= heating[n - 1]]
+
+
+def fit(idx: dict[int, HourRow], days: list[int], centre: dict, spread: dict = SPREAD, weights: dict[int, float] | None = None) -> dict:
     """Smallest replay error + balance error, with a pull towards `centre`."""
     def cost(x):
         p = dict(zip(PARAMS, x))
         if not within(p):
             return 1e12
-        se, n, sb, nb = replay(p, idx, days)
+        se, n, sb, nb = replay(p, idx, days, weights=weights)
         if n == 0:
             return 1e12
         return se / (SIGMA_T ** 2 * 24) + sb / SIGMA_BAL ** 2 + sum(((p[k] - centre[k]) / spread[k]) ** 2 for k in PARAMS)
@@ -279,6 +314,7 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
         return LearnResult(previous, False, f"not enough complete days yet ({len(days)}, need {7 + TEST_DAYS})")
     train, test = days[:-TEST_DAYS], days[-TEST_DAYS:]
     centre = previous.params() if previous.source == "learned" else dict(base)
+    wts = recency_weights({r.ts: r for r in rows}, days)
     cache: dict[tuple, dict[int, HourRow]] = {}
 
     def idx_for(facade: float, vertical: float) -> dict[int, HourRow]:
@@ -299,13 +335,17 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
     tried = []
     for f, v in suns:
         ix = idx_for(f, v)
-        p = fit(ix, sel_train, centre) if len(suns) > 1 else None
+        p = fit(ix, sel_train, centre, weights=wts) if len(suns) > 1 else None
         e = errors(p, ix, sel_test) if p and within(p) else None
         tried.append((e[2] if e else 1e9, f, v))
     _e, facade, vertical = min(tried, key=lambda x: x[0])
-    candidate = fit(idx_for(facade, vertical), train, centre)
+    candidate = fit(idx_for(facade, vertical), train, centre, weights=wts)
     ix_new = idx_for(facade, vertical)
-    options = [("new", candidate, ix_new, None),
+    # the house as it is now: only the newest heating days. Wins when the house changed (insulation, new windows) and the
+    # model over the whole year mixes the old and the new house; otherwise the model with more data wins the tie
+    recent = [d for d in recent_days({r.ts: r for r in rows}, days) if d in set(train)]
+    recent_p = fit(ix_new, recent, centre) if len(recent) >= 10 else None
+    options = [("new", candidate, ix_new, None)] + ([("recent", recent_p, ix_new, None)] if recent_p else []) + [
                ("previous", previous.params(), idx_for(previous.sun_facade, previous.sun_vertical), previous.profile),
                ("default", dict(base), idx_for(180.0, 0.0), None)]
     scores = {}
@@ -315,6 +355,8 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
             scores[name] = e
     if not scores:
         return LearnResult(previous, False, "no test data")
+    if "recent" in scores and "new" in scores and scores["recent"][2] > scores["new"][2] * (1 - CHANGED_BY):
+        del scores["recent"]          # not clearly better: a season, not a changed house (the year's model knows winter)
     best = min(v[2] for v in scores.values())
     choice = next(n for n, *_ in options if n in scores and scores[n][2] <= best + MARGIN)
     idx = ix_new
@@ -322,12 +364,16 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
     rounded = {k: {"temperature": round(v[0], 3), "balance_kw": round(v[1], 3)} for k, v in scores.items()}
     rounded["sun"] = {f"{f:g}/{v:g}": round(e, 3) for e, f, v in tried if e < 1e9}
     rounded["sun_chosen"] = f"{facade:g}/{vertical:g}"
-    if choice == "new":
-        final = fit(idx, days, centre)
-        err = scores["new"]
+    if choice in ("new", "recent"):
+        if choice == "recent":
+            candidate = recent_p
+            final = fit(idx, recent + [d for d in test if d not in recent], centre)
+        else:
+            final = fit(idx, days, centre, weights=wts)
+        err = scores[choice]
         profile = None
         if local_hour:
-            p_sel = fit(idx, sel_train, centre)
+            p_sel = fit(idx, sel_train, centre, weights=wts)
             prof = residual_profile(p_sel, idx, sel_train, local_hour)
             plain, with_prof = errors(p_sel, idx, sel_test), (errors(p_sel, idx, sel_test, extra_for(prof)) if prof else None)
             if plain and with_prof and with_prof[2] < plain[2]:
@@ -336,7 +382,7 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
         m = HouseModel(**{k: round(v, 4) for k, v in final.items()}, error_t=round(err[0], 3),
                        error_balance=round(err[1], 3), days=len(days), heating_days=heating, source="learned",
                        sun_facade=facade, sun_vertical=vertical, profile=profile)
-        return LearnResult(m, True, "new model adopted", rounded)
+        return LearnResult(m, True, "new model adopted" + (" (from the newest heating days: the house changed)" if choice == "recent" else ""), rounded)
     keep = previous if choice == "previous" else HouseModel(**base)
     keep = HouseModel.from_dict({**keep.as_dict(), "error_t": round(scores[choice][0], 3), "error_balance": round(scores[choice][1], 3)})
     return LearnResult(keep, False, f"{choice} model predicts the last days better: kept", rounded)

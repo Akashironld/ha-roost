@@ -2,7 +2,9 @@
 
 Roost never refreshes or stores the Weheat token: the Weheat integration refreshes it every couple of minutes, and
 Roost only uses the current access token. When it has expired, the import waits and tries again later.
-Endpoints are the Weheat third-party API the Weheat integration itself uses (hourly logs and energy logs)."""
+Endpoints are the Weheat third-party API the Weheat integration itself uses (hourly logs and energy logs). The first
+import fetches the whole history in as few calls as possible and Roost keeps it; after that only the last hours, once a
+night. Weheat's limits (logs at most every 2 minutes, energy logs at most every half hour) are kept."""
 from __future__ import annotations
 
 import asyncio
@@ -10,13 +12,14 @@ import logging
 import time
 from datetime import datetime, timedelta, timezone
 
+from aiohttp import ClientResponseError
+
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 _LOGGER = logging.getLogger(__name__)
 API_URL = "https://api.weheat.nl/third_party"
-CHUNK_DAYS = 7
 
 
 class WeheatUnavailable(Exception):
@@ -72,19 +75,138 @@ def _fmt(t: datetime) -> str:
     return t.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
-async def async_fetch_history(hass: HomeAssistant, entry_id: str, pump_id: str, start: datetime, end: datetime,
-                              progress=None) -> tuple[list[dict], list[dict]]:
-    """Hourly logs and hourly energy logs between start and end, a week at a time."""
-    logs: list[dict] = []
-    energy: list[dict] = []
-    t = start
+def _when(row: dict) -> datetime | None:
+    v = row.get("timeBucket")
+    try:
+        d = datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+
+
+async def async_commissioned(hass: HomeAssistant, entry_id: str, pump_id: str) -> datetime | None:
+    """When the heat pump was put into use: no history before it, so no need to ask for it."""
+    try:
+        async with async_get_clientsession(hass).get(f"{API_URL}/api/v1/heat-pumps/{pump_id}", timeout=30,
+                                                     headers={"Authorization": f"Bearer {_token(hass, entry_id)}"}) as r:
+            r.raise_for_status()
+            data = await r.json()
+    except Exception:  # noqa: BLE001 - then the import just starts at the requested date
+        return None
+    when = _when({"timeBucket": (data or {}).get("commissionedAt")}) if isinstance(data, dict) else None
+    return when - timedelta(days=1) if when else None
+
+
+class Pacer:
+    """Weheat's limits for developers: heat pump logs at most once every 2 minutes, energy logs at most once every
+    half hour. Only applies between calls of the same kind; a whole history usually comes in one call each."""
+
+    GAP = {"logs": 120.0, "energy": 1800.0}
+
+    def __init__(self) -> None:
+        self.last: dict[str, float] = {}
+        self.calls = 0
+
+    async def wait(self, kind: str) -> None:
+        if kind in self.last:
+            rest = self.GAP[kind] - (time.monotonic() - self.last[kind])
+            if rest > 0:
+                await asyncio.sleep(rest)
+        self.last[kind] = time.monotonic()
+        self.calls += 1
+
+
+MONTH = timedelta(days=31)       # the API refuses longer periods (tried: 45 days refused, 23 accepted)
+
+
+async def _get_window(hass: HomeAssistant, entry_id: str, path: str, kind: str, t: datetime, t2: datetime, pacer: Pacer,
+                      note=None) -> list[dict] | None:
+    """One period; None when the API refuses it (too long)."""
+    await pacer.wait(kind)
+    try:
+        rows = await _get(hass, entry_id, path, {"startTime": _fmt(t), "endTime": _fmt(t2), "interval": "Hour"})
+    except ClientResponseError as err:
+        if note:
+            note(endpoint=kind, start=_fmt(t), end=_fmt(t2), status=err.status)
+        if err.status in (400, 413, 414, 422):
+            return None
+        raise
+    if note:
+        last = max((w for w in map(_when, rows) if w), default=None)
+        note(endpoint=kind, start=_fmt(t), end=_fmt(t2), rows=len(rows), last=_fmt(last) if last else None)
+    return rows
+
+
+async def async_fetch_months(hass: HomeAssistant, entry_id: str, pump_id: str, start: datetime, end: datetime,
+                             on_month, note=None) -> int:
+    """The history between start and end, newest month first, within Weheat's limits (logs at most every 2 minutes,
+    energy logs at most every half hour: a year takes some hours, in the background). After each month on_month(logs,
+    energy, oldest datetime done) is awaited, so Roost can keep and learn from what came in. -> number of calls."""
+    first = await async_commissioned(hass, entry_id, pump_id) if end - start > timedelta(days=31) else None
+    if first and first > start:
+        start = first
+    pacer = Pacer()
+    span = MONTH
+    t2 = end
+    while t2 > start:
+        t = max(start, t2 - span)
+        logs = await _get_window(hass, entry_id, f"/api/v1/heat-pumps/{pump_id}/logs", "logs", t, t2, pacer, note)
+        if logs is None:
+            if span <= timedelta(days=2):
+                raise RuntimeError("the Weheat API refuses even short periods")
+            span = span / 2
+            continue
+        energy = await _get_window(hass, entry_id, f"/api/v1/energy-logs/{pump_id}", "energy", t, t2, pacer, note)
+        if energy is None:                      # energy logs may allow less: same period in halves
+            energy = []
+            mid = t + (t2 - t) / 2
+            for a, b in ((t, mid), (mid, t2)):
+                energy += await _get_window(hass, entry_id, f"/api/v1/energy-logs/{pump_id}", "energy", a, b, pacer, note) or []
+        await on_month(logs, energy, t)
+        t2 = t
+    return pacer.calls + (1 if first else 0)
+
+
+async def _fetch(hass: HomeAssistant, entry_id: str, path: str, kind: str, start: datetime, end: datetime,
+                 pacer: Pacer, progress=None, note=None) -> list[dict]:
+    """Everything between start and end in as few calls as possible: first the whole period at once; when the API
+    sends less than asked (a cap on the number of rows) carry on from the last hour it sent; when it refuses a period
+    that long, halve it."""
+    out: list[dict] = []
+    t, span = start, end - start
     while t < end:
-        t2 = min(end, t + timedelta(days=CHUNK_DAYS))
-        q = {"startTime": _fmt(t), "endTime": _fmt(t2), "interval": "Hour"}
-        logs += await _get(hass, entry_id, f"/api/v1/heat-pumps/{pump_id}/logs", q)
-        energy += await _get(hass, entry_id, f"/api/v1/energy-logs/{pump_id}", q)
+        t2 = min(end, t + span)
+        await pacer.wait(kind)
+        try:
+            rows = await _get(hass, entry_id, path, {"startTime": _fmt(t), "endTime": _fmt(t2), "interval": "Hour"})
+        except ClientResponseError as err:
+            if note:
+                note(endpoint=kind, start=_fmt(t), end=_fmt(t2), status=err.status)
+            if err.status in (400, 413, 414, 422, 500, 502, 504) and span > timedelta(days=2):
+                span = span / 2
+                continue
+            raise
+        out += rows
+        last = max((w for w in map(_when, rows) if w), default=None)
+        if note:
+            note(endpoint=kind, start=_fmt(t), end=_fmt(t2), rows=len(rows), last=_fmt(last) if last else None)
+        if rows and last and last < t2 - timedelta(hours=2) and len(rows) >= 100:
+            t = last + timedelta(hours=1)        # cut off: continue after the last hour that came
+        else:
+            t = t2
         if progress:
-            progress(t2)
-        t = t2
-        await asyncio.sleep(0.5)                # be gentle with the API
-    return logs, energy
+            progress(t)
+    return out
+
+
+async def async_fetch_history(hass: HomeAssistant, entry_id: str, pump_id: str, start: datetime, end: datetime,
+                              progress=None, note=None) -> tuple[list[dict], list[dict], int]:
+    """Hourly logs and hourly energy logs between start and end (from the commissioning date at the earliest), within
+    Weheat's limits. -> (logs, energy, number of calls)."""
+    first = await async_commissioned(hass, entry_id, pump_id) if end - start > timedelta(days=31) else None
+    if first and first > start:
+        start = first
+    pacer = Pacer()
+    logs = await _fetch(hass, entry_id, f"/api/v1/heat-pumps/{pump_id}/logs", "logs", start, end, pacer, progress, note)
+    energy = await _fetch(hass, entry_id, f"/api/v1/energy-logs/{pump_id}", "energy", start, end, pacer, progress, note)
+    return logs, energy, pacer.calls + (1 if first else 0)

@@ -151,10 +151,18 @@
         "title": "Roost",
         "description": "**Huis:** {house}\n**Stroomprijs:** {price}\n**Zon en accu:** {solar}\n**Comfort:** {comfort}\n**Extra kamers:** {rooms} (toevoegen op de integratiepagina)\n\nElk onderdeel slaat op als je het verstuurt.",
         "menu_options": {
+          "mode": "Modus: meekijken of sturen",
           "house": "Huis en thermostaat",
           "price": "Stroomprijs",
           "solar": "Zon en thuisaccu",
           "comfort": "Comfort"
+        }
+      },
+      "mode": {
+        "title": "Modus",
+        "description": "**Klaar om te sturen: {verdict}**\n\n{plan_ok} Planfout 6 uur vooruit: {plan_error} °C (nodig: 0,5 of minder)\n{hours_ok} Stookuren in de laatste week: {hours} (nodig: 30)\n{heat_ok} Warmte voorspeld ÷ gemeten: {heat} (nodig: 0,7–1,3)\n{follows} De warmtepomp volgt de thermostaat\n{lever} Het setpoint stuurt de warmtepomp\n\nDe zelfcontrole draait elke nacht om 03:30. **Meekijken**: Roost plant en laat zien, raakt de thermostaat niet aan. **Actief**: Roost stuurt de thermostaat. **Uit**: niets.",
+        "data": {
+          "mode": "Modus"
         }
       },
       "house": {
@@ -283,6 +291,9 @@
       "weather_needed": "Kies een weerentiteit (onder Geavanceerd).",
       "lowest_above_comfort": "De laagste thermostaatstand mag niet boven de comforttemperatuur liggen.",
       "price_needed": "Kies een prijssensor, of kies een vaste prijs."
+    },
+    "abort": {
+      "mode_set": "De modus is ingesteld."
     }
   },
   "entity": {
@@ -335,6 +346,9 @@
       },
       "following": {
         "name": "Warmtepomp volgt de thermostaat"
+      },
+      "ready": {
+        "name": "Klaar om te sturen"
       }
     },
     "select": {
@@ -406,6 +420,13 @@
     }
   },
   "selector": {
+    "mode": {
+      "options": {
+        "off": "Uit",
+        "shadow": "Meekijken (alleen plannen)",
+        "active": "Actief (stuurt de thermostaat)"
+      }
+    },
     "room_kind": {
       "options": {
         "bedroom": "Slaapkamer",

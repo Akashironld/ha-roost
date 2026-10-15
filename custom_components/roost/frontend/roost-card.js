@@ -1,6 +1,6 @@
 /* Roost card - served by the roost integration. */
 (() => {   // own scope: safe if the file is loaded twice as a classic script (legacy frontend + a manual resource)
-const CARD_VERSION = "0.5.0";
+const CARD_VERSION = "0.5.1";
 
 // Plain ES2017 on purpose (no ?. / ??), ASCII only (\u escapes): wall tablets often run an older browser.
 const nn = (a, b) => (a === null || a === undefined ? b : a);
@@ -9,7 +9,7 @@ const DEG = "\u00b0C";
 const T = {
   en: { title: "Roost", room: "Room", thermostat: "Thermostat", planned: "Planned", next24: "Next 24 hours",
         setpoint: "setpoint", expected: "room expected", price: "tariff", guessed: "estimated", uses: "plan uses", comfort: "comfort hours", now: "now",
-        night: "night", saving24: "expected saving", month: "this month", yesterday: "yesterday", vs: "vs steady", accuracy: "plan error 6 h", ready: "ready to steer", min: "min",
+        night: "night", saving24: "expected saving", month: "this month", yesterday: "yesterday", vs: "vs steady", accuracy: "plan error 6 h", ready: "ready to steer", min: "min", steer: "Let Roost steer", sure: "Sure? Click again",
         active: "ACTIVE", shadow: "SHADOW", off: "OFF", paused: "PAUSED", scrub: "slide over the graph",
         stored: "stored", unavailable: "Not available", pick: "Pick the 'Planned setpoint' sensor of the Roost integration.",
         noplan: "no plan yet", heating: "heat pump heating", e_entity: "Sensor", e_title: "Title", e_language: "Language",
@@ -17,7 +17,7 @@ const T = {
         e_show_footer: "Saving", e_compact: "Compact (e.g. a wall tablet)" },
   nl: { title: "Roost", room: "Kamer", thermostat: "Thermostaat", planned: "Gepland", next24: "Komende 24 uur",
         setpoint: "setpoint", expected: "kamer verwacht", price: "tarief", guessed: "geschat", uses: "rekent met", comfort: "comforturen", now: "nu",
-        night: "nacht", saving24: "verwachte besparing", month: "deze maand", yesterday: "gisteren", vs: "t.o.v. vast", accuracy: "planfout 6 u", ready: "klaar om te sturen", min: "min",
+        night: "nacht", saving24: "verwachte besparing", month: "deze maand", yesterday: "gisteren", vs: "t.o.v. vast", accuracy: "planfout 6 u", ready: "klaar om te sturen", min: "min", steer: "Laat Roost sturen", sure: "Zeker? Klik nogmaals",
         active: "ACTIEF", shadow: "MEEKIJKEN", off: "UIT", paused: "GEPAUZEERD", scrub: "schuif over de grafiek",
         stored: "opgeslagen", unavailable: "Niet beschikbaar", pick: "Kies de sensor 'Gepland setpoint' van de integratie Roost.",
         noplan: "nog geen plan", heating: "warmtepomp stookt", e_entity: "Sensor", e_title: "Titel", e_language: "Taal",
@@ -183,6 +183,11 @@ class RoostCard extends HTMLElement {
       </div>`;
     }
     if (a.rooms && a.rooms.length) html += this._rooms(a.rooms);
+    // ready (nightly self-check) and still in shadow: one button to let Roost steer, clicked twice
+    const ready = this._sib("ready");
+    if (ready && ready.state === "on" && mode === "shadow" && this._siblings().mode) {
+      html += `<button class="steer">${this._t("steer")}</button>`;
+    }
     if (this._show("chart") && a.plan && a.plan.length) html += this._chart(a);
     if (this._show("footer")) html += this._footer(a);
     this._clickable = true;
@@ -264,6 +269,19 @@ class RoostCard extends HTMLElement {
 
   _wire() {
     const root = this.shadowRoot, hit = root.querySelector(".hit");
+    const steer = root.querySelector(".steer");
+    if (steer) {
+      steer.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        if (!steer.dataset.armed) {
+          steer.dataset.armed = "1";
+          steer.textContent = this._t("sure");
+          setTimeout(() => { if (steer.isConnected) { delete steer.dataset.armed; steer.textContent = this._t("steer"); } }, 5000);
+          return;
+        }
+        this._hass.callService("select", "select_option", { entity_id: this._siblings().mode, option: "active" });
+      });
+    }
     if (!hit || !this._geo) return;
     const move = (ev) => {
       const r = hit.getBoundingClientRect();
@@ -346,7 +364,10 @@ class RoostCard extends HTMLElement {
       .l.price.guess { opacity: .2; }
       .l.band { height: 8px; background: var(--rc-band); opacity: .25; }
       .foot { font-size: 12px; color: var(--secondary-text-color); margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--divider-color); }
-      .foot b { color: var(--primary-text-color); } .foot b.ok { color: var(--success-color, #30a46c); }
+      .foot b { color: var(--primary-text-color); }
+      .steer { margin-top: 10px; width: 100%; padding: 9px; border-radius: 10px; border: 1px solid var(--success-color, #30a46c);
+               background: color-mix(in srgb, var(--success-color, #30a46c) 15%, transparent); color: var(--success-color, #30a46c);
+               font-weight: 600; font-size: 13px; cursor: pointer; } .foot b.ok { color: var(--success-color, #30a46c); }
     </style>`;
   }
 }
