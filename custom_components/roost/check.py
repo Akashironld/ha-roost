@@ -37,6 +37,9 @@ CORR_HOURS = 8             # residuals of the last hours
 CORR_HALF_LIFE = 3.0       # hours: weight of older residuals
 CORR_FADE = 6.0            # hours: half-life of the correction in the plan
 CORR_MAX = 1.0             # kW
+CORR_SUN_RAD = 0.02        # kW/m² on the facade: below it an hour counts as dark
+CORR_SUN_MAX = 8.0         # m²: extra sun at most
+CORR_SUN_FADE = 24.0       # hours: half-life of the sun part (the nightly learning takes over what lasts)
 # when ready
 ETA_MONTH_S = 1800         # one month of history from Weheat: its energy logs may be read once every half hour
 ETA_LEARN_S = 900          # learning and the self-check after the import
@@ -211,13 +214,14 @@ def eta(missing: list[str], chk: dict, imp: dict, now: float, next_check: float)
     return "check", next_check
 
 
-def correction(entries: list[dict], house: HouseModel, hp: HeatPumpModel, now_ts: float) -> tuple[float, int]:
-    """Heat the model missed in the last hours (kW, + = the room got warmer than predicted), from the hourly log:
-    each hour replayed from its measured start with the setpoint that was on the thermostat."""
+def correction(entries: list[dict], house: HouseModel, hp: HeatPumpModel, now_ts: float) -> tuple[float, float, int]:
+    """Heat the model missed in the last hours, from the hourly log: each hour replayed from its measured start with
+    the setpoint that was on the thermostat. -> (kW, extra sun in m², hours used); + = the room got warmer than
+    predicted. What dark hours missed is a constant (people, a door, a stove); what sunny hours missed beyond that
+    is put down to the sun, so it follows the sun ahead and ends at sunset instead of warming the night."""
     sim = Simulator(house, hp, Settings())
     by_ts = {e["ts"]: e for e in entries}
-    tot = wsum = 0.0
-    n = 0
+    res: list[tuple[float, float, float]] = []          # (kW missed, sun on the facade, weight)
     for e in entries:
         if now_ts - e["ts"] > (CORR_HOURS + 1) * 3600:
             continue
@@ -230,13 +234,25 @@ def correction(entries: list[dict], house: HouseModel, hp: HeatPumpModel, now_ts
         w0 = (by_ts.get(e["ts"] - 3600) or {}).get("q")      # heat the hour before: where the output starts
         T1 = sim.hour(e["T"], e.get("E", 0.0), float(sp), h, w0)[0]
         kw = (nxt["T"] - T1) * house.C              # °C over one hour × kWh/K = kW
-        w = 0.5 ** ((now_ts - nxt["ts"]) / 3600 / CORR_HALF_LIFE)
-        tot, wsum, n = tot + kw * w, wsum + w, n + 1
+        res.append((kw, max(0.0, h.rad), 0.5 ** ((now_ts - nxt["ts"]) / 3600 / CORR_HALF_LIFE)))
+    n = len(res)
     if n < 2:
-        return 0.0, n
-    kw = tot / wsum * n / (n + 1)                   # shrink while there are few hours
-    return round(max(-CORR_MAX, min(CORR_MAX, kw)), 3), n
+        return 0.0, 0.0, n
+    dark = [(k, w) for k, r, w in res if r < CORR_SUN_RAD]
+    kw = sum(k * w for k, w in dark) / sum(w for _, w in dark) * len(dark) / (len(dark) + 1) if dark else 0.0
+    kw = max(-CORR_MAX, min(CORR_MAX, kw))
+    sunny = [(k, r, w) for k, r, w in res if r >= CORR_SUN_RAD]
+    sun = 0.0
+    if sunny:                                       # least squares through zero, a little pulled towards none
+        sun = sum(w * r * (k - kw) for k, r, w in sunny) / (sum(w * r * r for _, r, w in sunny) + 0.01 * sum(w for *_, w in sunny))
+        sun = max(-CORR_SUN_MAX, min(CORR_SUN_MAX, sun * len(sunny) / (len(sunny) + 1)))
+    return round(kw, 3), round(sun, 2), n
 
 
 def fade(kw: float, hours_ahead: int) -> float:
     return kw * 0.5 ** (hours_ahead / CORR_FADE)
+
+
+def extra_at(kw: float, sun: float, rad: float, hours_ahead: int) -> float:
+    """The correction for an hour ahead: the constant part fading, the sun part with that hour's sun."""
+    return fade(kw, hours_ahead) + sun * max(0.0, rad) * 0.5 ** (hours_ahead / CORR_SUN_FADE)

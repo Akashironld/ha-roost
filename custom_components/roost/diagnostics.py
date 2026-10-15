@@ -53,7 +53,7 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: RoostCo
         "now": {"room": m.room(), "thermostat_setpoint": m.thermostat_sp(), "thermostat_reading": m.thermostat_reading(),
                 "pump_state": m.pump_state(), "storage_kwh": m.storage_e, "following": m.following, "sources": m.sources,
                 "reason": m.reason.as_dict(), "decision": m.decision.as_dict() if m.decision else None, "control": m.mem.as_dict(),
-                "correction_kw": m.corr_kw, "correction_hours": m.corr_n},
+                "correction_kw": m.corr_kw, "correction_sun_m2": m.corr_sun, "correction_hours": m.corr_n},
         "models": {"house": m.house.as_dict(), "heat_pump": m.pump.as_dict(),
                    "rooms": {k: v.as_dict() for k, v in m.room_models.items()}, "building": m.building},
         "learning": m.learn_info, "import": m.import_info, "check": m.check, "ready_to_steer": m.ready, "still_missing": m.ready_missing,

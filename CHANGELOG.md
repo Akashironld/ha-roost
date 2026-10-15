@@ -1,32 +1,22 @@
 # Changelog
 
-## v0.5.3 — unreleased
+## v0.5.3 — log in with your Weheat account
 
-**For everyone on 0.5.2** — Roost now logs in to Weheat itself: after updating, click *Re-authenticate* at Roost once.
+**For everyone on 0.5.2** — Roost now logs in to Weheat itself: after updating, click *Re-authenticate* at Roost once. Also a calmer night forecast after a sunny day, a settings menu that stays open, and *Ready to steer* in mild weather.
 
 ### Improvements
-- **Log in with your Weheat account**: in the setup, after the first screen, Weheat's login page opens — nothing to
-  fill in (Roost uses the app registration the Weheat integration already has). Roost keeps and refreshes that login
-  itself and no longer borrows the Weheat integration's token; when Weheat no longer accepts it, Home Assistant shows
-  *Re-authenticate*. The choice under *Reconfigure → Weheat login* is gone
-- **Ready to steer in mild weather**: when the last week had too little heating, Roost judges itself on the last 8
-  heating weeks of the past year (6 have to pass) instead of waiting for the heating season; *Configure → Mode* says
-  what it was checked on
-- **Settings menu**: each part saves and brings you back to the menu (*✅ Saved: …*); *Done* closes. Solar and the
-  home battery are one screen, a block each with its tick and its sensors (before, the sensors only came after
-  submitting the ticks)
+- **Log in with your Weheat account**: in the setup, after the first screen, Weheat's login page opens — nothing to fill in (Roost uses the app registration the Weheat integration already has). Roost keeps and refreshes that login itself and no longer borrows the Weheat integration's token; when Weheat no longer accepts it, Home Assistant shows *Re-authenticate*. The choice under *Reconfigure → Weheat login* is gone
+- **Ready to steer in mild weather**: when the last week had too little heating, Roost judges itself on the last 8 heating weeks of the past year (6 have to pass) instead of waiting for the heating season; *Configure → Mode* says what it was checked on
+- **Settings menu**: each part saves and brings you back to the menu (*✅ Saved: …*); *Done* closes. Solar and the home battery are one screen, a block each with its tick and its sensors (before, the sensors only came after submitting the ticks)
 
 ### Fixes
-- The reason said *charging the floor on own solar* while no heat went in (the room at 24 °C, the thermostat at 21):
-  with no heat planned and the room above the setpoint it now says *warm enough*
-- *Expected ready to steer* said a date when the heating pace could never fill a week; now *when the heating season
-  starts*
-- Roost's background work (import, learning) stops cleanly with Home Assistant (flaky tests: *cannot schedule new
-  futures after shutdown*)
+- **The room hardly cooling at night in the plan**: after a sunny afternoon (sun on the facade, or on the room sensor) the correction from the last hours added up to 1 kW all night. What sunny hours miss now counts as extra sun — it follows the sun ahead and is gone at night; only what dark hours miss stays a constant correction
+- The reason said *charging the floor on own solar* while no heat went in (the room at 24 °C, the thermostat at 21): with no heat planned and the room above the setpoint it now says *warm enough*
+- *Expected ready to steer* said a date when the heating pace could never fill a week; now *when the heating season starts*
+- Roost's background work (import, learning) stops cleanly with Home Assistant
 
 ### After updating
-Restart Home Assistant, then *Settings → Devices & services → Roost → Re-authenticate*, and log in with your Weheat
-account.
+Install the new `roost.zip` as in [docs/TESTERS.md](docs/TESTERS.md) and restart Home Assistant, then *Settings → Devices & services → Roost → Re-authenticate*, and log in with your Weheat account.
 
 ## v0.5.2 — first beta for testers
 
