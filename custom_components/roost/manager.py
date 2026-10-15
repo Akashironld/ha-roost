@@ -776,6 +776,7 @@ class RoostManager:
                               "paused": bool(self.mem.pause_until and self.mem.pause_until > time.time())})
         self.hour_log = self.hour_log[-HOUR_LOG_KEPT:]
         self.pred = {k: v for k, v in self.pred.items() if k > hour - 7200}
+        self.spawn(self.async_save(), "save the hour", background=False)   # a crash or power cut loses at most an hour
 
     def _remember_prediction(self, now: datetime, p) -> None:
         """The room the plan expects at the start of the coming hours, 1 and 6 hours ahead, to set beside what happened."""
