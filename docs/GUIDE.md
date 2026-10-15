@@ -324,10 +324,13 @@ up. Now and then it then waits a minute or two while the Weheat integration refr
 Prefer Roost to keep **its own login**? On the integration page: Roost's ⋮ → **Reconfigure** → *Weheat login* →
 *Roost's own login* → Submit.
 
-1. The first time, Home Assistant asks for *application credentials*: give it a name, and the **same Client ID and
-   Client Secret** as for the Weheat integration (Weheat's knowledge base gives them).
-2. A Weheat page opens: log in with your Weheat account and allow the link.
-3. Back in Home Assistant: *The Weheat login is set.* Roost checks the account sees your heat pump.
+1. Weheat's login page opens: log in with your **Weheat account** and allow the link. Nothing else to fill in: Roost
+   uses the app registration you already gave the Weheat integration.
+2. Back in Home Assistant: *The Weheat login is set.* Roost checks the account sees your heat pump.
+
+(Only if the Weheat integration has no app registration in Home Assistant, Home Assistant first asks for *application
+credentials* for Roost: the same Client ID and Client Secret as for the Weheat integration, from Weheat's knowledge
+base.)
 
 Roost then keeps and refreshes that login itself (in its own config entry, like any Home Assistant login). Back to the
 default: *Reconfigure* → *Through the Weheat integration*; Roost then forgets its own login.

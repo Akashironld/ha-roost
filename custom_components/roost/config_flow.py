@@ -25,10 +25,10 @@ from .const import (
     CONF_MIN_INTERVAL, CONF_NIGHT_MIN, CONF_PAUSE_HOURS, CONF_PV_FORECAST, CONF_PV_FORECAST_TOMORROW, CONF_PV_POWER,
     CONF_ROOM, CONF_STORE_MAX, CONF_THERMOSTAT, CONF_WEATHER, CONF_WEATHER_SOURCE, DEFAULTS, DOMAIN, GRID_SIGNS, WEATHER_SOURCES,
     WEHEAT, CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND,
-    CONF_EMITTER, CONF_HAS_BATTERY, CONF_HAS_SOLAR, CONF_PRICE_MODE, CONF_SP_MIN, CONF_USE_BAG, CONF_WEHEAT_AUTH, EMITTERS, PRICE_MODES,
+    CONF_EMITTER, CONF_HAS_BATTERY, CONF_HAS_SOLAR, CONF_PRICE_MODE, CONF_SP_MIN, CONF_USE_BAG, CONF_WEHEAT_AUTH, CONF_AUTH_FROM, EMITTERS, PRICE_MODES,
 )
 from . import comfort, detect
-from .weheat_api import API_URL, heat_pump_id
+from .weheat_api import API_URL, heat_pump_id, weheat_implementation
 from .rooms import KINDS as ROOM_KINDS
 
 _LOGGER = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ async def _sees_pump(hass: HomeAssistant, token: str, pump: str | None) -> bool 
     return any(str(p.get("id")) == str(pump) for p in pumps if isinstance(p, dict))
 
 
-LOGIN_KEYS = ("token", "auth_implementation", CONF_WEHEAT_AUTH)
+LOGIN_KEYS = ("token", "auth_implementation", CONF_WEHEAT_AUTH, CONF_AUTH_FROM)
 
 
 def _sel(options, key):
@@ -336,7 +336,8 @@ class RoomSubentryFlow(ConfigSubentryFlow):
 
 class RoostConfigFlow(AbstractOAuth2FlowHandler, domain=DOMAIN):
     """Setup in steps by subject: heat pump and thermostat, the house, the price, solar and battery, comfort.
-    Reconfigure: the Weheat login, the Weheat integration's (default) or Roost's own (OAuth, application credentials)."""
+    Reconfigure: the Weheat login, the Weheat integration's (default) or Roost's own: log in with the Weheat account,
+    through the app registration the Weheat integration already has (else Roost's own application credentials)."""
 
     DOMAIN = DOMAIN
     VERSION = 1
@@ -353,8 +354,13 @@ class RoostConfigFlow(AbstractOAuth2FlowHandler, domain=DOMAIN):
         entry = self._get_reconfigure_entry()
         if user_input is not None:
             if user_input[CONF_WEHEAT_AUTH] == "own":
-                return await self.async_step_pick_implementation()
-            data = {k: v for k, v in entry.data.items() if k not in ("token", "auth_implementation")}
+                impl = await weheat_implementation(self.hass)
+                if impl is None:                # no Weheat integration login to borrow: Roost's own application credentials
+                    self._auth_from = DOMAIN
+                    return await self.async_step_pick_implementation()
+                self.flow_impl, self._auth_from = impl, "weheat"
+                return await self.async_step_auth()     # straight to Weheat's login page
+            data = {k: v for k, v in entry.data.items() if k not in ("token", "auth_implementation", CONF_AUTH_FROM)}
             return self.async_update_reload_and_abort(entry, data={**data, CONF_WEHEAT_AUTH: "integration"})
         now = "own" if entry.data.get(CONF_WEHEAT_AUTH) == "own" and entry.data.get("token") else "integration"
         schema = vol.Schema({vol.Required(CONF_WEHEAT_AUTH, default=now): _sel(["integration", "own"], CONF_WEHEAT_AUTH)})
@@ -368,7 +374,8 @@ class RoostConfigFlow(AbstractOAuth2FlowHandler, domain=DOMAIN):
         pump, _ = heat_pump_id(self.hass, entry.data.get(CONF_HEAT_PUMP))
         if await _sees_pump(self.hass, data["token"]["access_token"], pump) is False:
             return self.async_abort(reason="wrong_account")
-        return self.async_update_reload_and_abort(entry, data_updates={**data, CONF_WEHEAT_AUTH: "own"})
+        return self.async_update_reload_and_abort(entry, data_updates={**data, CONF_WEHEAT_AUTH: "own",
+                                                                       CONF_AUTH_FROM: self._auth_from})
 
     @classmethod
     @callback
@@ -378,6 +385,7 @@ class RoostConfigFlow(AbstractOAuth2FlowHandler, domain=DOMAIN):
     def __init__(self) -> None:
         super().__init__()
         self._data: dict[str, Any] = {}
+        self._auth_from = DOMAIN
 
     def _form(self, step_id: str, schema: vol.Schema, values: dict, errors: dict | None = None) -> ConfigFlowResult:
         return self.async_show_form(step_id=step_id, data_schema=self.add_suggested_values_to_schema(schema, values), errors=errors or {})

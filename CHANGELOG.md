@@ -39,9 +39,10 @@ First install: follow [docs/TESTERS.md](docs/TESTERS.md), then the [guide](docs/
 - The self-check uses the newest week of the last two months with enough heating when the last week had too little
   (mild weather, right after the import), so Roost can say right away whether it is ready; a spring week is not
   used to judge steering in autumn
-- Optional: Roost's own Weheat login (*Reconfigure → Weheat login*), with the same Client ID and Secret as the Weheat
-  integration; Roost keeps and refreshes it itself, so the import never waits for the Weheat integration's login.
-  Default stays the Weheat integration's login
+- Optional: Roost's own Weheat login (*Reconfigure → Weheat login*): log in with your Weheat account on Weheat's page,
+  nothing to fill in (Roost uses the app registration the Weheat integration already has). Roost keeps and refreshes
+  it itself, so the import never waits for the Weheat integration's login. Default stays the Weheat integration's
+  login
 - Hours the heat pump heated without the thermostat asking (the room well above its setpoint, beyond what the learned
   response explains — e.g. its own heating curve in spring and autumn) are left out of learning the response and of
   the self-check, and counted (*unfollowed_hours*)

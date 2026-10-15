@@ -19,7 +19,9 @@ from aiohttp import ClientResponseError
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.config_entry_oauth2_flow import OAuth2Session, async_get_config_entry_implementation
+from homeassistant.helpers.config_entry_oauth2_flow import (
+    AbstractOAuth2Implementation, OAuth2Session, async_get_config_entry_implementation, async_get_implementations,
+)
 
 _LOGGER = logging.getLogger(__name__)
 API_URL = "https://api.weheat.nl/third_party"
@@ -60,11 +62,28 @@ async def _access(hass: HomeAssistant, entry_id: str) -> str:
     if entry is None or entry.domain == "weheat":
         return _token(hass, entry_id)
     try:
-        session = OAuth2Session(hass, entry, await async_get_config_entry_implementation(hass, entry))
+        if entry.data.get("auth_from") == "weheat":       # logged in with the Weheat integration's app registration
+            impl = (await async_get_implementations(hass, "weheat")).get(entry.data.get("auth_implementation"))
+            if impl is None:
+                raise WeheatUnavailable("the Weheat integration's app registration is gone: log in again (Reconfigure)")
+        else:
+            impl = await async_get_config_entry_implementation(hass, entry)
+        session = OAuth2Session(hass, entry, impl)
         await session.async_ensure_token_valid()          # refreshes when needed and keeps it in the entry
         return session.token["access_token"]
     except Exception as err:  # noqa: BLE001 - no credentials, refused refresh, Weheat's login server unreachable
         raise WeheatUnavailable(f"Roost's own Weheat login: {err}") from err
+
+
+async def weheat_implementation(hass: HomeAssistant) -> AbstractOAuth2Implementation | None:
+    """The app registration (Client ID and Secret) the user gave the Weheat integration, so Roost's own login is just
+    'log in with your Weheat account'. The one the Weheat integration's entry uses first."""
+    try:
+        impls = await async_get_implementations(hass, "weheat")
+    except Exception:  # noqa: BLE001 - not set up, or its provider unavailable
+        return None
+    used = [e.data.get("auth_implementation") for e in hass.config_entries.async_entries("weheat")]
+    return next((impls[k] for k in used if k in impls), None) or next(iter(impls.values()), None)
 
 
 async def _get(hass: HomeAssistant, entry_id: str, path: str, params: dict) -> list[dict]:

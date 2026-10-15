@@ -136,7 +136,7 @@
       },
       "reconfigure": {
         "title": "Weheat-login",
-        "description": "Hoe Roost de historie uit Weheat leest (alleen lezen). **Via de Weheat-integratie** gebruikt diens login: niets in te stellen, maar soms wacht Roost een minuut of twee terwijl de Weheat-integratie die ververst. **Eigen login van Roost** houdt een eigen login bij: je logt nog één keer in bij Weheat, met dezelfde Client ID en Client Secret als de Weheat-integratie (die staan in de kennisbank van Weheat; Home Assistant vraagt ze de eerste keer).",
+        "description": "Hoe Roost de historie uit Weheat leest (alleen lezen). **Via de Weheat-integratie** gebruikt diens login: niets in te stellen, maar soms wacht Roost een minuut of twee terwijl de Weheat-integratie die ververst. **Eigen login van Roost**: na Verzenden opent de inlogpagina van Weheat — log in met je Weheat-account en sta het toe. Roost houdt daarna zelf een eigen login bij.",
         "data": {
           "weheat_auth": "Weheat-login"
         }

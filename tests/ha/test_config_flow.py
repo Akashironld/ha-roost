@@ -4,7 +4,7 @@ from __future__ import annotations
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import config_entry_oauth2_flow, device_registry as dr
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -108,3 +108,14 @@ async def test_options_never_copy_the_weheat_login(hass: HomeAssistant, entry) -
     r = await hass.config_entries.options.async_configure(r["flow_id"], {**COMFORT, "comfort": 21.0, "store_max": 23.0})
     assert r["type"] is FlowResultType.CREATE_ENTRY
     assert not {"token", "auth_implementation", "weheat_auth"} & set(entry.options) and entry.data["token"]["access_token"] == "a"
+
+
+async def test_own_login_uses_the_weheat_integrations_registration(hass: HomeAssistant, entry, current_request_with_host) -> None:
+    """With the Weheat integration's app registration in Home Assistant, Roost's own login goes straight to Weheat's
+    login page: nothing to fill in."""
+    config_entry_oauth2_flow.async_register_implementation(hass, "weheat", config_entry_oauth2_flow.LocalOAuth2Implementation(
+        hass, "weheat", "weheat-client", "secret", "https://auth.example/authorize", "https://auth.example/token"))
+    r = await entry.start_reconfigure_flow(hass)
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"weheat_auth": "own"})
+    assert r["type"] is FlowResultType.EXTERNAL_STEP
+    assert r["url"].startswith("https://auth.example/authorize") and "client_id=weheat-client" in r["url"]

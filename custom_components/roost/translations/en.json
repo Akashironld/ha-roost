@@ -136,7 +136,7 @@
       },
       "reconfigure": {
         "title": "Weheat login",
-        "description": "How Roost reads the history from Weheat (read-only). **Through the Weheat integration** uses its login: nothing to set up, but now and then Roost waits a minute or two while the Weheat integration refreshes it. **Roost's own login** keeps its own: you log in to Weheat once more, with the same Client ID and Client Secret as the Weheat integration (Weheat's knowledge base gives them; Home Assistant asks for them the first time).",
+        "description": "How Roost reads the history from Weheat (read-only). **Through the Weheat integration** uses its login: nothing to set up, but now and then Roost waits a minute or two while the Weheat integration refreshes it. **Roost's own login**: after Submit the Weheat login page opens — log in with your Weheat account and allow it. Roost then keeps and refreshes its own login.",
         "data": {
           "weheat_auth": "Weheat login"
         }
