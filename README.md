@@ -4,6 +4,11 @@
 <p align="center"><b>Smart heating planner for Weheat heat pumps.</b><br>
 Plans your thermostat 24 hours ahead on price, weather and the heat your house stores — and learns your house by itself.</p>
 
+<p align="center">
+<a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=Akashironld&repository=ha-roost&category=integration"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open in HACS" height="36"></a>
+<a href="https://ko-fi.com/akashironl/?hidefeed=true&widget=true&embed=true"><img src="https://storage.ko-fi.com/cdn/kofi2.png?v=3" alt="Buy me a coffee on Ko-fi" height="36"></a>
+</p>
+
 > **Status: beta.** Roost starts in **shadow mode**: it shows what it would do and why, without touching your
 > thermostat, until you let it steer. Not affiliated with Weheat.
 >
@@ -39,9 +44,12 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
 
 ## Quick start
 
-1. **HACS** → ⋮ → *Custom repositories* → add this repository as an *Integration* → download **Roost** → restart Home
-   Assistant.
-2. **Settings → Devices & services → Add integration → Roost.** Pick your Weheat heat pump and thermostat; Roost fills in
+1. **HACS**: click the button below (or HACS → ⋮ → *Custom repositories* → add this repository as an
+   *Integration*) → download **Roost** → restart Home Assistant.
+
+   [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Akashironld&repository=ha-roost&category=integration)
+2. **Settings → Devices & services → Add integration → Roost**
+   ([![Add the integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=roost)). Pick your Weheat heat pump and thermostat; Roost fills in
    what it finds (room sensor, price sensor, solar and battery, your comfort temperatures) — check it and submit.
 3. **Add the card**: edit a dashboard → *Add card* → *Roost*.
 4. Watch it in **shadow mode** for some days. *Configure → Mode* shows what its self-check says and when it expects to
@@ -94,5 +102,11 @@ every 15 minutes. More in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Support
 
-Issues and ideas: [GitHub issues](https://github.com/Akashironld/ha-roost/issues). Like it?
-[A coffee on Ko-fi](https://ko-fi.com/akashironl) keeps the next feature coming.
+Issues and ideas: [GitHub issues](https://github.com/Akashironld/ha-roost/issues).
+
+Roost is free and open source. If it saves you some money (or keeps your evening warm for less) and you'd like to say
+thanks, you can buy me a coffee ☕ — the button opens the Ko-fi tip panel straight away, no account needed:
+
+<a href="https://ko-fi.com/akashironl/?hidefeed=true&widget=true&embed=true"><img src="https://storage.ko-fi.com/cdn/kofi2.png?v=3" alt="Buy me a coffee on Ko-fi" height="36"></a>
+
+Vind je het handig? Een koffie via [Ko-fi](https://ko-fi.com/akashironl/?hidefeed=true&widget=true&embed=true) wordt zeer gewaardeerd. ☕
