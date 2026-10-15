@@ -172,6 +172,7 @@ def test_expected_ready():
     code, ts = check.eta(["temperature"], {}, {"status": "importing", "months": 12, "months_done": 2}, now, night)
     assert code == "import" and ts == now + 10 * check.ETA_MONTH_S + check.ETA_LEARN_S
     assert check.eta(["heating_hours"], {"heating_hours": 10, "heating_per_day": 0.3}, {}, now, night) == ("heating_season", None)
+    assert check.eta(["heating_hours"], {"heating_hours": 9, "heating_per_day": 2.0, "days": 7}, {}, now, night) == ("heating_season", None)
     assert check.eta(["heating_hours"], {"heating_hours": 10, "heating_per_day": 8}, {}, now, night) == ("heating", night + 2 * 86400)
     assert check.eta(["temperature", "heat"], {}, {}, now, night) == ("check", night)
 

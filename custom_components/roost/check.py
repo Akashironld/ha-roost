@@ -165,8 +165,8 @@ def eta(missing: list[str], chk: dict, imp: dict, now: float, next_check: float)
         return "import", import_done_at(imp, now) + ETA_LEARN_S
     if "heating_hours" in missing:
         per_day = chk.get("heating_per_day", 0.0)
-        if per_day < 1:
-            return "heating_season", None
+        if per_day * chk.get("days", CHECK_DAYS) < READY_HEATING_HOURS:
+            return "heating_season", None           # at this pace a week never has enough: when it gets colder
         days = ceil(max(0, READY_HEATING_HOURS - chk.get("heating_hours", 0)) / per_day)
         return "heating", next_check + max(0, days - 1) * 86400
     return "check", next_check
