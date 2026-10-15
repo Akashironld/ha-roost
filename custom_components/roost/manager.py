@@ -197,7 +197,7 @@ class RoostManager:
         self.building = data.get("building") if self.conf.get(CONF_USE_BAG) else None
         if self.house.source != "learned":
             self.house = model.HouseModel(**self.house_start(), source="building register" if building.prior(self.building) else "default")
-        self.ready, self.ready_missing = check.readiness(self.check, None) if self.check else (False, [])
+        self.ready, self.ready_missing = check.readiness(self.check, None, winter=self.check.get("winter")) if self.check else (False, [])
         self._weheat_hours = {int(k): v for k, v in (hist.get("weheat") or {}).items()}
         self._weather_hist = {int(k): tuple(v) for k, v in (hist.get("weather") or {}).items()}
         self._unsubs.append(async_track_time_interval(self.hass, self._async_tick, timedelta(seconds=TICK_SECONDS)))
@@ -1009,10 +1009,14 @@ class RoostManager:
                 pump.dhw, pump.dhw_weeks = prof, round(len(samples) / 168, 1)
             self.house, self.pump = house.model, pump
             self.check = await self.hass.async_add_executor_job(check.self_check, rows, self.house, self.pump)
+            if self.check.get("heating_hours", 0) < check.READY_HEATING_HOURS:      # mild weather: the last heating weeks decide
+                winter = await self.hass.async_add_executor_job(check.winter_check, rows, self.house, self.pump)
+                if winter:
+                    self.check["winter"] = winter
             self.check["at"] = dt_util.now().isoformat(timespec="seconds")
             lever = not (self.pump.resp_source == "learned" and self.pump.k is not None and self.pump.k < NO_LEVER_KW)
             self._issue("no_lever", not lever, placeholders={"k": f"{self.pump.k or 0:.2f}"})
-            self.ready, self.ready_missing = check.readiness(self.check, self.following, lever)
+            self.ready, self.ready_missing = check.readiness(self.check, self.following, lever, self.check.get("winter"))
             self._issue_ready()
             self._issue_comfort()
             await self._async_learn_rooms(rows)

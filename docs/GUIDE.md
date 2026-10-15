@@ -306,15 +306,16 @@ raises a notice when a room keeps staying too cold (then the water may be too lu
 
 ## 10. All settings
 
-Settings → Devices & services → Roost → **Configure**. The menu shows what is set now; each part saves when you submit
-it.
+Settings → Devices & services → Roost → **Configure**. The menu shows what is set now. Each part saves when you submit
+it and brings you back to the menu (*✅ Saved: …*), so you can go on to the next part; **Done** closes. Closing the
+window loses nothing that was submitted.
 
 | Part | Holds |
 |---|---|
 | Mode | Off / shadow / active, with what the self-check says |
 | The house and the thermostat | Thermostat, room sensor, heat emitters, building register |
 | Electricity price | Dynamic or fixed, price sensors (a fixed rate on the next screen) |
-| Solar and home battery | What the house has, and the matching sensors |
+| Solar and home battery | One screen: a block for solar panels and the grid meter, one for the home battery, each with its tick and sensors |
 | Comfort | Comfort hours and temperatures, and under *Advanced* the regulation and the weather |
 
 Extra rooms are on the integration page (*Add room*, and ⋮ → *Reconfigure* per room).

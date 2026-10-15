@@ -23,6 +23,10 @@ from .planner import HourIn, Settings, Simulator
 HORIZONS = (1, 6, 24)
 CHECK_DAYS = 7
 CHECK_BACK_DAYS = 60       # an older week with enough heating is checked when the last week had too little
+# mild weather: judged on the last heating weeks instead (within a year)
+WINTER_WEEK_HOURS = 60     # a heating week: at least this many heating hours the thermostat asked for
+WINTER_WEEKS = 8           # the newest ones checked: two months, so one odd week does not decide
+WINTER_PASS = 6            # this many have to pass
 WARMUP = 6
 # ready to steer
 READY_HEATING_HOURS = 30
@@ -124,9 +128,44 @@ def self_check(rows: list[HourRow], house: HouseModel, hp: HeatPumpModel, days: 
     return out
 
 
-def readiness(chk: dict, following: bool | None, lever: bool = True) -> tuple[bool, list[str]]:
-    """Ready to steer? -> (ready, what is still missing as short codes). lever: the setpoint moves the heat pump."""
+def winter_check(rows: list[HourRow], house: HouseModel, hp: HeatPumpModel) -> dict | None:
+    """The self-check on the newest heating weeks of the last year (WINTER_WEEK_HOURS heating hours the thermostat
+    asked for), for when the last week says too little: in mild weather a week has few heating hours, while how well
+    Roost predicts in heating weather is what matters for steering. -> {"weeks", "passed", "rmse_6h", "heat_ratio",
+    "until"} (medians over the weeks checked), or None without heating weeks."""
+    if not rows:
+        return None
+    unf = unfollowed(rows, house, hp)
+    heat = sorted(r.ts for r in rows if r.Q > 0.3 and r.sp is not None and r.ts not in unf)
+    last = max(r.ts for r in rows)
+    span = CHECK_DAYS * 86400
+    ends = []
+    for k in range(1, 53):
+        end = last - k * span
+        if len(heat) and end > last - 365 * 86400 and bisect_right(heat, end) - bisect_right(heat, end - span) >= WINTER_WEEK_HOURS:
+            ends.append(end)
+        if len(ends) == WINTER_WEEKS:
+            break
+    if not ends:
+        return None
+    results = [self_check([r for r in rows if end - span - 86400 <= r.ts <= end], house, hp) for end in ends]  # + warm-up
+    ok = [readiness(c, None)[0] for c in results]
+
+    def median(key):
+        xs = sorted(c[key] for c in results if c.get(key) is not None)
+        return round(xs[len(xs) // 2], 3) if xs else None
+    return {"weeks": len(results), "passed": sum(ok), "rmse_6h": median("rmse_6h"), "heat_ratio": median("heat_ratio"),
+            "until": max(ends)}
+
+
+def readiness(chk: dict, following: bool | None, lever: bool = True, winter: dict | None = None) -> tuple[bool, list[str]]:
+    """Ready to steer? -> (ready, what is still missing as short codes). lever: the setpoint moves the heat pump.
+    winter (winter_check): when the last week had too little heating, the last heating weeks decide."""
     missing = [] if lever else ["lever"]
+    if chk.get("heating_hours", 0) < READY_HEATING_HOURS and winter and winter.get("passed", 0) >= WINTER_PASS:
+        if following is False:
+            missing.append("following")
+        return not missing, missing
     if chk.get("heating_hours", 0) < READY_HEATING_HOURS:
         missing.append("heating_hours")
     rmse = chk.get("rmse_6h")

@@ -170,18 +170,19 @@
     "step": {
       "init": {
         "title": "Roost",
-        "description": "**The house:** {house}\n**Electricity price:** {price}\n**Solar and battery:** {solar}\n**Comfort:** {comfort}\n**Extra rooms:** {rooms} (add them on the integration page)\n\nEach part saves when you submit it.",
+        "description": "{saved}**The house:** {house}\n**Electricity price:** {price}\n**Solar and battery:** {solar}\n**Comfort:** {comfort}\n**Extra rooms:** {rooms} (add them on the integration page)\n\nEach part saves when you submit it and comes back here; *Done* closes.",
         "menu_options": {
           "mode": "Mode: shadow or steering",
           "house": "The house and the thermostat",
           "price": "Electricity price",
           "solar": "Solar and home battery",
-          "comfort": "Comfort"
+          "comfort": "Comfort",
+          "done": "Done"
         }
       },
       "mode": {
         "title": "Mode",
-        "description": "**Ready to steer: {verdict}**\nExpected: {eta}\n\n{plan_ok} Plan error 6 h ahead: {plan_error} °C (needs 0.5 or less)\n{hours_ok} Heating hours in the week checked: {hours} (needs 30)\n{heat_ok} Heat predicted ÷ measured: {heat} (needs 0.7–1.3)\n{follows} The heat pump follows the thermostat\n{lever} The setpoint moves the heat pump\n\nThe self-check runs every night at 03:30. **Shadow**: Roost plans and shows, never touches the thermostat. **Active**: Roost steers the thermostat. **Off**: nothing.",
+        "description": "**Ready to steer: {verdict}**\nExpected: {eta}\nChecked on: {basis}\n\n{plan_ok} Plan error 6 h ahead: {plan_error} °C (needs 0.5 or less)\n{hours_ok} Heating hours in the week checked: {hours} (needs 30)\n{heat_ok} Heat predicted ÷ measured: {heat} (needs 0.7–1.3)\n{follows} The heat pump follows the thermostat\n{lever} The setpoint moves the heat pump\n\nThe self-check runs every night at 03:30. **Shadow**: Roost plans and shows, never touches the thermostat. **Active**: Roost steers the thermostat. **Off**: nothing.",
         "data": {
           "mode": "Mode"
         }
@@ -233,40 +234,6 @@
           "fixed_export_price": "Leave empty with net metering: export is then worth the import price."
         }
       },
-      "solar": {
-        "title": "Solar and home battery",
-        "description": "Tick what your house has; only those fields follow. Without either, skip this.",
-        "data": {
-          "has_solar": "I have solar panels",
-          "has_battery": "I have a home battery"
-        },
-        "data_description": {
-          "has_solar": "Roost then counts own solar at what exporting it would earn.",
-          "has_battery": "Roost then values energy from the battery at what refilling it costs."
-        }
-      },
-      "solar_details": {
-        "title": "Solar and home battery",
-        "description": "Found entities are filled in; check them. All fields are optional.",
-        "data": {
-          "pv_power": "Solar power",
-          "pv_forecast": "Solar forecast today",
-          "pv_forecast_tomorrow": "Solar forecast tomorrow",
-          "grid_power": "Grid power",
-          "grid_sign": "Sign of the grid power",
-          "battery_soc": "Home battery state of charge",
-          "battery_power": "Home battery power (+ = discharging)",
-          "battery_kwh": "Usable battery capacity",
-          "battery_kw": "Maximum battery charge power",
-          "battery_reserve": "Battery reserve",
-          "house_power": "House power (for the usage profile)",
-          "grid_preference": "Preference for own energy (added per kWh from the grid)"
-        },
-        "data_description": {
-          "grid_power": "All optional. With solar, Roost sees real solar surplus (export minus battery discharge, at most the solar power).",
-          "battery_power": "Needed to tell solar export from a battery selling to the grid."
-        }
-      },
       "comfort": {
         "title": "Comfort",
         "description": "Roost keeps the room at the comfort temperature in the comfort hours and never lets it get colder than the minimums. Filled in from your thermostat's last weeks where it could.",
@@ -299,6 +266,49 @@
               "max_above_room": "Keeps an OpenTherm thermostat asking for lukewarm water (high COP).",
               "baseline_night": "The saving is shown against a steady thermostat at the comfort temperature, the usual advice for heat pumps.",
               "weather_source": "Open-Meteo needs no account and gives radiation and wind (the house model uses both)."
+            }
+          }
+        }
+      },
+      "solar": {
+        "title": "Solar and home battery",
+        "description": "Open a block to see and change its sensors. Turning a tick off forgets that block's sensors when you submit.",
+        "data": {
+          "grid_preference": "Preference for own energy (added per kWh from the grid)"
+        },
+        "data_description": {},
+        "sections": {
+          "solar_section": {
+            "name": "Solar panels and the grid meter",
+            "description": "Solar power, its forecast and the grid power: Roost charges the floor with solar it would otherwise export cheaply.",
+            "data": {
+              "has_solar": "I have solar panels",
+              "pv_power": "Solar power",
+              "pv_forecast": "Solar forecast today",
+              "pv_forecast_tomorrow": "Solar forecast tomorrow",
+              "grid_power": "Grid power",
+              "grid_sign": "Sign of the grid power"
+            },
+            "data_description": {
+              "has_solar": "Roost then counts own solar at what exporting it would earn.",
+              "grid_power": "All optional. With solar, Roost sees real solar surplus (export minus battery discharge, at most the solar power)."
+            }
+          },
+          "battery_section": {
+            "name": "Home battery",
+            "description": "Its charge, power and size: energy from the battery is valued at what refilling it costs.",
+            "data": {
+              "has_battery": "I have a home battery",
+              "battery_soc": "Home battery state of charge",
+              "battery_power": "Home battery power (+ = discharging)",
+              "battery_kwh": "Usable battery capacity",
+              "battery_kw": "Maximum battery charge power",
+              "battery_reserve": "Battery reserve",
+              "house_power": "House power (for the usage profile)"
+            },
+            "data_description": {
+              "has_battery": "Roost then values energy from the battery at what refilling it costs.",
+              "battery_power": "Needed to tell solar export from a battery selling to the grid."
             }
           }
         }

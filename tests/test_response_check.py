@@ -165,6 +165,25 @@ def test_heating_without_the_thermostat_is_left_out():
     assert chk["unfollowed_hours"] == len(flagged) and chk.get("heat_ratio") and abs(chk["heat_ratio"] - 1) < 0.3, chk
 
 
+def test_mild_weather_is_judged_on_the_last_heating_weeks():
+    """Ten heating weeks, then a mild month: the last week says too little, so the newest heating weeks decide —
+    and a model that predicts them well is ready to steer."""
+    hp = true_pump()
+    rows = simulate(hp, days=70)
+    mild = [model.HourRow(**{**r.__dict__, "ts": r.ts + 70 * 86400, "Q": 0.0, "E": 0.0, "heating_s": 0.0}) for r in rows[-30 * 24:]]
+    every = rows + mild
+    chk = check.self_check(every, HOUSE, hp)
+    assert chk["heating_hours"] < check.READY_HEATING_HOURS
+    assert check.readiness(chk, True)[1][:1] == ["heating_hours"]
+    w = check.winter_check(every, HOUSE, hp)
+    assert w and w["weeks"] == check.WINTER_WEEKS and w["passed"] >= check.WINTER_PASS, w
+    assert check.readiness(chk, True, True, w) == (True, [])
+    assert check.readiness(chk, False, True, w) == (False, ["following"])
+    bad = heatpump.HeatPumpModel(a=0.3, k=4.0, offset=-0.5, follow=1.0, resp_source="learned")
+    wb = check.winter_check(every, HOUSE, bad)                              # a wrong response does not pass
+    assert wb["passed"] < check.WINTER_PASS and not check.readiness(chk, True, True, wb)[0], wb
+
+
 def test_expected_ready():
     now, night = 1_000_000.0, 1_050_000.0
     assert check.eta([], {}, {}, now, night) == ("ready", None)

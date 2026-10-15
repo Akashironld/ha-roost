@@ -170,18 +170,19 @@
     "step": {
       "init": {
         "title": "Roost",
-        "description": "**Huis:** {house}\n**Stroomprijs:** {price}\n**Zon en accu:** {solar}\n**Comfort:** {comfort}\n**Extra kamers:** {rooms} (toevoegen op de integratiepagina)\n\nElk onderdeel slaat op als je het verstuurt.",
+        "description": "{saved}**Huis:** {house}\n**Stroomprijs:** {price}\n**Zon en accu:** {solar}\n**Comfort:** {comfort}\n**Extra kamers:** {rooms} (toevoegen op de integratiepagina)\n\nElk onderdeel slaat op als je het verstuurt en komt hier terug; *Klaar* sluit.",
         "menu_options": {
           "mode": "Modus: meekijken of sturen",
           "house": "Huis en thermostaat",
           "price": "Stroomprijs",
           "solar": "Zon en thuisaccu",
-          "comfort": "Comfort"
+          "comfort": "Comfort",
+          "done": "Klaar"
         }
       },
       "mode": {
         "title": "Modus",
-        "description": "**Klaar om te sturen: {verdict}**\nVerwacht: {eta}\n\n{plan_ok} Planfout 6 uur vooruit: {plan_error} °C (nodig: 0,5 of minder)\n{hours_ok} Stookuren in de gecontroleerde week: {hours} (nodig: 30)\n{heat_ok} Warmte voorspeld ÷ gemeten: {heat} (nodig: 0,7–1,3)\n{follows} De warmtepomp volgt de thermostaat\n{lever} Het setpoint stuurt de warmtepomp\n\nDe zelfcontrole draait elke nacht om 03:30. **Meekijken**: Roost plant en laat zien, raakt de thermostaat niet aan. **Actief**: Roost stuurt de thermostaat. **Uit**: niets.",
+        "description": "**Klaar om te sturen: {verdict}**\nVerwacht: {eta}\nGecontroleerd op: {basis}\n\n{plan_ok} Planfout 6 uur vooruit: {plan_error} °C (nodig: 0,5 of minder)\n{hours_ok} Stookuren in de gecontroleerde week: {hours} (nodig: 30)\n{heat_ok} Warmte voorspeld ÷ gemeten: {heat} (nodig: 0,7–1,3)\n{follows} De warmtepomp volgt de thermostaat\n{lever} Het setpoint stuurt de warmtepomp\n\nDe zelfcontrole draait elke nacht om 03:30. **Meekijken**: Roost plant en laat zien, raakt de thermostaat niet aan. **Actief**: Roost stuurt de thermostaat. **Uit**: niets.",
         "data": {
           "mode": "Modus"
         }
@@ -233,40 +234,6 @@
           "fixed_export_price": "Leeg laten bij salderen: teruglevering is dan de afnameprijs waard."
         }
       },
-      "solar": {
-        "title": "Zon en thuisaccu",
-        "description": "Vink aan wat je huis heeft; alleen die velden volgen. Zonder beide sla je dit over.",
-        "data": {
-          "has_solar": "Ik heb zonnepanelen",
-          "has_battery": "Ik heb een thuisaccu"
-        },
-        "data_description": {
-          "has_solar": "Roost rekent eigen zonnestroom dan tegen wat terugleveren zou opbrengen.",
-          "has_battery": "Roost rekent stroom uit de accu dan tegen wat bijvullen kost."
-        }
-      },
-      "solar_details": {
-        "title": "Zon en thuisaccu",
-        "description": "Gevonden entiteiten zijn ingevuld; controleer ze. Alle velden zijn optioneel.",
-        "data": {
-          "pv_power": "Zonnevermogen",
-          "pv_forecast": "Zonverwachting vandaag",
-          "pv_forecast_tomorrow": "Zonverwachting morgen",
-          "grid_power": "Netvermogen",
-          "grid_sign": "Teken van het netvermogen",
-          "battery_soc": "Laadtoestand thuisaccu",
-          "battery_power": "Vermogen thuisaccu (+ = ontladen)",
-          "battery_kwh": "Bruikbare accucapaciteit",
-          "battery_kw": "Maximaal laadvermogen accu",
-          "battery_reserve": "Accureserve",
-          "house_power": "Huisvermogen (voor het verbruiksprofiel)",
-          "grid_preference": "Voorkeur voor eigen energie (bovenop elke kWh uit het net)"
-        },
-        "data_description": {
-          "grid_power": "Allemaal optioneel. Met zonnepanelen ziet Roost echt zon-overschot (teruglevering min accu-ontladen, hooguit het zonnevermogen).",
-          "battery_power": "Nodig om zonneteruglevering te onderscheiden van een accu die aan het net verkoopt."
-        }
-      },
       "comfort": {
         "title": "Comfort",
         "description": "Roost houdt de kamer in de comforturen op de comforttemperatuur en laat hem nooit kouder worden dan de minimums. Waar mogelijk ingevuld uit de laatste weken van je thermostaat.",
@@ -299,6 +266,49 @@
               "max_above_room": "Zo blijft een OpenTherm-thermostaat om lauw water vragen (hoge COP).",
               "baseline_night": "De besparing wordt getoond tegenover een vaste thermostaat op de comforttemperatuur, het gebruikelijke advies bij warmtepompen.",
               "weather_source": "Open-Meteo heeft geen account nodig en geeft straling en wind (het huismodel gebruikt beide)."
+            }
+          }
+        }
+      },
+      "solar": {
+        "title": "Zon en thuisaccu",
+        "description": "Klap een blok open om de sensoren te zien en te wijzigen. Zet je een vinkje uit, dan vergeet Roost bij Verzenden de sensoren van dat blok.",
+        "data": {
+          "grid_preference": "Voorkeur voor eigen energie (bovenop elke kWh uit het net)"
+        },
+        "data_description": {},
+        "sections": {
+          "solar_section": {
+            "name": "Zonnepanelen en de netmeter",
+            "description": "Zonnevermogen, de zonprognose en het netvermogen: Roost laadt de vloer met zonnestroom die anders goedkoop terug het net op gaat.",
+            "data": {
+              "has_solar": "Ik heb zonnepanelen",
+              "pv_power": "Zonnevermogen",
+              "pv_forecast": "Zonverwachting vandaag",
+              "pv_forecast_tomorrow": "Zonverwachting morgen",
+              "grid_power": "Netvermogen",
+              "grid_sign": "Teken van het netvermogen"
+            },
+            "data_description": {
+              "has_solar": "Roost rekent eigen zonnestroom dan tegen wat terugleveren zou opbrengen.",
+              "grid_power": "Allemaal optioneel. Met zonnepanelen ziet Roost echt zon-overschot (teruglevering min accu-ontladen, hooguit het zonnevermogen)."
+            }
+          },
+          "battery_section": {
+            "name": "Thuisaccu",
+            "description": "Lading, vermogen en grootte: stroom uit de accu telt tegen wat bijvullen kost.",
+            "data": {
+              "has_battery": "Ik heb een thuisaccu",
+              "battery_soc": "Laadtoestand thuisaccu",
+              "battery_power": "Vermogen thuisaccu (+ = ontladen)",
+              "battery_kwh": "Bruikbare accucapaciteit",
+              "battery_kw": "Maximaal laadvermogen accu",
+              "battery_reserve": "Accureserve",
+              "house_power": "Huisvermogen (voor het verbruiksprofiel)"
+            },
+            "data_description": {
+              "has_battery": "Roost rekent stroom uit de accu dan tegen wat bijvullen kost.",
+              "battery_power": "Nodig om zonneteruglevering te onderscheiden van een accu die aan het net verkoopt."
             }
           }
         }

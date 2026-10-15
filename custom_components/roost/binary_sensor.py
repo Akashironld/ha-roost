@@ -57,6 +57,7 @@ class ReadySensor(RoostEntity, BinarySensorEntity):
         c = self.mgr.check
         code, when = self.mgr.ready_eta()
         return {"waiting_for": code, "expected": when.isoformat(timespec="minutes") if when else None,
+                "heating_weeks_check": c.get("winter"),       # mild weather: judged on the last heating weeks
                 "checked_week_until": c.get("window_end") and dt_util.utc_from_timestamp(c["window_end"]).isoformat(),
                 "still_missing": self.mgr.ready_missing, "plan_error_6h": c.get("rmse_6h"), "heating_hours": c.get("heating_hours"),
                 "heat_ratio": c.get("heat_ratio"), "checked": c.get("at")}

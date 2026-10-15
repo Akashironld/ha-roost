@@ -28,7 +28,7 @@ from .const import (
     WEHEAT, CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND,
     CONF_EMITTER, CONF_HAS_BATTERY, CONF_HAS_SOLAR, CONF_PRICE_MODE, CONF_SP_MIN, CONF_USE_BAG, CONF_WEHEAT_AUTH, CONF_AUTH_FROM, EMITTERS, PRICE_MODES,
 )
-from . import comfort, detect
+from . import check, comfort, detect
 from .weheat_api import API_URL, heat_pump_id, weheat_implementation
 from .rooms import KINDS as ROOM_KINDS
 
@@ -147,6 +147,26 @@ def solar_details_schema(solar: bool, battery: bool) -> vol.Schema:
         s[vol.Optional(CONF_HOUSE_POWER)] = _ent("sensor", "power")
     s[vol.Optional(CONF_GRID_PREFERENCE, default=DEFAULTS[CONF_GRID_PREFERENCE])] = _num(0, 0.5, 0.005)
     return vol.Schema(s)
+
+
+SOLAR_SECTION, BATTERY_SECTION = "solar_section", "battery_section"
+
+
+def solar_options_schema(solar: bool, battery: bool) -> vol.Schema:
+    """Options: one screen, a block for solar (and the grid meter) and one for the home battery, each with its tick
+    and its sensors; the block of what the house has is open."""
+    sol = solar_details_schema(True, False).schema
+    bat = solar_details_schema(False, True).schema
+    pref = next(k for k in sol if str(k) == CONF_GRID_PREFERENCE)
+    return vol.Schema({
+        vol.Required(SOLAR_SECTION): section(vol.Schema({vol.Required(CONF_HAS_SOLAR, default=False): selector.BooleanSelector(),
+                                                         **{k: v for k, v in sol.items() if str(k) != CONF_GRID_PREFERENCE}}),
+                                             {"collapsed": not solar}),
+        vol.Required(BATTERY_SECTION): section(vol.Schema({vol.Required(CONF_HAS_BATTERY, default=False): selector.BooleanSelector(),
+                                                           **{k: v for k, v in bat.items() if str(k) != CONF_GRID_PREFERENCE}}),
+                                               {"collapsed": not battery}),
+        pref: sol[pref],
+    })
 
 
 def comfort_schema() -> vol.Schema:
@@ -286,6 +306,10 @@ ETA_TEXT = {
            "heating_season": "when the heating season starts: too little heating now to check the plan.",
            "check": "maybe at the next self-check, {time}. Until it predicts well enough it learns every night.",
            "importing": "Weheat import: {done} of {total} months, done around {time}.",
+           "basis_week": "the last week",
+           "saved": "✅ Saved: {part}", "parts": {"mode": "Mode", "house": "The house", "price": "Electricity price",
+                                                "solar": "Solar and home battery", "comfort": "Comfort"},
+           "basis_winter": "the last {weeks} heating weeks of the past year, because the last week had too little heating — {passed} of {weeks} good (needs {need}); the medians below",
            "today": "today", "tomorrow": "tomorrow"},
     "nl": {"ready": "nu.", "lever": "nog niet: het setpoint stuurt de warmtepomp niet (zie de reparatiemelding).",
            "following": "nog niet: zet de warmtepomp eerst op het volgen van de thermostaat (in de Weheat-app).",
@@ -294,6 +318,10 @@ ETA_TEXT = {
            "heating_season": "als het stookseizoen begint: nu wordt te weinig gestookt om het plan te controleren.",
            "check": "mogelijk bij de volgende zelfcontrole, {time}. Tot hij goed genoeg voorspelt leert hij elke nacht bij.",
            "importing": "Weheat-import: {done} van {total} maanden, klaar rond {time}.",
+           "basis_week": "de afgelopen week",
+           "saved": "✅ Opgeslagen: {part}", "parts": {"mode": "Modus", "house": "Huis en thermostaat", "price": "Stroomprijs",
+                                                    "solar": "Zon en thuisaccu", "comfort": "Comfort"},
+           "basis_winter": "de laatste {weeks} stookweken van het afgelopen jaar, omdat de afgelopen week te weinig stookte — {passed} van {weeks} goed (nodig: {need}); hieronder de medianen",
            "today": "vandaag", "tomorrow": "morgen"},
 }
 
@@ -475,6 +503,7 @@ class RoostOptionsFlow(OptionsFlow):
 
     def __init__(self) -> None:
         self._opts: dict[str, Any] | None = None
+        self._saved: str | None = None
 
     @property
     def opts(self) -> dict[str, Any]:
@@ -494,13 +523,22 @@ class RoostOptionsFlow(OptionsFlow):
             self.opts.pop(str(key), None)
         self.opts.update(_clean(_flat(user_input)))
 
-    def _save(self) -> ConfigFlowResult:
-        return self.async_create_entry(data=self.opts)
+    async def _async_saved(self, part: str | None = None) -> ConfigFlowResult:
+        """A part was submitted: save it right away (closing the window loses nothing) and go back to the menu."""
+        part = part or {"price_fixed": "price"}.get(step := (self.cur_step or {}).get("step_id", ""), step)
+        self.hass.config_entries.async_update_entry(self.config_entry, options=dict(self.opts))
+        self._saved = part
+        return await self.async_step_init()
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         rooms = sum(1 for s in self.config_entry.subentries.values() if s.subentry_type == "room")
-        return self.async_show_menu(step_id="init", menu_options=["mode", "house", "price", "solar", "comfort"],
-                                    description_placeholders=_summary(self.hass, self.opts, rooms))
+        t = ETA_TEXT["nl" if (self.hass.config.language or "").startswith("nl") else "en"]
+        saved = t["saved"].format(part=t["parts"].get(self._saved, self._saved)) + "\n\n" if self._saved else ""
+        return self.async_show_menu(step_id="init", menu_options=["mode", "house", "price", "solar", "comfort", "done"],
+                                    description_placeholders={**_summary(self.hass, self.opts, rooms), "saved": saved})
+
+    async def async_step_done(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return self.async_create_entry(data=dict(self.opts))
 
     async def async_step_mode(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Off, shadow or active, with what the self-check says: here, in Roost itself."""
@@ -508,13 +546,23 @@ class RoostOptionsFlow(OptionsFlow):
         if user_input is not None:
             if mgr is not None:
                 await mgr.async_set_mode(user_input["mode"])
-            return self.async_abort(reason="mode_set")
+            self._saved = "mode"
+            return await self.async_step_init()
         c = mgr.check if mgr else {}
         ok, no = "✅", "⏳"
         missing = set(mgr.ready_missing) if mgr else {"temperature"}
+        w = c.get("winter") if c.get("heating_hours", 0) < check.READY_HEATING_HOURS else None
+        t = ETA_TEXT["nl" if (self.hass.config.language or "").startswith("nl") else "en"]
+        if w:                       # mild weather: judged on the last heating weeks
+            c = {**c, "rmse_6h": w.get("rmse_6h"), "heat_ratio": w.get("heat_ratio")}
+            passed = w.get("passed", 0) >= check.WINTER_PASS
+            missing = missing | ({"temperature", "heat"} if not passed else set())
         ph = {"plan_error": f"{c['rmse_6h']:.2f}" if c.get("rmse_6h") is not None else "—", "plan_ok": no if "temperature" in missing else ok,
-              "hours": str(c.get("heating_hours", 0)), "hours_ok": no if "heating_hours" in missing else ok,
+              "hours": f"{w.get('weeks', 0)} × {check.WINTER_WEEK_HOURS}+" if w else str(c.get("heating_hours", 0)),
+              "hours_ok": no if "heating_hours" in missing else ok,
               "heat": f"{c['heat_ratio']:.2f}" if c.get("heat_ratio") is not None else "—", "heat_ok": no if "heat" in missing else ok,
+              "basis": t["basis_winter"].format(passed=w.get("passed", 0), weeks=w.get("weeks", 0), need=check.WINTER_PASS)
+              if w else t["basis_week"],
               "follows": no if "following" in missing else ok, "lever": no if "lever" in missing else ok,
               "verdict": ok if mgr and mgr.ready else no, "eta": _eta_text(self.hass, mgr)}
         schema = vol.Schema({vol.Required("mode", default=mgr.mode if mgr else "shadow"): _sel(["off", "shadow", "active"], "mode")})
@@ -524,7 +572,7 @@ class RoostOptionsFlow(OptionsFlow):
         schema = house_schema(True)
         if user_input is not None:
             self._update(schema, user_input)
-            return self._save()
+            return await self._async_saved()
         return self.async_show_form(step_id="house", data_schema=self.add_suggested_values_to_schema(schema, self.opts))
 
     async def async_step_price(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -536,37 +584,34 @@ class RoostOptionsFlow(OptionsFlow):
                 self._update(schema, user_input)
                 if user_input.get(CONF_PRICE_MODE) == "fixed":
                     return await self.async_step_price_fixed()
-                return self._save()
+                return await self._async_saved()
         return self.async_show_form(step_id="price", data_schema=self.add_suggested_values_to_schema(schema, self.opts), errors=errors)
 
     async def async_step_price_fixed(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         schema = price_schema(self.hass.config.currency or "EUR")
         if user_input is not None:
             self._update(schema, user_input)
-            return self._save()
+            return await self._async_saved()
         return self.async_show_form(step_id="price_fixed", data_schema=self.add_suggested_values_to_schema(schema, self.opts))
 
     async def async_step_solar(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        o = self.opts
         if user_input is not None:
-            self.opts.update(user_input)
-            if not user_input.get(CONF_HAS_SOLAR):
-                for k in SOLAR_KEYS:
-                    self.opts.pop(k, None)
-            if not user_input.get(CONF_HAS_BATTERY):
-                for k in BATTERY_KEYS:
-                    self.opts.pop(k, None)
-            if user_input.get(CONF_HAS_SOLAR) or user_input.get(CONF_HAS_BATTERY):
-                return await self.async_step_solar_details()
-            return self._save()
-        return self.async_show_form(step_id="solar", data_schema=self.add_suggested_values_to_schema(solar_schema(), self.opts))
-
-    async def async_step_solar_details(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        schema = solar_details_schema(bool(self.opts.get(CONF_HAS_SOLAR)), bool(self.opts.get(CONF_HAS_BATTERY)))
-        if user_input is not None:
-            self._update(schema, user_input)
-            return self._save()
-        return self.async_show_form(step_id="solar_details",
-                                    data_schema=self.add_suggested_values_to_schema(schema, _suggest(self.hass, self.opts, detect.energy(self.hass))))
+            sol, bat = user_input.get(SOLAR_SECTION) or {}, user_input.get(BATTERY_SECTION) or {}
+            for k in SOLAR_KEYS + BATTERY_KEYS + [CONF_HAS_SOLAR, CONF_HAS_BATTERY, CONF_GRID_PREFERENCE]:
+                o.pop(k, None)
+            o.update(_clean({k: v for k, v in sol.items() if sol.get(CONF_HAS_SOLAR) or k == CONF_HAS_SOLAR}))
+            o.update(_clean({k: v for k, v in bat.items() if bat.get(CONF_HAS_BATTERY) or k == CONF_HAS_BATTERY}))
+            o.update(_clean({k: v for k, v in user_input.items() if k not in (SOLAR_SECTION, BATTERY_SECTION)}))
+            return await self._async_saved()
+        solar, battery = bool(o.get(CONF_HAS_SOLAR)), bool(o.get(CONF_HAS_BATTERY))
+        found = detect.energy(self.hass)
+        values = _suggest(self.hass, o, found)
+        suggested = {SOLAR_SECTION: {k: values[k] for k in [CONF_HAS_SOLAR] + SOLAR_KEYS if k in values},
+                     BATTERY_SECTION: {k: values[k] for k in [CONF_HAS_BATTERY] + BATTERY_KEYS if k in values},
+                     **({CONF_GRID_PREFERENCE: values[CONF_GRID_PREFERENCE]} if CONF_GRID_PREFERENCE in values else {})}
+        return self.async_show_form(step_id="solar", data_schema=self.add_suggested_values_to_schema(
+            solar_options_schema(solar, battery), suggested))
 
     async def async_step_comfort(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
@@ -575,5 +620,5 @@ class RoostOptionsFlow(OptionsFlow):
             errors = _check_comfort(_flat(user_input))
             if not errors:
                 self._update(schema, user_input)
-                return self._save()
+                return await self._async_saved()
         return self.async_show_form(step_id="comfort", data_schema=self.add_suggested_values_to_schema(schema, _nested(self.opts)), errors=errors)

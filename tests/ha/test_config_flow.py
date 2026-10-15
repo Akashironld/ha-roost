@@ -77,10 +77,14 @@ async def test_comfort_checks(hass: HomeAssistant, weheat: str) -> None:
 
 async def test_options_menu_saves_each_part(hass: HomeAssistant, entry) -> None:
     r = await hass.config_entries.options.async_init(entry.entry_id)
-    assert r["type"] is FlowResultType.MENU and r["menu_options"] == ["mode", "house", "price", "solar", "comfort"]
-    assert "comfort" in r["description_placeholders"]
+    assert r["type"] is FlowResultType.MENU and r["menu_options"] == ["mode", "house", "price", "solar", "comfort", "done"]
+    assert "comfort" in r["description_placeholders"] and r["description_placeholders"]["saved"] == ""
     r = await hass.config_entries.options.async_configure(r["flow_id"], {"next_step_id": "comfort"})
     r = await hass.config_entries.options.async_configure(r["flow_id"], {**COMFORT, "comfort": 21.0, "store_max": 23.0})
+    # saved right away, back in the menu (closing the window loses nothing); Done closes
+    assert r["type"] is FlowResultType.MENU and "Comfort" in r["description_placeholders"]["saved"]
+    assert entry.options["comfort"] == 21.0
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {"next_step_id": "done"})
     assert r["type"] is FlowResultType.CREATE_ENTRY and entry.options["comfort"] == 21.0
 
 
@@ -91,7 +95,7 @@ async def test_options_never_copy_the_weheat_login(hass: HomeAssistant, entry) -
     r = await hass.config_entries.options.async_init(entry.entry_id)
     r = await hass.config_entries.options.async_configure(r["flow_id"], {"next_step_id": "comfort"})
     r = await hass.config_entries.options.async_configure(r["flow_id"], {**COMFORT, "comfort": 21.0, "store_max": 23.0})
-    assert r["type"] is FlowResultType.CREATE_ENTRY
+    assert r["type"] is FlowResultType.MENU
     assert not {"token", "auth_implementation", "weheat_auth"} & set(entry.options) and entry.data["token"]["access_token"] == "a"
 
 
@@ -125,3 +129,19 @@ async def test_reauth_without_an_app_registration(hass: HomeAssistant, entry) ->
     r = await entry.start_reauth_flow(hass)
     r = await hass.config_entries.flow.async_configure(r["flow_id"], {})
     assert r["type"] is FlowResultType.ABORT and r["reason"] == "missing_credentials"
+
+
+async def test_options_solar_and_battery_on_one_screen(hass: HomeAssistant, entry) -> None:
+    """Both blocks with their sensors on one screen; a tick turned off forgets that block's sensors."""
+    hass.config_entries.async_update_entry(entry, options={"pv_power": "sensor.pv", "grid_power": "sensor.grid",
+                                                           "battery_soc": "sensor.soc", "battery_kwh": 10.0})
+    await hass.async_block_till_done()
+    r = await hass.config_entries.options.async_init(entry.entry_id)
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {"next_step_id": "solar"})
+    assert r["type"] is FlowResultType.FORM and r["step_id"] == "solar"
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {
+        "solar_section": {"has_solar": True, "pv_power": "sensor.pv", "grid_power": "sensor.grid", "grid_sign": "import_positive"},
+        "battery_section": {"has_battery": False, "battery_soc": "sensor.soc", "battery_kwh": 10.0},
+        "grid_preference": 0.0})
+    assert r["type"] is FlowResultType.MENU
+    assert entry.options["pv_power"] == "sensor.pv" and "battery_soc" not in entry.options and "battery_kwh" not in entry.options

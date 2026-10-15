@@ -9,6 +9,12 @@
   fill in (Roost uses the app registration the Weheat integration already has). Roost keeps and refreshes that login
   itself and no longer borrows the Weheat integration's token; when Weheat no longer accepts it, Home Assistant shows
   *Re-authenticate*. The choice under *Reconfigure → Weheat login* is gone
+- **Ready to steer in mild weather**: when the last week had too little heating, Roost judges itself on the last 8
+  heating weeks of the past year (6 have to pass) instead of waiting for the heating season; *Configure → Mode* says
+  what it was checked on
+- **Settings menu**: each part saves and brings you back to the menu (*✅ Saved: …*); *Done* closes. Solar and the
+  home battery are one screen, a block each with its tick and its sensors (before, the sensors only came after
+  submitting the ticks)
 
 ### Fixes
 - The reason said *charging the floor on own solar* while no heat went in (the room at 24 °C, the thermostat at 21):
