@@ -33,8 +33,9 @@ SIM_SETTINGS='{"switch_cost": 0.10}' python3 tools/sim/sim.py   # try planner se
 | spring | Mild and sunny |
 | onoff | On/off thermostat, heating curve when asked |
 | bedroom | An extra bedroom upstairs (radiators) with a minimum of 17 °C from 19 to 23 h |
+| insulated | Insulated since last winter: 90 days of the old house in the history (heat loss 0.22 kW/K), then 40 days of the new one (0.12) |
 
-## Results (v0.5.0, three weeks of different weather and prices)
+## Results (v0.5.2, three weeks of different weather and prices)
 
 Saving against the equally comfortable steady thermostat, mean of three weeks (range):
 
@@ -48,6 +49,7 @@ Saving against the equally comfortable steady thermostat, mean of three weeks (r
 | spring | 2.4 % (0.5–5.0) | as steady | ~1 a day |
 | onoff | 6.8 % (5.7–8.1) | as steady | ~1–2 a day |
 | bedroom | 1.6 % (0.4–2.6) | as steady; the bedroom never below its minimum (the steady thermostat: 0–4 h) | ~2 a day |
+| insulated | 3.3 % (1.0–5.9) | as steady (≈ 0.1–0.2 °C·h a day below comfort) | ~2–3 a day |
 
 What these say:
 
@@ -67,5 +69,6 @@ What these say:
 | ~5 thermostat changes a day for little gain | Cost per change 0.05 → 0.15 €: ~1–2 a day, about the same saving |
 | With fewer changes, a bit more time below comfort | Comfort penalty 0.10 → 0.20 € per °C·hour |
 | A deeper search (longer blocks, more starting plans) found cheaper plans on the model, not in the closed loop: it exploits model errors | Kept the simple search |
+| After insulating, the house model learned the new house but the heat pump's response still came from the old one: 15–20 °C·h a week below comfort | The response is learned from the same newest heating days as the house model when the house changed: ~1 °C·h a week |
 | A threshold for storing heat above comfort cost more than it saved (radiators, on/off) | Not used |
 | The saving shown was against a steady thermostat that could be colder than Roost's plan, making a comfortable plan look expensive | The steady thermostat to compare with is now the lowest that is as comfortable as the plan (card, *expected saving*, *saving yesterday*) |

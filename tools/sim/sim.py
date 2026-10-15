@@ -54,6 +54,8 @@ class Scenario:
     before: dict | None = None                     # the house before a change (insulation): its history comes first
     before_days: int = 0
     settings: dict = field(default_factory=dict)
+    pump_bias: dict = field(default_factory=dict)  # after learning, multiply these true response values
+    own_curve: float = 0.0                         # history only: share of warm hours the unit heats on its own curve
 
 
 SCENARIOS = {
@@ -78,6 +80,24 @@ SCENARIOS = {
                           dict(C=18.0, H=0.12, g=5.0, lag=1.0, internal=0.2, Hw=0.007),
                           dict(a=0.9, k=1.0, offset=0.3, follow=0.35, q_min=2.4),
                           before=dict(C=18.0, H=0.22, g=5.0, lag=1.0, internal=0.2, Hw=0.007), before_days=90),
+    "old": Scenario("1930s house, poorly insulated, radiators, fast unit", dict(C=13.0, H=0.28, g=3.0, lag=0.2, internal=0.2, Hw=0.012),
+                    dict(a=0.95, k=3.0, offset=0.1, follow=0.8, q_min=2.0)),
+    "newbuild": Scenario("new build: well insulated, heavy floor, much glass; the unit is oversized (cycles)",
+                         dict(C=24.0, H=0.07, g=7.0, lag=2.0, internal=0.3, Hw=0.003),
+                         dict(a=0.9, k=1.0, offset=0.3, follow=0.35, q_min=2.4), sun=0.35),
+    "apartment": Scenario("apartment: small, little storage, warm neighbours", dict(C=7.0, H=0.07, g=2.0, lag=0.4, internal=0.45, Hw=0.004),
+                          dict(a=0.9, k=2.0, offset=0.2, follow=0.6, q_min=1.5)),
+    "cold": Scenario("cold snap: −4 °C mean, the unit near its maximum", dict(C=18.0, H=0.15, g=5.0, lag=1.0, internal=0.2, Hw=0.007),
+                     dict(a=0.9, k=1.0, offset=0.3, follow=0.35, q_min=2.4), t_mean=-4.0),
+    "volatile": Scenario("volatile dynamic price: cheap windy nights, steep evening peaks, cheap sunny noons",
+                         dict(C=18.0, H=0.15, g=5.0, lag=1.0, internal=0.2, Hw=0.007),
+                         dict(a=0.9, k=1.0, offset=0.3, follow=0.35, q_min=2.4), prices="volatile"),
+    "slowpump": Scenario("response off: the unit follows twice as slowly as learned, half the gain",
+                         dict(C=18.0, H=0.15, g=5.0, lag=1.0, internal=0.2, Hw=0.007),
+                         dict(a=0.9, k=1.0, offset=0.3, follow=0.35, q_min=2.4), pump_bias={"follow": 2.0, "k": 2.0}),
+    "autumn": Scenario("autumn, mild: in the history the unit also heats on its own curve now and then",
+                       dict(C=18.0, H=0.15, g=5.0, lag=1.0, internal=0.2, Hw=0.007),
+                       dict(a=0.9, k=1.0, offset=0.3, follow=0.35, q_min=2.4), t_mean=9.0, sun=0.4, own_curve=0.25),
     "bedroom": Scenario("extra bedroom upstairs (radiators) with a minimum in the evening",
                         dict(C=18.0, H=0.15, g=5.0, lag=1.0, internal=0.2, Hw=0.007),
                         dict(a=0.9, k=1.0, offset=0.3, follow=0.35, q_min=2.4),
@@ -107,6 +127,17 @@ def prices(rnd: random.Random, kind: str, ts: int, day_scale: float) -> float:
         return 0.28
     if kind == "double":
         return 0.24 if (h >= 23 or h < 7 or wd >= 5) else 0.30
+    if kind == "volatile":                   # per day: a windy night and/or a sunny noon, a steep evening
+        d = ts // 86400
+        r = random.Random(d * 7919)
+        night, noon, peak = r.uniform(0.08, 0.24), r.uniform(0.02, 0.26), r.uniform(0.40, 0.70)
+        if 0 <= h < 6:
+            return round(night, 4)
+        if 11 <= h < 15:
+            return round(noon, 4)
+        if 17 <= h < 21:
+            return round(peak, 4)
+        return round(0.27 * day_scale, 4)
     shape = {0: 0.24, 1: 0.23, 2: 0.22, 3: 0.22, 4: 0.23, 5: 0.25, 6: 0.30, 7: 0.36, 8: 0.35, 9: 0.30, 10: 0.26, 11: 0.23,
              12: 0.22, 13: 0.22, 14: 0.24, 15: 0.27, 16: 0.32, 17: 0.42, 18: 0.46, 19: 0.44, 20: 0.38, 21: 0.33, 22: 0.29, 23: 0.26}[h]
     return round(shape * day_scale, 4)
@@ -145,6 +176,8 @@ def history(sc: Scenario, rnd: random.Random):
         hin = planner.HourIn(t_out=t, wind=wind, rad=rad, p_grid=0.3, p_own=0.3, hour=h, extra_kw=internal(rnd, h) - house.internal * 0)
         T1, E1, _c, e, q, _p = sim.hour(T, E, sp, hin, w)
         w = sim.w_end
+        if sc.own_curve and T > sp + 0.5 and rnd.random() < sc.own_curve:
+            E1, q, e = E1 + 3.0, q + 3.0, e + 0.75     # the unit's own heating curve: heat the thermostat did not ask for
         reading = (T + T1) / 2 + hp.th_diff
         rows.append(model.HourRow(ts=ts, T=(T + T1) / 2 + rnd.gauss(0, 0.03), T_out=t, Q=q, rad=rad, wind=wind, E=e,
                                   T_out_sensor=t + 1.0, heating_s=3600.0 if q > 0.3 else 0.0, sp=sp, T_th=reading,
@@ -161,6 +194,8 @@ def learn(sc: Scenario, rows):
     pump0 = heatpump.HeatPumpModel.for_profile("p80")
     pump, _ = heatpump.learn(rows, pump0)
     pump, note = response.learn(rows, house, pump)
+    for k, f in sc.pump_bias.items():
+        setattr(pump, k, getattr(pump, k) * f)
     return house, pump, res.reason, note
 
 

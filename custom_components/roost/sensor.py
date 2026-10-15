@@ -17,7 +17,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RoostConfigEntry, async_
     m = entry.runtime_data
     async_add_entities([SetpointSensor(m), SavingNext24hSensor(m), SavingYesterdaySensor(m), SavingMonthSensor(m),
                         CostTodaySensor(m), EnergyTodaySensor(m), EnergyValueSensor(m), HouseModelSensor(m), HeatPumpModelSensor(m),
-                        ImportSensor(m), PlanAccuracySensor(m)])
+                        ImportSensor(m), ImportProgressSensor(m), PlanAccuracySensor(m)])
 
 
 def _cur(hass) -> str:
@@ -306,4 +306,29 @@ class ImportSensor(RoostEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self):
-        return dict(self.mgr.import_info)
+        done, total, end = self.mgr.import_progress()
+        return {**self.mgr.import_info, "progress": f"{done}/{total}" if total else None,
+                "expected_done": end.isoformat(timespec="minutes") if end else None}
+
+
+class ImportProgressSensor(RoostEntity, SensorEntity):
+    """How far the Weheat import is (% of the months; the expected end in the attributes)."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:progress-download"
+    _attr_native_unit_of_measurement = "%"
+
+    def __init__(self, mgr) -> None:
+        super().__init__(mgr, "import_progress")
+
+    @property
+    def native_value(self):
+        done, total, _end = self.mgr.import_progress()
+        if self.mgr.import_info.get("done"):
+            return 100
+        return round(100 * done / total) if total else None
+
+    @property
+    def extra_state_attributes(self):
+        done, total, end = self.mgr.import_progress()
+        return {"months_done": done, "months": total, "expected_done": end.isoformat(timespec="minutes") if end else None}

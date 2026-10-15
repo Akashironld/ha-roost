@@ -135,6 +135,44 @@ def test_self_check_and_readiness():
     assert "heat" in check.readiness(bad, True)[1]
 
 
+def test_self_check_falls_back_to_the_last_week_with_heating():
+    """After the import in a mild autumn (or summer) the last week has too little heating: check the newest week
+    that had enough, so Roost can tell right away whether it is ready."""
+    hp = heatpump.HeatPumpModel(a=0.9, k=1.0, offset=0.3, follow=0.35, resp_source="learned")
+    rows = simulate(hp, days=20)
+    mild = [model.HourRow(**{**r.__dict__, "ts": r.ts + 20 * 86400, "Q": 0.0, "E": 0.0, "heating_s": 0.0}) for r in rows[-10 * 24:]]
+    chk = check.self_check(rows + mild, HOUSE, hp)
+    assert chk.get("window_end") and chk["window_end"] <= rows[-1].ts, chk
+    assert chk["heating_hours"] >= check.READY_HEATING_HOURS and chk["heating_per_day"] == 0, chk
+    assert "rmse_6h" in chk and "heat_ratio" in chk
+    assert not check.self_check(rows, HOUSE, hp).get("window_end")          # enough heating lately: the last week
+
+
+def test_heating_without_the_thermostat_is_left_out():
+    """A unit that also runs on its own heating curve heats with the room well above the setpoint: those hours are not
+    the thermostat's doing, so the response and the self-check leave them out; ordinary hours are never flagged."""
+    hp = true_pump()
+    rows = simulate(hp, days=20)
+    assert not model.unfollowed(rows, HOUSE, hp)
+    warm = [model.HourRow(**{**r.__dict__, "T": r.sp + 5.0, "T_th": r.sp + 5.0 + hp.th_diff, "Q": 3.0})
+            if r.ts // 86400 == rows[-1].ts // 86400 else r for r in rows]
+    flagged = model.unfollowed(warm, HOUSE, hp)
+    assert len(flagged) >= 12, len(flagged)
+    chk = check.self_check(warm, HOUSE, hp)
+    assert chk["unfollowed_hours"] == len(flagged) and chk.get("heat_ratio") and abs(chk["heat_ratio"] - 1) < 0.3, chk
+
+
+def test_expected_ready():
+    now, night = 1_000_000.0, 1_050_000.0
+    assert check.eta([], {}, {}, now, night) == ("ready", None)
+    assert check.eta(["following", "temperature"], {}, {}, now, night) == ("following", None)
+    code, ts = check.eta(["temperature"], {}, {"status": "importing", "months": 12, "months_done": 2}, now, night)
+    assert code == "import" and ts == now + 10 * check.ETA_MONTH_S + check.ETA_LEARN_S
+    assert check.eta(["heating_hours"], {"heating_hours": 10, "heating_per_day": 0.3}, {}, now, night) == ("heating_season", None)
+    assert check.eta(["heating_hours"], {"heating_hours": 10, "heating_per_day": 8}, {}, now, night) == ("heating", night + 2 * 86400)
+    assert check.eta(["temperature", "heat"], {}, {}, now, night) == ("check", night)
+
+
 def test_correction_from_the_last_hours():
     hp = heatpump.HeatPumpModel()
     sim = planner.Simulator(HOUSE, hp, planner.Settings())

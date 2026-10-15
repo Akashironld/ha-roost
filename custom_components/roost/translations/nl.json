@@ -1,4 +1,7 @@
 {
+  "application_credentials": {
+    "description": "De eigen Weheat-login van Roost gebruikt dezelfde Client ID en Client Secret als de [Weheat-integratie]({more_info_url}): ze staan in de kennisbank van Weheat."
+  },
   "config": {
     "step": {
       "user": {
@@ -130,6 +133,16 @@
             }
           }
         }
+      },
+      "reconfigure": {
+        "title": "Weheat-login",
+        "description": "Hoe Roost de historie uit Weheat leest (alleen lezen). **Via de Weheat-integratie** gebruikt diens login: niets in te stellen, maar soms wacht Roost een minuut of twee terwijl de Weheat-integratie die ververst. **Eigen login van Roost** houdt een eigen login bij: je logt nog één keer in bij Weheat, met dezelfde Client ID en Client Secret als de Weheat-integratie (die staan in de kennisbank van Weheat; Home Assistant vraagt ze de eerste keer).",
+        "data": {
+          "weheat_auth": "Weheat-login"
+        }
+      },
+      "pick_implementation": {
+        "title": "Kies de login"
       }
     },
     "error": {
@@ -142,7 +155,18 @@
       "price_needed": "Kies een prijssensor, of kies een vaste prijs."
     },
     "abort": {
-      "already_configured": "Deze warmtepomp is al ingesteld."
+      "already_configured": "Deze warmtepomp is al ingesteld.",
+      "reconfigure_successful": "De Weheat-login is ingesteld.",
+      "wrong_account": "Dit Weheat-account ziet deze warmtepomp niet. Log in met het account van de warmtepomp.",
+      "oauth_failed": "Inloggen bij Weheat lukte niet. Probeer het opnieuw.",
+      "oauth_error": "Weheat gaf iets terug dat Roost niet kon lezen. Probeer het opnieuw.",
+      "oauth_timeout": "Weheat antwoordde niet op tijd. Probeer het opnieuw.",
+      "oauth_unauthorized": "Weheat weigerde de login (Client ID of Secret onjuist?).",
+      "missing_credentials": "Voeg eerst de Client ID en Client Secret toe (ze staan in de kennisbank van Weheat).",
+      "missing_configuration": "De login is niet ingesteld: voeg eerst applicatiegegevens voor Roost toe.",
+      "authorize_url_timeout": "Het maken van de Weheat-loginlink duurde te lang.",
+      "no_url_available": "Er is geen URL van deze Home Assistant bekend om na het inloggen naar terug te keren (Instellingen → Systeem → Netwerk).",
+      "user_rejected_authorize": "De login is in Weheat niet toegestaan."
     }
   },
   "options": {
@@ -160,7 +184,7 @@
       },
       "mode": {
         "title": "Modus",
-        "description": "**Klaar om te sturen: {verdict}**\n\n{plan_ok} Planfout 6 uur vooruit: {plan_error} °C (nodig: 0,5 of minder)\n{hours_ok} Stookuren in de laatste week: {hours} (nodig: 30)\n{heat_ok} Warmte voorspeld ÷ gemeten: {heat} (nodig: 0,7–1,3)\n{follows} De warmtepomp volgt de thermostaat\n{lever} Het setpoint stuurt de warmtepomp\n\nDe zelfcontrole draait elke nacht om 03:30. **Meekijken**: Roost plant en laat zien, raakt de thermostaat niet aan. **Actief**: Roost stuurt de thermostaat. **Uit**: niets.",
+        "description": "**Klaar om te sturen: {verdict}**\nVerwacht: {eta}\n\n{plan_ok} Planfout 6 uur vooruit: {plan_error} °C (nodig: 0,5 of minder)\n{hours_ok} Stookuren in de gecontroleerde week: {hours} (nodig: 30)\n{heat_ok} Warmte voorspeld ÷ gemeten: {heat} (nodig: 0,7–1,3)\n{follows} De warmtepomp volgt de thermostaat\n{lever} Het setpoint stuurt de warmtepomp\n\nDe zelfcontrole draait elke nacht om 03:30. **Meekijken**: Roost plant en laat zien, raakt de thermostaat niet aan. **Actief**: Roost stuurt de thermostaat. **Uit**: niets.",
         "data": {
           "mode": "Modus"
         }
@@ -336,6 +360,9 @@
           "no_heat_pump": "Geen Weheat-warmtepomp gevonden"
         }
       },
+      "import_progress": {
+        "name": "Voortgang Weheat-import"
+      },
       "plan_accuracy": {
         "name": "Plannauwkeurigheid"
       }
@@ -420,6 +447,12 @@
     }
   },
   "selector": {
+    "weheat_auth": {
+      "options": {
+        "integration": "Via de Weheat-integratie (standaard)",
+        "own": "Eigen login van Roost"
+      }
+    },
     "mode": {
       "options": {
         "off": "Uit",

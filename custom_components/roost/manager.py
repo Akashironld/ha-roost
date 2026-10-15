@@ -28,7 +28,7 @@ from .const import (
     CONF_MIN_INTERVAL, CONF_NIGHT_MIN, CONF_PAUSE_HOURS, CONF_PV_FORECAST, CONF_PV_FORECAST_TOMORROW, CONF_PV_POWER,
     CONF_ROOM, CONF_STORE_MAX, CONF_THERMOSTAT, CONF_WEATHER, CONF_WEATHER_SOURCE, DEFAULTS, DOMAIN,
     CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND, CONF_PRICE_MODE,
-    CONF_EMITTER, CONF_SP_MIN, CONF_USE_BAG,
+    CONF_EMITTER, CONF_SP_MIN, CONF_USE_BAG, CONF_WEHEAT_AUTH,
     LEARN_HOUR, LEARN_MINUTE, PLAN_MINUTES, STORAGE_VERSION, TICK_SECONDS, WEATHER_MINUTES, WEHEAT, WEHEAT_IMPORT_DAYS,
 )
 from .reasons import Reason
@@ -126,6 +126,7 @@ class RoostManager:
         # what Roost did and why, for a bug report (diagnostics): thermostat changes, changes by hand, mode, learning,
         # import, repairs, plans that could not be made, errors
         self.events: deque = deque(maxlen=EVENTS_KEPT)
+        self.weheat_last: dict[str, float] = {}       # unix time of the last Weheat call per kind (its limits, over restarts)
         self._last_reason_code: str | None = None
         self.ready: bool = False
         self.ready_missing: list[str] = []
@@ -186,6 +187,7 @@ class RoostManager:
         self.sp_hist = {int(k): v for k, v in (data.get("sp_hist") or {}).items()}
         self.room_models = {k: rooms.RoomModel.from_dict(v) for k, v in (data.get("room_models") or {}).items()}
         self.events.extend(data.get("events") or [])
+        self.weheat_last = data.get("weheat_last") or self._weheat_last_from_events()
         self.event("start", mode=self.mode)
         self.building = data.get("building") if self.conf.get(CONF_USE_BAG) else None
         if self.house.source != "learned":
@@ -262,7 +264,18 @@ class RoostManager:
             "building": self.building,
             "sp_hist": {str(k): v for k, v in self.sp_hist.items() if k > time.time() - SP_HIST_DAYS * 86400},
             "room_models": {k: v.as_dict() for k, v in self.room_models.items() if any(r.id == k for r in self.rooms)},
-            "events": list(self.events)})
+            "weheat_last": self.weheat_last, "events": list(self.events)})
+
+    def _weheat_last_from_events(self) -> dict[str, float]:
+        """The last Weheat call per kind, from the event log (stored by versions before weheat_last was kept)."""
+        last: dict[str, float] = {}
+        for e in self.events:
+            if e.get("kind") == "weheat_call" and e.get("endpoint") in ("logs", "energy"):
+                try:
+                    last[e["endpoint"]] = datetime.fromisoformat(e["t"]).timestamp()
+                except (KeyError, TypeError, ValueError):
+                    pass
+        return last
 
     def _price_seen_recent(self) -> dict[str, dict[str, float]]:
         cut = time.time() - 3 * 86400
@@ -509,6 +522,32 @@ class RoostManager:
         if self.reason.code != self._last_reason_code:
             self._last_reason_code = self.reason.code
             self.event("no_plan", reason=self.reason.code, sources=dict(self.sources))
+
+    def _weheat_login(self) -> tuple[str | None, str | None]:
+        """(Weheat heat pump id, config entry whose login reads the API): Roost's own login when set up (Reconfigure),
+        else the Weheat integration's."""
+        pump, weheat_entry = heat_pump_id(self.hass, self.conf.get(CONF_HEAT_PUMP))
+        if self.entry.data.get(CONF_WEHEAT_AUTH) == "own" and self.entry.data.get("token"):
+            return pump, self.entry.entry_id
+        return pump, weheat_entry
+
+    def ready_eta(self) -> tuple[str, datetime | None]:
+        """What Roost still waits for before it can steer, and when it expects that (local time, or None)."""
+        now = dt_util.now()
+        nxt = now.replace(hour=LEARN_HOUR, minute=LEARN_MINUTE, second=0, microsecond=0)
+        if nxt <= now:
+            nxt += timedelta(days=1)
+        missing = [] if self.ready else (self.ready_missing or ["temperature"])
+        code, ts = check.eta(missing, self.check, self.import_info if self.importing else {}, now.timestamp(), nxt.timestamp())
+        return code, dt_util.as_local(datetime.fromtimestamp(ts, tz=timezone.utc)) if ts else None
+
+    def import_progress(self) -> tuple[int, int, datetime | None]:
+        """A running Weheat import: months in, months in all, expected end (local time)."""
+        i = self.import_info
+        if not self.importing:
+            return i.get("months_done", i.get("months", 0)), i.get("months", 0), None
+        end = check.import_done_at(i, dt_util.now().timestamp())
+        return i.get("months_done", 0), i.get("months", 0), dt_util.as_local(datetime.fromtimestamp(end, tz=timezone.utc))
 
     def house_start(self) -> dict:
         """Starting values for the house model: heat emitter and (opt-in) the building register."""
@@ -886,14 +925,15 @@ class RoostManager:
         meters and states. Skipped quietly when the Weheat login is not available."""
         if not self.import_info.get("done") or not self._weheat_hours or self.importing:
             return
-        pump, weheat_entry = heat_pump_id(self.hass, self.conf.get(CONF_HEAT_PUMP))
+        pump, weheat_entry = self._weheat_login()
         if not pump or not weheat_entry:
             return
         end = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
         start = max(end - timedelta(days=30), datetime.fromtimestamp(max(self._weheat_hours) - 3 * 3600, tz=timezone.utc))
         try:
             logs, energy, calls = await async_fetch_history(self.hass, weheat_entry, pump, start, end,
-                                                            note=lambda **k: self.event("weheat_call", **k))
+                                                            note=lambda **k: self.event("weheat_call", **k),
+                                                            last_calls=self.weheat_last)
             self.event("weheat_refresh", calls=calls, hours=len(logs))
         except Exception as err:  # noqa: BLE001 - learn with what there is
             _LOGGER.debug("Roost: Weheat refresh skipped: %s", err)
@@ -949,7 +989,9 @@ class RoostManager:
                                "rows_with_room_sensor": sum(1 for r in rows if r.room_sensor),
                                "rows_with_thermostat_reading": sum(1 for r in rows if r.T_th is not None),
                                "last_row": datetime.fromtimestamp(max(r.ts for r in rows), tz=timezone.utc).isoformat() if rows else None,
-                               "weheat_hours": sum(1 for r in rows if r.ts in self._weheat_hours)}
+                               "weheat_hours": sum(1 for r in rows if r.ts in self._weheat_hours),
+                               # heating without the thermostat asking (own heating curve?): left out of response and check
+                               "unfollowed_hours": len(model.unfollowed(rows, self.house, self.pump))}
             self._issue("learning_failed", False)
             self.event("learned", house=house.reason, heat_pump=note[:300], plan_error_6h=self.check.get("rmse_6h"),
                        ready=self.ready, rows=len(rows))
@@ -966,7 +1008,7 @@ class RoostManager:
         """Read the heat pump's history from Weheat (read-only), then learn."""
         if self.importing:
             return
-        pump, weheat_entry = heat_pump_id(self.hass, self.conf.get(CONF_HEAT_PUMP))
+        pump, weheat_entry = self._weheat_login()
         if not pump or not weheat_entry:
             self.import_info = {"status": "no Weheat heat pump found"}
             return
@@ -996,7 +1038,7 @@ class RoostManager:
                 self.hass.async_create_background_task(self.async_learn(), f"{DOMAIN} learning after the first month")
         try:
             calls = await async_fetch_months(self.hass, weheat_entry, pump, start, end, on_month,
-                                             lambda **k: self.event("weheat_call", **k))
+                                             lambda **k: self.event("weheat_call", **k), self.weheat_last)
             info = self.import_info
             first = min(self._weheat_hours) if self._weheat_hours else None
             self.event("import", hours=info["hours"], calls=calls, months=info["months_done"])

@@ -5,6 +5,7 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import device_registry as dr
+from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from .conftest import PRICE, THERMOSTAT
@@ -81,3 +82,18 @@ async def test_options_menu_saves_each_part(hass: HomeAssistant, entry) -> None:
     r = await hass.config_entries.options.async_configure(r["flow_id"], {"next_step_id": "comfort"})
     r = await hass.config_entries.options.async_configure(r["flow_id"], {**COMFORT, "comfort": 21.0, "store_max": 23.0})
     assert r["type"] is FlowResultType.CREATE_ENTRY and entry.options["comfort"] == 21.0
+
+
+async def test_reconfigure_weheat_login(hass: HomeAssistant, entry) -> None:
+    """Reconfigure → Weheat login: the Weheat integration's (default), or Roost's own, which needs application
+    credentials first (Home Assistant then offers to add them)."""
+    assert await async_setup_component(hass, "application_credentials", {})
+    r = await entry.start_reconfigure_flow(hass)
+    assert r["type"] is FlowResultType.FORM and r["step_id"] == "reconfigure"
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"weheat_auth": "own"})
+    assert r["type"] is FlowResultType.ABORT and r["reason"] == "missing_credentials"
+    r = await entry.start_reconfigure_flow(hass)
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"weheat_auth": "integration"})
+    assert r["type"] is FlowResultType.ABORT and r["reason"] == "reconfigure_successful"
+    assert entry.data["weheat_auth"] == "integration" and "token" not in entry.data
+    assert entry.data["thermostat"] == THERMOSTAT                       # the rest of the setup is kept

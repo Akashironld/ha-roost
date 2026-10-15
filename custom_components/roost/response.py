@@ -20,7 +20,7 @@ A new response is only taken when it predicts the newest fifth of the windows be
 from __future__ import annotations
 
 from .heatpump import HeatPumpModel
-from .model import WIND_REF, HouseModel, HourRow
+from .model import WIND_REF, HouseModel, HourRow, unfollowed
 
 WINDOW = 6
 MIN_WINDOWS = 100           # usable windows before the response is learned
@@ -45,6 +45,7 @@ def windows(rows: list[HourRow], house: HouseModel, hp: HeatPumpModel) -> list[t
     """Per window: (heat measured in the hour before, [(net loss, setpoint − thermostat reading, hot water share,
     max output, measured heat) per hour]). Oldest first."""
     idx = {r.ts: r for r in rows}
+    unf = unfollowed(rows, house, hp)
     per_day: dict[int, float] = {}
     for r in rows:
         per_day[r.ts // 86400] = per_day.get(r.ts // 86400, 0.0) + r.Q
@@ -54,6 +55,8 @@ def windows(rows: list[HourRow], house: HouseModel, hp: HeatPumpModel) -> list[t
         hrs = [idx.get(t + 3600 * j) for j in range(WINDOW)]
         if before is None or any(r is None or r.sp is None for r in hrs):
             continue
+        if any(t + 3600 * j in unf for j in range(-1, WINDOW)):
+            continue                                   # the unit heated without the thermostat asking
         if per_day.get(t // 86400, 0.0) < HEATING_DAY_KWH:
             continue
         if sum(r.T_out for r in hrs) / WINDOW >= T_OUT_MAX:
@@ -120,6 +123,9 @@ def _params(hp: HeatPumpModel, C: float) -> dict:
 
 def learn(rows: list[HourRow], house: HouseModel, previous: HeatPumpModel) -> tuple[HeatPumpModel, str]:
     m = HeatPumpModel.from_dict(previous.as_dict())
+    if house.data_from:
+        # the house changed (model.learn chose its newest heating days): the response of the old house would mislead
+        rows = [r for r in rows if r.ts >= house.data_from]
     notes = []
     d = th_diff(rows)
     if d is not None:

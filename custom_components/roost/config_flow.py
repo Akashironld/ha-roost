@@ -1,6 +1,7 @@
 """Config flow by subject: heat pump and thermostat, the house, the price, solar and battery, comfort (with the\nregulation folded away), extra rooms as subentries. Likely entities are filled in (detect.py)."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from functools import partial
 from typing import Any
@@ -8,12 +9,14 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import (
-    ConfigEntry, ConfigFlow, ConfigFlowResult, ConfigSubentryFlow, OptionsFlow, SubentryFlowResult,
+    SOURCE_RECONFIGURE, ConfigEntry, ConfigFlowResult, ConfigSubentryFlow, OptionsFlow, SubentryFlowResult,
 )
 from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import section
 from homeassistant.helpers import entity_registry as er, selector
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.config_entry_oauth2_flow import AbstractOAuth2FlowHandler
 
 from .const import (
     CONF_BASELINE_NIGHT, CONF_BATTERY_KW, CONF_BATTERY_KWH, CONF_BATTERY_POWER, CONF_BATTERY_RESERVE, CONF_BATTERY_SOC,
@@ -22,10 +25,13 @@ from .const import (
     CONF_MIN_INTERVAL, CONF_NIGHT_MIN, CONF_PAUSE_HOURS, CONF_PV_FORECAST, CONF_PV_FORECAST_TOMORROW, CONF_PV_POWER,
     CONF_ROOM, CONF_STORE_MAX, CONF_THERMOSTAT, CONF_WEATHER, CONF_WEATHER_SOURCE, DEFAULTS, DOMAIN, GRID_SIGNS, WEATHER_SOURCES,
     WEHEAT, CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND,
-    CONF_EMITTER, CONF_HAS_BATTERY, CONF_HAS_SOLAR, CONF_PRICE_MODE, CONF_SP_MIN, CONF_USE_BAG, EMITTERS, PRICE_MODES,
+    CONF_EMITTER, CONF_HAS_BATTERY, CONF_HAS_SOLAR, CONF_PRICE_MODE, CONF_SP_MIN, CONF_USE_BAG, CONF_WEHEAT_AUTH, EMITTERS, PRICE_MODES,
 )
 from . import comfort, detect
+from .weheat_api import API_URL, heat_pump_id
 from .rooms import KINDS as ROOM_KINDS
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _ent(domain, device_class=None):
@@ -40,6 +46,20 @@ def _num(lo, hi, step, unit=None):
     if unit:
         cfg["unit_of_measurement"] = unit
     return selector.NumberSelector(selector.NumberSelectorConfig(**cfg))
+
+
+async def _sees_pump(hass: HomeAssistant, token: str, pump: str | None) -> bool | None:
+    """Does this Weheat login see the heat pump? None: could not tell (then the login is kept)."""
+    try:
+        async with async_get_clientsession(hass).get(f"{API_URL}/api/v1/heat-pumps", timeout=30,
+                                                     headers={"Authorization": f"Bearer {token}"}) as r:
+            r.raise_for_status()
+            pumps = await r.json()
+    except Exception:  # noqa: BLE001
+        return None
+    if not pump or not isinstance(pumps, list):
+        return None
+    return any(str(p.get("id")) == str(pump) for p in pumps if isinstance(p, dict))
 
 
 def _sel(options, key):
@@ -254,6 +274,46 @@ def room_schema() -> vol.Schema:
     })
 
 
+ETA_TEXT = {
+    "en": {"ready": "now.", "lever": "not yet: the setpoint does not move the heat pump (see the repair notice).",
+           "following": "not yet: first set the heat pump to follow the thermostat (in the Weheat app).",
+           "import": "around {time}, after the Weheat import and the learning that follows, if the self-check then passes.",
+           "heating": "around {time}: it needs more heating hours first.",
+           "heating_season": "when the heating season starts: too little heating now to check the plan.",
+           "check": "maybe at the next self-check, {time}. Until it predicts well enough it learns every night.",
+           "importing": "Weheat import: {done} of {total} months, done around {time}.",
+           "today": "today", "tomorrow": "tomorrow"},
+    "nl": {"ready": "nu.", "lever": "nog niet: het setpoint stuurt de warmtepomp niet (zie de reparatiemelding).",
+           "following": "nog niet: zet de warmtepomp eerst op het volgen van de thermostaat (in de Weheat-app).",
+           "import": "rond {time}, na de Weheat-import en het leren daarna, als de zelfcontrole dan slaagt.",
+           "heating": "rond {time}: er zijn eerst meer stookuren nodig.",
+           "heating_season": "als het stookseizoen begint: nu wordt te weinig gestookt om het plan te controleren.",
+           "check": "mogelijk bij de volgende zelfcontrole, {time}. Tot hij goed genoeg voorspelt leert hij elke nacht bij.",
+           "importing": "Weheat-import: {done} van {total} maanden, klaar rond {time}.",
+           "today": "vandaag", "tomorrow": "morgen"},
+}
+
+
+def _eta_text(hass: HomeAssistant, mgr) -> str:
+    """Expected ready to steer, as a sentence in the user's language."""
+    t = ETA_TEXT["nl" if (hass.config.language or "").startswith("nl") else "en"]
+    if mgr is None:
+        return "—"
+    code, when = mgr.ready_eta()
+    text = t[code] if when is None else t[code].format(time=_when(t, when))
+    if mgr.importing:
+        done, total, end = mgr.import_progress()
+        text += "\n" + t["importing"].format(done=done, total=total, time=_when(t, end) if end else "—")
+    return text
+
+
+def _when(t: dict, when) -> str:
+    from homeassistant.util import dt as dt_util
+    today = dt_util.now().date()
+    day = t["today"] if when.date() == today else t["tomorrow"] if (when.date() - today).days == 1 else when.strftime("%d-%m")
+    return f"{day} {when:%H:%M}"
+
+
 class RoomSubentryFlow(ConfigSubentryFlow):
     """Add or change an extra room the heat pump also heats."""
 
@@ -271,10 +331,41 @@ class RoomSubentryFlow(ConfigSubentryFlow):
         return self.async_show_form(step_id="reconfigure", data_schema=self.add_suggested_values_to_schema(room_schema(), dict(sub.data)))
 
 
-class RoostConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Setup in steps by subject: heat pump and thermostat, the house, the price, solar and battery, comfort."""
+class RoostConfigFlow(AbstractOAuth2FlowHandler, domain=DOMAIN):
+    """Setup in steps by subject: heat pump and thermostat, the house, the price, solar and battery, comfort.
+    Reconfigure: the Weheat login, the Weheat integration's (default) or Roost's own (OAuth, application credentials)."""
 
+    DOMAIN = DOMAIN
     VERSION = 1
+
+    @property
+    def logger(self) -> logging.Logger:
+        return _LOGGER
+
+    @property
+    def extra_authorize_data(self) -> dict[str, str]:
+        return {"scope": "openid offline_access"}
+
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        entry = self._get_reconfigure_entry()
+        if user_input is not None:
+            if user_input[CONF_WEHEAT_AUTH] == "own":
+                return await self.async_step_pick_implementation()
+            data = {k: v for k, v in entry.data.items() if k not in ("token", "auth_implementation")}
+            return self.async_update_reload_and_abort(entry, data={**data, CONF_WEHEAT_AUTH: "integration"})
+        now = "own" if entry.data.get(CONF_WEHEAT_AUTH) == "own" and entry.data.get("token") else "integration"
+        schema = vol.Schema({vol.Required(CONF_WEHEAT_AUTH, default=now): _sel(["integration", "own"], CONF_WEHEAT_AUTH)})
+        return self.async_show_form(step_id="reconfigure", data_schema=schema)
+
+    async def async_oauth_create_entry(self, data: dict) -> ConfigFlowResult:
+        """Roost's own Weheat login came back: check it sees this heat pump, keep it in the entry."""
+        if self.source != SOURCE_RECONFIGURE:
+            return self.async_abort(reason="oauth_failed")
+        entry = self._get_reconfigure_entry()
+        pump, _ = heat_pump_id(self.hass, entry.data.get(CONF_HEAT_PUMP))
+        if await _sees_pump(self.hass, data["token"]["access_token"], pump) is False:
+            return self.async_abort(reason="wrong_account")
+        return self.async_update_reload_and_abort(entry, data_updates={**data, CONF_WEHEAT_AUTH: "own"})
 
     @classmethod
     @callback
@@ -282,6 +373,7 @@ class RoostConfigFlow(ConfigFlow, domain=DOMAIN):
         return {"room": RoomSubentryFlow}
 
     def __init__(self) -> None:
+        super().__init__()
         self._data: dict[str, Any] = {}
 
     def _form(self, step_id: str, schema: vol.Schema, values: dict, errors: dict | None = None) -> ConfigFlowResult:
@@ -405,7 +497,7 @@ class RoostOptionsFlow(OptionsFlow):
               "hours": str(c.get("heating_hours", 0)), "hours_ok": no if "heating_hours" in missing else ok,
               "heat": f"{c['heat_ratio']:.2f}" if c.get("heat_ratio") is not None else "—", "heat_ok": no if "heat" in missing else ok,
               "follows": no if "following" in missing else ok, "lever": no if "lever" in missing else ok,
-              "verdict": ok if mgr and mgr.ready else no}
+              "verdict": ok if mgr and mgr.ready else no, "eta": _eta_text(self.hass, mgr)}
         schema = vol.Schema({vol.Required("mode", default=mgr.mode if mgr else "shadow"): _sel(["off", "shadow", "active"], "mode")})
         return self.async_show_form(step_id="mode", data_schema=schema, description_placeholders=ph)
 

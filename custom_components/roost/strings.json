@@ -1,4 +1,7 @@
 {
+  "application_credentials": {
+    "description": "Roost's own Weheat login uses the same Client ID and Client Secret as the [Weheat integration]({more_info_url}): Weheat's knowledge base gives them."
+  },
   "config": {
     "step": {
       "user": {
@@ -130,6 +133,16 @@
             }
           }
         }
+      },
+      "reconfigure": {
+        "title": "Weheat login",
+        "description": "How Roost reads the history from Weheat (read-only). **Through the Weheat integration** uses its login: nothing to set up, but now and then Roost waits a minute or two while the Weheat integration refreshes it. **Roost's own login** keeps its own: you log in to Weheat once more, with the same Client ID and Client Secret as the Weheat integration (Weheat's knowledge base gives them; Home Assistant asks for them the first time).",
+        "data": {
+          "weheat_auth": "Weheat login"
+        }
+      },
+      "pick_implementation": {
+        "title": "Pick the login"
       }
     },
     "error": {
@@ -142,7 +155,18 @@
       "price_needed": "Choose a price sensor, or choose a fixed price."
     },
     "abort": {
-      "already_configured": "This heat pump is already set up."
+      "already_configured": "This heat pump is already set up.",
+      "reconfigure_successful": "The Weheat login is set.",
+      "wrong_account": "This Weheat account does not see this heat pump. Log in with the account of the heat pump.",
+      "oauth_failed": "The Weheat login did not work. Try again.",
+      "oauth_error": "Weheat returned something Roost could not read. Try again.",
+      "oauth_timeout": "Weheat did not answer in time. Try again.",
+      "oauth_unauthorized": "Weheat refused the login (Client ID or Secret wrong?).",
+      "missing_credentials": "First add the Client ID and Client Secret (Weheat's knowledge base gives them).",
+      "missing_configuration": "The login is not configured: add application credentials for Roost first.",
+      "authorize_url_timeout": "Timed out creating the Weheat login link.",
+      "no_url_available": "No URL of this Home Assistant is known to return to after logging in (Settings → System → Network).",
+      "user_rejected_authorize": "The login was not allowed in Weheat."
     }
   },
   "options": {
@@ -160,7 +184,7 @@
       },
       "mode": {
         "title": "Mode",
-        "description": "**Ready to steer: {verdict}**\n\n{plan_ok} Plan error 6 h ahead: {plan_error} °C (needs 0.5 or less)\n{hours_ok} Heating hours in the last week: {hours} (needs 30)\n{heat_ok} Heat predicted ÷ measured: {heat} (needs 0.7–1.3)\n{follows} The heat pump follows the thermostat\n{lever} The setpoint moves the heat pump\n\nThe self-check runs every night at 03:30. **Shadow**: Roost plans and shows, never touches the thermostat. **Active**: Roost steers the thermostat. **Off**: nothing.",
+        "description": "**Ready to steer: {verdict}**\nExpected: {eta}\n\n{plan_ok} Plan error 6 h ahead: {plan_error} °C (needs 0.5 or less)\n{hours_ok} Heating hours in the week checked: {hours} (needs 30)\n{heat_ok} Heat predicted ÷ measured: {heat} (needs 0.7–1.3)\n{follows} The heat pump follows the thermostat\n{lever} The setpoint moves the heat pump\n\nThe self-check runs every night at 03:30. **Shadow**: Roost plans and shows, never touches the thermostat. **Active**: Roost steers the thermostat. **Off**: nothing.",
         "data": {
           "mode": "Mode"
         }
@@ -336,6 +360,9 @@
           "no_heat_pump": "No Weheat heat pump found"
         }
       },
+      "import_progress": {
+        "name": "Weheat import progress"
+      },
       "plan_accuracy": {
         "name": "Plan accuracy"
       }
@@ -420,6 +447,12 @@
     }
   },
   "selector": {
+    "weheat_auth": {
+      "options": {
+        "integration": "Through the Weheat integration (default)",
+        "own": "Roost's own login"
+      }
+    },
     "mode": {
       "options": {
         "off": "Off",

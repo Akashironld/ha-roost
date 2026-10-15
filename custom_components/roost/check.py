@@ -12,8 +12,12 @@ takes over what lasts.
 """
 from __future__ import annotations
 
+from bisect import bisect_right
+from datetime import datetime
+from math import ceil
+
 from .heatpump import HeatPumpModel
-from .model import HouseModel, HourRow
+from .model import HouseModel, HourRow, unfollowed
 from .planner import HourIn, Settings, Simulator
 
 HORIZONS = (1, 6, 24)
@@ -28,25 +32,54 @@ CORR_HOURS = 8             # residuals of the last hours
 CORR_HALF_LIFE = 3.0       # hours: weight of older residuals
 CORR_FADE = 6.0            # hours: half-life of the correction in the plan
 CORR_MAX = 1.0             # kW
+# when ready
+ETA_MONTH_S = 1800         # one month of history from Weheat: its energy logs may be read once every half hour
+ETA_LEARN_S = 900          # learning and the self-check after the import
 
 
 def _hourin(r: HourRow) -> HourIn:
     return HourIn(t_out=r.T_out, wind=r.wind, rad=r.rad, p_grid=0.0, p_own=0.0, dhw=min(1.0, r.dhw_s / 3600), hour=r.hour)
 
 
+def check_end(rows: list[HourRow], house: HouseModel, hp: HeatPumpModel, days: int = CHECK_DAYS, back: int = 365) -> int | None:
+    """End of the window to check: the last hour, or, when the last days had too little heating (summer, or just after
+    the import), the end of the newest window of `days` days that had enough (with the setpoint known)."""
+    unf = unfollowed(rows, house, hp)
+    heat = sorted(r.ts for r in rows if r.Q > 0.3 and r.sp is not None and r.ts not in unf)
+    if not heat:
+        return None
+    last = max(r.ts for r in rows)
+    span = days * 86400
+    if len(heat) - bisect_right(heat, last - span) >= READY_HEATING_HOURS:
+        return last
+    for i in range(len(heat) - 1, -1, -1):           # windows ending at a heating hour, newest first
+        end = heat[i]
+        if end < last - back * 86400:
+            break
+        if i + 1 - bisect_right(heat, end - span) >= READY_HEATING_HOURS:
+            return end
+    return None
+
+
 def self_check(rows: list[HourRow], house: HouseModel, hp: HeatPumpModel, days: int = CHECK_DAYS) -> dict:
-    idx = {r.ts: r for r in rows}
+    idx = idx_all = {r.ts: r for r in rows}
     if not idx:
         return {"hours": 0}
+    unf = unfollowed(rows, house, hp)
     last = max(idx)
+    end = check_end(rows, house, hp, days)
+    older = end is not None and end < last - 86400
+    if older:
+        last = end
+        idx = {t: r for t, r in idx.items() if t <= end + 24 * 3600}     # the 24-hour horizon may run past the end
     first = last - days * 86400
     keep = max(0.0, house.lag) / (1 + max(0.0, house.lag))
     sim = Simulator(house, hp, Settings())
     err: dict[int, list[float]] = {h: [] for h in HORIZONS}
     heat_p = heat_m = elec_p = elec_m = 0.0
-    for t in sorted(x for x in idx if x >= first):
+    for t in sorted(x for x in idx if first <= x <= last):
         r0, prev = idx[t], idx.get(t - 3600)
-        if prev is None or r0.sp is None:
+        if prev is None or r0.sp is None or t in unf:
             continue
         E = 0.0                                   # storage at the start, from the heat of the hours before
         if any(t - 3600 * k not in idx for k in range(1, WARMUP + 1)):
@@ -58,8 +91,8 @@ def self_check(rows: list[HourRow], house: HouseModel, hp: HeatPumpModel, days: 
         hq = he = mq = me = 0.0
         for k in range(max(HORIZONS)):
             r = idx.get(t + 3600 * k)
-            if r is None or r.sp is None:
-                break
+            if r is None or r.sp is None or r.ts in unf:
+                break                             # an hour the unit heated without the thermostat: not the model's
             T, E, _c, e, q, _p = sim.hour(T, E, r.sp, _hourin(r), w)
             w = sim.w_end
             hq, he, mq, me = hq + q, he + e, mq + r.Q, me + r.E
@@ -69,8 +102,13 @@ def self_check(rows: list[HourRow], house: HouseModel, hp: HeatPumpModel, days: 
                 err[k + 1].append(T - measured)
             if k + 1 == max(HORIZONS):
                 heat_p, heat_m, elec_p, elec_m = heat_p + hq, heat_m + mq, elec_p + he, elec_m + me
-    out: dict = {"hours": len(err[1]), "heating_hours": sum(1 for x in idx.values() if x.ts >= first and x.Q > 0.3),
-                 "days": days}
+    out: dict = {"hours": len(err[1]), "days": days,
+                 "heating_hours": sum(1 for x in idx.values() if first <= x.ts <= last and x.Q > 0.3 and x.ts not in unf),
+                 "unfollowed_hours": sum(1 for t in unf if first <= t <= last)}
+    if older:
+        out["window_end"] = last          # the last days had too little heating: an older week was checked
+    newest = max(idx_all)
+    out["heating_per_day"] = round(sum(1 for t, x in idx_all.items() if t > newest - 3 * 86400 and x.Q > 0.3 and t not in unf) / 3, 1)
     for h, xs in err.items():
         if xs:
             out[f"rmse_{h}h"] = round((sum(x * x for x in xs) / len(xs)) ** 0.5, 3)
@@ -97,6 +135,38 @@ def readiness(chk: dict, following: bool | None, lever: bool = True) -> tuple[bo
     if following is False:
         missing.append("following")
     return not missing, missing
+
+
+def import_done_at(imp: dict, now: float) -> float:
+    """When a running import is expected to finish: a month per half hour after the last month that came in."""
+    left = max(0, imp.get("months", 0) - imp.get("months_done", 0))
+    try:
+        since = datetime.fromisoformat(imp["at"]).timestamp() if imp.get("at") else now
+    except (TypeError, ValueError):
+        since = now
+    return max(now, since + left * ETA_MONTH_S)
+
+
+def eta(missing: list[str], chk: dict, imp: dict, now: float, next_check: float) -> tuple[str, float | None]:
+    """When Roost expects to be ready to steer -> (what it waits for, unix time or None). Codes: ready; lever and
+    following (a setting of the heat pump, no time); import (after the Weheat import and the learning that follows);
+    heating (more heating hours, the nightly check after them); heating_season (no heating now); check (the next
+    nightly self-check, which may pass or not)."""
+    if not missing:
+        return "ready", None
+    if "lever" in missing:
+        return "lever", None
+    if "following" in missing:
+        return "following", None
+    if imp.get("status") == "importing":
+        return "import", import_done_at(imp, now) + ETA_LEARN_S
+    if "heating_hours" in missing:
+        per_day = chk.get("heating_per_day", 0.0)
+        if per_day < 1:
+            return "heating_season", None
+        days = ceil(max(0, READY_HEATING_HOURS - chk.get("heating_hours", 0)) / per_day)
+        return "heating", next_check + max(0, days - 1) * 86400
+    return "check", next_check
 
 
 def correction(entries: list[dict], house: HouseModel, hp: HeatPumpModel, now_ts: float) -> tuple[float, int]:

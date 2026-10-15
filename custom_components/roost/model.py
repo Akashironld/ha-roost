@@ -75,6 +75,7 @@ class HouseModel:
     sun_facade: float = 180.0             # direction the windows face (degrees from north)
     sun_vertical: float = 0.0             # 0: global radiation; 1: all on that facade
     profile: list[float] | None = None    # 24 extra internal gains (kW) per local hour
+    data_from: int | None = None          # learned from the days after this only (the house changed before it)
 
     def params(self) -> dict:
         return {k: getattr(self, k) for k in PARAMS}
@@ -253,6 +254,34 @@ def fit(idx: dict[int, HourRow], days: list[int], centre: dict, spread: dict = S
     return dict(zip(PARAMS, x))
 
 
+UNFOLLOWED_K = 1.0     # °C beyond what the heat pump's response explains
+
+
+def unfollowed(rows: list[HourRow], house: "HouseModel", hp) -> set[int]:
+    """Hours the heat pump heated without the thermostat asking: the thermostat read over 1 °C more above its
+    setpoint than the learned response explains (it asks for heat with the loss as well: a·loss / k), and the setpoint
+    was not lowered in the 3 hours before (the unit may still be winding down). Seen in spring and autumn when a unit
+    also runs on its own heating curve, or something else drives it. These hours say nothing about how the unit
+    responds to the thermostat: the response and the self-check leave them out."""
+    idx = {r.ts: r for r in rows}
+    a = max(0.0, hp.a if hp.a is not None else 1.0)
+    k = min(2.0, max(0.5, hp.k if hp.k is not None else 1.0))
+    out: set[int] = set()
+    for r in rows:
+        if r.Q <= 0.3 or r.sp is None:
+            continue
+        He = max(0.02, house.H + house.Hw * (r.wind - WIND_REF))
+        loss = He * (r.T - r.T_out) - house.g * r.rad - house.internal_at(r.hour)
+        reading = r.T_th if r.T_th is not None else r.T + (hp.th_diff or 0.0)
+        if reading - r.sp - (hp.offset or 0.0) <= UNFOLLOWED_K + max(0.0, a * loss) / k:
+            continue
+        before = [idx.get(r.ts - 3600 * j) for j in (1, 2, 3)]
+        if any(x is not None and x.sp is not None and x.sp > r.sp + 0.25 for x in before):
+            continue
+        out.add(r.ts)
+    return out
+
+
 def select_days(rows: list[HourRow], recent_days: int = 60, heating_days: int = 120) -> list[int]:
     """Complete days only (≥ 23 hours): all recent days, plus the most recent heating days before them, so a winter
     learned once stays in the model when summer comes."""
@@ -381,7 +410,8 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
                 err = errors(final, idx, test, extra_for(profile)) or err
         m = HouseModel(**{k: round(v, 4) for k, v in final.items()}, error_t=round(err[0], 3),
                        error_balance=round(err[1], 3), days=len(days), heating_days=heating, source="learned",
-                       sun_facade=facade, sun_vertical=vertical, profile=profile)
+                       sun_facade=facade, sun_vertical=vertical, profile=profile,
+                       data_from=min(recent) * 86400 if choice == "recent" else None)
         return LearnResult(m, True, "new model adopted" + (" (from the newest heating days: the house changed)" if choice == "recent" else ""), rounded)
     keep = previous if choice == "previous" else HouseModel(**base)
     keep = HouseModel.from_dict({**keep.as_dict(), "error_t": round(scores[choice][0], 3), "error_balance": round(scores[choice][1], 3)})

@@ -18,6 +18,21 @@
 - The saving shown is against a steady thermostat that is as comfortable as Roost's plan (it could be colder before,
   which made a comfortable plan look expensive)
 - A setup and user guide ([docs/GUIDE.md](docs/GUIDE.md)); the README is now a front page with a quick start
+- When it expects to be ready to steer: after the import, at the next self-check, after more heating, in the heating
+  season — or which setting blocks it. In *Configure → Mode*, the card and the *Ready to steer* sensor
+- How far the Weheat import is: sensor *Weheat import progress* (%), and "3 of 12 months, done around 13:40" in
+  *Configure → Mode* and on the card. The time of the last Weheat call is kept, so a restart during the import still
+  keeps Weheat's limits
+- The self-check uses the newest week with enough heating when the last week had too little (mild weather, right
+  after the import), so Roost can say right away whether it is ready
+- Optional: Roost's own Weheat login (*Reconfigure → Weheat login*), with the same Client ID and Secret as the Weheat
+  integration; Roost keeps and refreshes it itself, so the import never waits for the Weheat integration's login.
+  Default stays the Weheat integration's login
+- Hours the heat pump heated without the thermostat asking (the room well above its setpoint, beyond what the learned
+  response explains — e.g. its own heating curve in spring and autumn) are left out of learning the response and of
+  the self-check, and counted (*unfollowed_hours*)
+- A house that changed (insulated): the heat pump's response is learned from the new house's days only, like the
+  house model (in the simulation it was too cold before: 15–20 °C·h a week below comfort, now ~1)
 
 ## v0.4.1 — setup by subject (unreleased)
 

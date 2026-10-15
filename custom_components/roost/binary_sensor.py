@@ -6,6 +6,7 @@ import time
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import dt as dt_util
 
 from . import RoostConfigEntry
 from .entity import RoostEntity
@@ -54,5 +55,8 @@ class ReadySensor(RoostEntity, BinarySensorEntity):
     @property
     def extra_state_attributes(self):
         c = self.mgr.check
-        return {"still_missing": self.mgr.ready_missing, "plan_error_6h": c.get("rmse_6h"), "heating_hours": c.get("heating_hours"),
+        code, when = self.mgr.ready_eta()
+        return {"waiting_for": code, "expected": when.isoformat(timespec="minutes") if when else None,
+                "checked_week_until": c.get("window_end") and dt_util.utc_from_timestamp(c["window_end"]).isoformat(),
+                "still_missing": self.mgr.ready_missing, "plan_error_6h": c.get("rmse_6h"), "heating_hours": c.get("heating_hours"),
                 "heat_ratio": c.get("heat_ratio"), "checked": c.get("at")}

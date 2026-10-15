@@ -1,6 +1,6 @@
 /* Roost card - served by the roost integration. */
 (() => {   // own scope: safe if the file is loaded twice as a classic script (legacy frontend + a manual resource)
-const CARD_VERSION = "0.5.1";
+const CARD_VERSION = "0.5.2";
 
 // Plain ES2017 on purpose (no ?. / ??), ASCII only (\u escapes): wall tablets often run an older browser.
 const nn = (a, b) => (a === null || a === undefined ? b : a);
@@ -9,7 +9,7 @@ const DEG = "\u00b0C";
 const T = {
   en: { title: "Roost", room: "Room", thermostat: "Thermostat", planned: "Planned", next24: "Next 24 hours",
         setpoint: "setpoint", expected: "room expected", price: "tariff", guessed: "estimated", uses: "plan uses", comfort: "comfort hours", now: "now",
-        night: "night", saving24: "expected saving", month: "this month", yesterday: "yesterday", vs: "vs steady", accuracy: "plan error 6 h", ready: "ready to steer", min: "min", steer: "Let Roost steer", sure: "Sure? Click again",
+        night: "night", saving24: "expected saving", month: "this month", yesterday: "yesterday", vs: "vs steady", accuracy: "plan error 6 h", ready: "ready to steer", min: "min", steer: "Let Roost steer", sure: "Sure? Click again", importing: "Weheat import", months: "months", done_at: "done", eta: { import: "after the import", heating: "after more heating hours", heating_season: "in the heating season", check: "maybe at the next check", lever: "not yet (setpoint has no effect)", following: "not yet (heat pump not following)" },
         active: "ACTIVE", shadow: "SHADOW", off: "OFF", paused: "PAUSED", scrub: "slide over the graph",
         stored: "stored", unavailable: "Not available", pick: "Pick the 'Planned setpoint' sensor of the Roost integration.",
         noplan: "no plan yet", heating: "heat pump heating", e_entity: "Sensor", e_title: "Title", e_language: "Language",
@@ -17,7 +17,7 @@ const T = {
         e_show_footer: "Saving", e_compact: "Compact (e.g. a wall tablet)" },
   nl: { title: "Roost", room: "Kamer", thermostat: "Thermostaat", planned: "Gepland", next24: "Komende 24 uur",
         setpoint: "setpoint", expected: "kamer verwacht", price: "tarief", guessed: "geschat", uses: "rekent met", comfort: "comforturen", now: "nu",
-        night: "nacht", saving24: "verwachte besparing", month: "deze maand", yesterday: "gisteren", vs: "t.o.v. vast", accuracy: "planfout 6 u", ready: "klaar om te sturen", min: "min", steer: "Laat Roost sturen", sure: "Zeker? Klik nogmaals",
+        night: "nacht", saving24: "verwachte besparing", month: "deze maand", yesterday: "gisteren", vs: "t.o.v. vast", accuracy: "planfout 6 u", ready: "klaar om te sturen", min: "min", steer: "Laat Roost sturen", sure: "Zeker? Klik nogmaals", importing: "Weheat-import", months: "maanden", done_at: "klaar", eta: { import: "na de import", heating: "na meer stookuren", heating_season: "in het stookseizoen", check: "mogelijk bij de volgende controle", lever: "nog niet (setpoint werkt niet)", following: "nog niet (warmtepomp volgt niet)" },
         active: "ACTIEF", shadow: "MEEKIJKEN", off: "UIT", paused: "GEPAUZEERD", scrub: "schuif over de grafiek",
         stored: "opgeslagen", unavailable: "Niet beschikbaar", pick: "Kies de sensor 'Gepland setpoint' van de integratie Roost.",
         noplan: "nog geen plan", heating: "warmtepomp stookt", e_entity: "Sensor", e_title: "Titel", e_language: "Taal",
@@ -137,6 +137,10 @@ class RoostCard extends HTMLElement {
       if (e.device_id === me.device_id && e.platform === "roost" && e.translation_key) out[e.translation_key] = eid;
     });
     return out;
+  }
+  _hm(d) {   // a time, with the weekday when it is not today
+    return (d.toDateString() === new Date().toDateString() ? "" : d.toLocaleDateString(this._lang(), { weekday: "short" }) + " ") +
+      d.toLocaleTimeString(this._lang(), { hour: "2-digit", minute: "2-digit" });
   }
   _sib(key) { const s = this._siblings(); const st = s[key] && this._hass.states[s[key]]; return st ? st : null; }
 
@@ -311,6 +315,22 @@ class RoostCard extends HTMLElement {
     if (acc && !isNaN(parseFloat(acc.state))) {
       bits.push(`${this._t("accuracy")} <b>\u00b1${this._num(parseFloat(acc.state), 2)} ${DEG}</b>` +
         (acc.attributes.ready_to_steer && a.mode === "shadow" ? ` \u00b7 <b class="ok">${this._t("ready")}</b>` : ""));
+    }
+    // the Weheat import while it runs: months in and the expected end
+    const imp = this._sib("weheat_import"), prog = this._sib("import_progress");
+    if (imp && imp.state === "importing" && prog) {
+      const pa = prog.attributes, end = pa.expected_done ? new Date(pa.expected_done) : null;
+      bits.push(`${this._t("importing")} <b>${pa.months_done}/${pa.months}</b> ${this._t("months")}` +
+        (end && !isNaN(end) ? `, ${this._t("done_at")} ~${this._hm(end)}` : ""));
+    }
+    // not ready yet, still in shadow: when Roost expects to be (ready sensor, nightly self-check)
+    const ready = this._sib("ready");
+    const code = ready && ready.state !== "on" && a.mode === "shadow" ? ready.attributes.waiting_for : null;
+    const eta = code ? this._t("eta")[code] : null;
+    if (eta) {
+      const when = ready.attributes.expected ? new Date(ready.attributes.expected) : null;
+      const hm = when && !isNaN(when) ? ` ~${this._hm(when)}` : "";
+      bits.push(`${this._t("ready")}: ${eta}${hm}`);
     }
     return bits.length ? `<div class="foot">${bits.join(" \u00b7 ")}</div>` : "";
   }

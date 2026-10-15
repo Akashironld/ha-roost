@@ -29,6 +29,7 @@ CONF_HAS_SOLAR = "has_solar"            # setup: show the solar fields
 CONF_HAS_BATTERY = "has_battery"        # setup: show the home battery fields
 CONF_EMITTER = "emitter"                # floor | radiators | both: starting values and wording
 CONF_USE_BAG = "use_bag"                # opt-in: building data from the Dutch register (PDOK)
+CONF_WEHEAT_AUTH = "weheat_auth"           # "integration" (default) or "own": Roost's own Weheat login
 CONF_PRICE_MODE = "price_mode"          # sensor (dynamic, with a forecast) | fixed (a contract)
 CONF_FIXED_PRICE = "fixed_price"        # per kWh, all in
 CONF_FIXED_LOW_PRICE = "fixed_low_price"  # optional: the low (night/weekend) rate

@@ -204,15 +204,18 @@ In shadow mode Roost plans and shows everything, but never touches the thermosta
 
 1. **Weheat import** — the newest month comes in within a minute and Roost learns from it right away; the older months
    (up to a year) follow one by one in the background, because Weheat asks developers to call the energy logs at most
-   once every half hour: a full year takes about six hours. Sensor *Weheat import* shows *Importing* with the months
-   done, then *Done*. A restart carries on where it was. *Waiting for the Weheat login*: the Weheat integration was
+   once every half hour: a full year takes about six hours. Sensor *Weheat import progress* shows how far it is (%,
+   with the months and the expected end in its details), *Configure → Mode* and the card say "3 of 12 months, done
+   around 13:40"; sensor *Weheat import* turns to *Done* at the end. A restart carries on where it was, and still
+   keeps Weheat's limits. *Waiting for the Weheat login*: the Weheat integration was
    refreshing its login; Roost tries again by itself.
 2. **Learning** — right after the import, and every night at 03:30. Sensor *House model error* shows how well the house
    model predicts a day (°C; below about 0.6 is good). Its details hold what Roost learned (Settings → Devices &
    services → Roost → the sensor → ⋮ → **Details** → *Attributes*): heat loss, storage, floor delay, the facade the sun
    comes in through, and more.
 3. **Self-check** — every night Roost replays the last 7 days with the setpoints that were really on the thermostat
-   and compares with what happened. Sensor *Plan accuracy* = how close it predicts the room 6 hours ahead (°C).
+   and compares with what happened. When the last week had too little heating (mild weather, or right after the
+   import) it checks the newest week from the history that had enough, so it can tell right away. Sensor *Plan accuracy* = how close it predicts the room 6 hours ahead (°C).
 4. **Look at the card** in the morning and the evening: does the plan make sense? Does the expected room temperature
    follow the real one?
 
@@ -223,15 +226,20 @@ is not ready yet. That is normal.
 
 ## 7. Letting Roost steer
 
-Roost tells you itself when it is ready, in three places:
+Roost tells you itself when it is ready, in three places — and before that, **when it expects to be**: right after
+the Weheat import (plus about 15 minutes of learning) when the history is good enough, at the next nightly self-check,
+after more heating hours, or only when the heating season starts. A setting that blocks it (the heat pump does not
+follow the thermostat) is named instead of a time.
 
 - **Settings → Devices & services → Roost → Configure → Mode.** It shows what the nightly self-check says, point by
-  point (✅ or ⏳): the plan error 6 hours ahead (0.5 °C or less needed), heating hours in the last week (30 needed), heat
+  point (✅ or ⏳), with *Expected:* when it thinks it will be ready: the plan error 6 hours ahead (0.5 °C or less needed), heating hours in the last week (30 needed), heat
   predicted against measured, whether the heat pump follows the thermostat and whether the setpoint moves it. Choose
   *Active* and submit — or *Shadow* / *Off* — right there.
-- **The card** shows a green **Let Roost steer** button once it is ready (click twice, so it never happens by accident).
+- **The card** shows when it expects to be ready in its footer, and a green **Let Roost steer** button once it is
+  (click twice, so it never happens by accident).
 - **Settings → Repairs** gets a notice *ready to steer the heat pump*, and the entity *Ready to steer*
-  (`binary_sensor.roost_ready_to_steer`) turns on — handy for a notification on your phone.
+  (`binary_sensor.roost_ready_to_steer`) turns on — handy for a notification on your phone. Its details hold
+  *waiting_for* and *expected*.
 
 You can always switch yourself as well: entity **Roost Mode** (`select.roost_mode`).
 
@@ -304,6 +312,22 @@ it.
 
 Extra rooms are on the integration page (*Add room*, and ⋮ → *Reconfigure* per room).
 
+### The Weheat login (optional)
+
+Roost reads the history from Weheat read-only. By default it uses the **Weheat integration's login**: nothing to set
+up. Now and then it then waits a minute or two while the Weheat integration refreshes that login.
+
+Prefer Roost to keep **its own login**? On the integration page: Roost's ⋮ → **Reconfigure** → *Weheat login* →
+*Roost's own login* → Submit.
+
+1. The first time, Home Assistant asks for *application credentials*: give it a name, and the **same Client ID and
+   Client Secret** as for the Weheat integration (Weheat's knowledge base gives them).
+2. A Weheat page opens: log in with your Weheat account and allow the link.
+3. Back in Home Assistant: *The Weheat login is set.* Roost checks the account sees your heat pump.
+
+Roost then keeps and refreshes that login itself (in its own config entry, like any Home Assistant login). Back to the
+default: *Reconfigure* → *Through the Weheat integration*; Roost then forgets its own login.
+
 ---
 
 ## 11. Entities, services and automations
@@ -318,6 +342,7 @@ Extra rooms are on the integration page (*Add room*, and ⋮ → *Reconfigure* p
 | `sensor.roost_plan_accuracy` | Nightly self-check: the room 6 hours ahead (°C) |
 | `sensor.roost_house_model_error` | How well the house model predicts a day (°C); the learned house in the details |
 | `sensor.roost_weheat_import` | Status of the Weheat history import |
+| `sensor.roost_weheat_import_progress` | How far the import is (%), the expected end in its details |
 | `binary_sensor.roost_paused_changed_by_hand` | On while Roost steps aside after a change by hand |
 | `binary_sensor.roost_heat_pump_follows_the_thermostat` | Off when the heat pump runs on its own heating curve |
 | `binary_sensor.roost_ready_to_steer` | On when the nightly self-check says Roost can steer; what is still missing in its details |
@@ -394,7 +419,8 @@ automation:
 | The room gets too warm in the afternoon | Roost charges the floor | Lower *Warmest while storing heat* (equal to comfort switches it off) |
 | Bedroom upstairs gets cold | Radiators get no water while the heat pump rests | Add the bedroom as an extra room (section [9](#9-extra-rooms-radiators-upstairs-a-bedroom)) |
 | Savings negative | A warm house at the end of the day counts as cost until it is used; in mild weather there is little to save | Look at the month figure, not one day |
-| *Weheat import*: waiting for the Weheat login | The Weheat integration was refreshing its login | Wait; Roost retries. Persistent: re-authenticate the Weheat integration |
+| *Weheat import*: waiting for the Weheat login | The Weheat integration was refreshing its login | Wait; Roost retries. Persistent: re-authenticate the Weheat integration, or give Roost its own login (section [10](#10-all-settings)) |
+| *Configure → Mode* says *Heating hours* ⏳ in autumn | The heat pump heated with the room well above the setpoint: not the thermostat asking (its own heating curve?). Roost leaves those hours out of its checks (*unfollowed_hours* in *Plan accuracy*'s details) | Nothing; if it happens a lot, check the heat pump follows only the thermostat (Weheat app) |
 | *Plan accuracy* high (> 1 °C) | Little heating data yet, or a change in the house (a new window, a stove) | Wait a week; the nightly learning catches up |
 | Roost keeps pausing | Something else changes the thermostat | Turn off the thermostat's schedule / other automations |
 | Names are English in a Dutch Home Assistant | Entity names follow the *system* language | Settings → System → General → Language |

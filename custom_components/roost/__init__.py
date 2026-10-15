@@ -1,6 +1,7 @@
 """Roost: smart heating planner for Weheat heat pumps."""
 from __future__ import annotations
 
+import json
 import logging
 import traceback
 from collections import deque
@@ -144,6 +145,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RoostConfigEntry) -> boo
     entry.runtime_data = manager
     await manager.async_start()
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    manager.conf_key = _conf_key(entry)
     entry.async_on_unload(entry.add_update_listener(_reload))
     return True
 
@@ -170,5 +172,14 @@ async def async_remove_entry(hass: HomeAssistant, entry: RoostConfigEntry) -> No
         ir.async_delete_issue(hass, DOMAIN, issue_id)
 
 
+def _conf_key(entry: RoostConfigEntry) -> str:
+    """The settings, without Roost's own Weheat token (refreshed in the entry now and then: no reason to reload)."""
+    return json.dumps({"data": {k: v for k, v in entry.data.items() if k != "token"}, "options": dict(entry.options),
+                       "rooms": {sid: dict(sub.data) for sid, sub in entry.subentries.items()}}, sort_keys=True, default=str)
+
+
 async def _reload(hass: HomeAssistant, entry: RoostConfigEntry) -> None:
+    mgr = getattr(entry, "runtime_data", None)
+    if mgr is not None and getattr(mgr, "conf_key", None) == _conf_key(entry):
+        return
     await hass.config_entries.async_reload(entry.entry_id)
