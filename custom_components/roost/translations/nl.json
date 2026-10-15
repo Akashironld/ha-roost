@@ -25,11 +25,13 @@
         "data": {
           "room_temperature": "Kamertemperatuursensor (optioneel, beter dan die van de thermostaat)",
           "emitter": "Warmte-afgifte",
-          "use_bag": "Gebouwgegevens uit de BAG (Kadaster)"
+          "use_bag": "Gebouwgegevens uit de BAG (Kadaster)",
+          "window_sensors": "Raam- en deursensoren (optioneel)"
         },
         "data_description": {
           "emitter": "Vloerverwarming houdt veel warmte vast en geeft die langzaam af; radiatoren reageren in minuten en dan is het huis zelf de buffer. Alleen de startwaarden: Roost leert je huis uit de data.",
-          "use_bag": "Alleen Nederland. Stuurt de thuislocatie van Home Assistant één keer naar PDOK (Kadaster) om bouwjaar, woonoppervlak en buitenmuren van je huis op te zoeken: betere startwaarden en alleen de gevelrichtingen die je huis heeft. Roost bewaart geen adres. Uitzetten wist de gegevens."
+          "use_bag": "Alleen Nederland. Stuurt de thuislocatie van Home Assistant één keer naar PDOK (Kadaster) om bouwjaar, woonoppervlak en buitenmuren van je huis op te zoeken: betere startwaarden en alleen de gevelrichtingen die je huis heeft. Roost bewaart geen adres. Uitzetten wist de gegevens.",
+          "window_sensors": "Roost herkent luchten ook aan een snelle daling van de kamertemperatuur; met sensoren weet hij het meteen. Zolang een raam open is wacht Roost en leert hij er niet van."
         }
       },
       "price": {
@@ -214,12 +216,14 @@
           "thermostat": "Thermostaat die de warmtepomp aanstuurt",
           "room_temperature": "Kamertemperatuursensor (optioneel, beter dan die van de thermostaat)",
           "emitter": "Warmte-afgifte",
-          "use_bag": "Gebouwgegevens uit de BAG (Kadaster)"
+          "use_bag": "Gebouwgegevens uit de BAG (Kadaster)",
+          "window_sensors": "Raam- en deursensoren (optioneel)"
         },
         "data_description": {
           "thermostat": "Roost verandert alleen de ingestelde temperatuur van deze thermostaat, zoals jij dat ook doet. De warmtepomp moet de thermostaat volgen (niet zijn eigen stooklijn).",
           "emitter": "Vloerverwarming houdt veel warmte vast en geeft die langzaam af; radiatoren reageren in minuten en dan is het huis zelf de buffer. Alleen de startwaarden: Roost leert je huis uit de data.",
-          "use_bag": "Alleen Nederland. Stuurt de thuislocatie van Home Assistant één keer naar PDOK (Kadaster) om bouwjaar, woonoppervlak en buitenmuren van je huis op te zoeken: betere startwaarden en alleen de gevelrichtingen die je huis heeft. Roost bewaart geen adres. Uitzetten wist de gegevens."
+          "use_bag": "Alleen Nederland. Stuurt de thuislocatie van Home Assistant één keer naar PDOK (Kadaster) om bouwjaar, woonoppervlak en buitenmuren van je huis op te zoeken: betere startwaarden en alleen de gevelrichtingen die je huis heeft. Roost bewaart geen adres. Uitzetten wist de gegevens.",
+          "window_sensors": "Roost herkent luchten ook aan een snelle daling van de kamertemperatuur; met sensoren weet hij het meteen. Zolang een raam open is wacht Roost en leert hij er niet van."
         }
       },
       "price": {

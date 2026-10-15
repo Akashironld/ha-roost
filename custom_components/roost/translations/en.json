@@ -25,11 +25,13 @@
         "data": {
           "room_temperature": "Room temperature sensor (optional, better than the thermostat's)",
           "emitter": "Heat emitters",
-          "use_bag": "Building data from the Dutch building register (BAG)"
+          "use_bag": "Building data from the Dutch building register (BAG)",
+          "window_sensors": "Window and door sensors (optional)"
         },
         "data_description": {
           "emitter": "Floor heating holds a lot of heat and reaches the room slowly; radiators react in minutes and the house itself is the buffer. Only the starting values: Roost learns your house from its data.",
-          "use_bag": "Netherlands only. Sends your Home Assistant home location once to PDOK (Kadaster) to look up the construction year, floor area and outside walls of your house: better starting values and only the facade directions your house has. Roost keeps no address. Turning it off removes the data."
+          "use_bag": "Netherlands only. Sends your Home Assistant home location once to PDOK (Kadaster) to look up the construction year, floor area and outside walls of your house: better starting values and only the facade directions your house has. Roost keeps no address. Turning it off removes the data.",
+          "window_sensors": "Roost also recognises airing by a fast drop of the room temperature; with sensors it knows at once. While a window is open Roost waits and does not learn from it."
         }
       },
       "price": {
@@ -214,12 +216,14 @@
           "thermostat": "Thermostat that drives the heat pump",
           "room_temperature": "Room temperature sensor (optional, better than the thermostat's)",
           "emitter": "Heat emitters",
-          "use_bag": "Building data from the Dutch building register (BAG)"
+          "use_bag": "Building data from the Dutch building register (BAG)",
+          "window_sensors": "Window and door sensors (optional)"
         },
         "data_description": {
           "thermostat": "Roost only changes this thermostat's target temperature, like you would. The heat pump must follow the thermostat (not its own heating curve).",
           "emitter": "Floor heating holds a lot of heat and reaches the room slowly; radiators react in minutes and the house itself is the buffer. Only the starting values: Roost learns your house from its data.",
-          "use_bag": "Netherlands only. Sends your Home Assistant home location once to PDOK (Kadaster) to look up the construction year, floor area and outside walls of your house: better starting values and only the facade directions your house has. Roost keeps no address. Turning it off removes the data."
+          "use_bag": "Netherlands only. Sends your Home Assistant home location once to PDOK (Kadaster) to look up the construction year, floor area and outside walls of your house: better starting values and only the facade directions your house has. Roost keeps no address. Turning it off removes the data.",
+          "window_sensors": "Roost also recognises airing by a fast drop of the room temperature; with sensors it knows at once. While a window is open Roost waits and does not learn from it."
         }
       },
       "price": {

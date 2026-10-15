@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 
 EN = {
     "starting": "starting",
+    "window_open": "window open: Roost waits until the room is back",
     "no_price": "no price",
     "no_room": "no room temperature",
     "no_weather": "no weather forecast and no outdoor temperature",

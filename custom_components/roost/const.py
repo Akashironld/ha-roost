@@ -28,6 +28,7 @@ CONF_IMPORT_ON_SETUP = "import_weheat_history"
 CONF_HAS_SOLAR = "has_solar"            # setup: show the solar fields
 CONF_HAS_BATTERY = "has_battery"        # setup: show the home battery fields
 CONF_EMITTER = "emitter"                # floor | radiators | both: starting values and wording
+CONF_WINDOW_SENSORS = "window_sensors"  # optional: window/door sensors (a window open: Roost waits, does not learn from it)
 CONF_USE_BAG = "use_bag"                # opt-in: building data from the Dutch register (PDOK)
 CONF_WEHEAT_AUTH = "weheat_auth"           # 0.5.2 only (the login choice): kept out of the options, nothing reads it
 CONF_AUTH_FROM = "auth_from"               # Roost's Weheat login: whose app registration ("weheat": the Weheat integration's, or "roost")

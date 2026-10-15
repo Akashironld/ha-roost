@@ -213,6 +213,10 @@ def test_correction_from_the_last_hours():
     for e in entries:
         e.pop("dhw", None)                       # hot water unknown: no correction
     assert check.correction(entries, HOUSE, hp, t0 + 6 * 3600) == (0.0, 0.0, 0)
+    for e in entries:
+        e["dhw"] = 0.0
+        e["window"] = True                       # airing: left out as well
+    assert check.correction(entries, HOUSE, hp, t0 + 6 * 3600) == (0.0, 0.0, 0)
 
 
 def test_a_sunny_afternoon_does_not_warm_the_night():

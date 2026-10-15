@@ -119,6 +119,7 @@ next screen. Nothing else to fill in — see [The Weheat login](#the-weheat-logi
 | Room temperature sensor | A sensor in the room of the thermostat. Roost proposes one in the same area, or in the living room. Leave empty to use the thermostat's own reading |
 | Heat emitters | Floor heating, radiators, or both. Only the starting values; Roost learns your house from its data |
 | Building data from the Dutch building register (BAG) | Netherlands only, off by default. Sends your Home Assistant home location **once** to PDOK (Kadaster) to look up the construction year, floor area and outside walls: better starting values (useful without the Weheat import) and only the facade directions your house really has. No address is kept |
+| Window and door sensors (optional) | Roost recognises airing by itself (the room falling fast); with sensors it knows at once. See *Airing* in section 8 |
 
 ### Screen 3 — Electricity price
 
@@ -312,6 +313,12 @@ Back to shadow or off: `select.roost_mode` → *Shadow* / *Off*. In *Off* Roost 
   yourself; `roost.resume` to come back.
 - **Holidays and visitors** need nothing: the correction from the last hours notices a warmer or colder house within
   hours.
+- **Airing** needs nothing either. When the room falls fast — 0.5 °C within 15 minutes, which no house does by
+  itself — or a window sensor you chose opens, Roost recognises an open window: the card says *window open: Roost
+  waits*, Roost does not touch the thermostat (it would heat the outdoors), and it waits until the room is back (at
+  most three hours). Those hours are left out of what Roost learns from — the correction, the self-check, the heat
+  pump's response and the house model — so airing never looks like a house that suddenly loses more heat. The look
+  back marks it (**W** in the graph, and in the log).
 
 ---
 

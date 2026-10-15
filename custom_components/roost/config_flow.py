@@ -27,7 +27,7 @@ from .const import (
     CONF_ROOM, CONF_STORE_MAX, CONF_THERMOSTAT, CONF_WEATHER, CONF_WEATHER_SOURCE, DEFAULTS, DOMAIN, GRID_SIGNS, WEATHER_SOURCES,
     WEHEAT, CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND,
     CONF_EMITTER, CONF_HAS_BATTERY, CONF_HAS_SOLAR, CONF_PRICE_MODE, CONF_SP_MIN, CONF_USE_BAG, CONF_WEHEAT_AUTH, CONF_AUTH_FROM, EMITTERS, PRICE_MODES,
-    CONF_EPEX_ZONE, CONF_IMPORT_MULT, CONF_IMPORT_ADD, CONF_EXPORT_FORMULA, CONF_EXPORT_MULT, CONF_EXPORT_ADD,
+    CONF_EPEX_ZONE, CONF_WINDOW_SENSORS, CONF_IMPORT_MULT, CONF_IMPORT_ADD, CONF_EXPORT_FORMULA, CONF_EXPORT_MULT, CONF_EXPORT_ADD,
 )
 from . import check, comfort, detect, epex
 from .weheat_api import API_URL, heat_pump_id, weheat_implementation
@@ -99,6 +99,8 @@ def house_schema(with_thermostat: bool) -> vol.Schema:
     s[vol.Optional(CONF_ROOM)] = _ent("sensor", "temperature")
     s[vol.Required(CONF_EMITTER, default=DEFAULTS[CONF_EMITTER])] = _sel(EMITTERS, "emitter")
     s[vol.Required(CONF_USE_BAG, default=DEFAULTS[CONF_USE_BAG])] = selector.BooleanSelector()
+    s[vol.Optional(CONF_WINDOW_SENSORS)] = selector.EntitySelector(selector.EntitySelectorConfig(
+        domain="binary_sensor", device_class=["window", "door", "opening"], multiple=True))
     return vol.Schema(s)
 
 

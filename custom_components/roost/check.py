@@ -229,6 +229,8 @@ def correction(entries: list[dict], house: HouseModel, hp: HeatPumpModel, now_ts
         sp = e.get("sp_t")
         if nxt is None or sp is None or "dhw" not in e:
             continue
+        if e.get("window") or nxt.get("window"):
+            continue                                # airing: not something the model missed
         h = HourIn(t_out=e["t_out"], wind=e.get("wind", 3.5), rad=e.get("rad", 0.0), p_grid=0.0, p_own=0.0, dhw=e["dhw"],
                    hour=e.get("hour", -1))
         w0 = (by_ts.get(e["ts"] - 3600) or {}).get("q")      # heat the hour before: where the output starts

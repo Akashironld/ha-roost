@@ -23,7 +23,7 @@ from homeassistant.helpers.event import async_track_state_change_event, async_tr
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from . import building, check, comfort, control, epex, lookback, heatpump, history, model, planner, response, rooms, series, sun, value, weather as om
+from . import building, check, comfort, control, epex, lookback, window, heatpump, history, model, planner, response, rooms, series, sun, value, weather as om
 from .const import (
     CONF_BASELINE_NIGHT, CONF_BATTERY_KW, CONF_BATTERY_KWH, CONF_BATTERY_POWER, CONF_BATTERY_RESERVE, CONF_BATTERY_SOC,
     CONF_COMFORT, CONF_DAY_FROM, CONF_DAY_MIN, CONF_DAY_TO, CONF_EXPORT_PRICE, CONF_GRID_POWER, CONF_GRID_PREFERENCE,
@@ -31,7 +31,7 @@ from .const import (
     CONF_MIN_INTERVAL, CONF_NIGHT_MIN, CONF_PAUSE_HOURS, CONF_PV_FORECAST, CONF_PV_FORECAST_TOMORROW, CONF_PV_POWER,
     CONF_ROOM, CONF_STORE_MAX, CONF_THERMOSTAT, CONF_WEATHER, CONF_WEATHER_SOURCE, DEFAULTS, DOMAIN,
     CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND, CONF_PRICE_MODE,
-    CONF_EMITTER, CONF_SP_MIN, CONF_USE_BAG, CONF_EPEX_ZONE, CONF_IMPORT_MULT, CONF_IMPORT_ADD, CONF_EXPORT_FORMULA,
+    CONF_EMITTER, CONF_SP_MIN, CONF_USE_BAG, CONF_WINDOW_SENSORS, CONF_EPEX_ZONE, CONF_IMPORT_MULT, CONF_IMPORT_ADD, CONF_EXPORT_FORMULA,
     CONF_EXPORT_MULT, CONF_EXPORT_ADD,
     LEARN_HOUR, LEARN_MINUTE, PLAN_MINUTES, STORAGE_VERSION, TICK_SECONDS, WEATHER_MINUTES, WEHEAT, WEHEAT_IMPORT_DAYS,
 )
@@ -111,6 +111,7 @@ class RoostManager:
         self.saving_days: dict[str, float] = {}     # date -> saving (currency)
         self.day_stats: dict[str, dict] = {}        # date -> the day in numbers (look back, day report)
         self.pred: dict[int, dict] = {}             # hour start -> room predicted for it 6 h and 1 h ahead
+        self.window = window.WindowWatch()          # airing: Roost waits and does not learn from those hours
         self.cost_today = 0.0
         self.kwh_today = 0.0
         self._cost_day: str | None = None
@@ -201,6 +202,7 @@ class RoostManager:
         self.saving_days = data.get("saving_days", {})
         self.day_stats = data.get("day_stats") or {}
         self.pred = {int(k): v for k, v in (data.get("pred") or {}).items()}
+        self.window.hours = set(int(h) for h in (data.get("window_hours") or []))
         self.pv_k = data.get("pv_k")
         self.load_profile = data.get("load_profile")
         self.price_seen = {e: {int(k): v for k, v in d.items()} for e, d in (data.get("price_seen") or {}).items()}
@@ -309,6 +311,7 @@ class RoostManager:
             "storage_e": round(self.storage_e, 3), "learn": self.learn_info, "import": self.import_info,
             "hour_log": self.hour_log[-HOUR_LOG_KEPT:], "saving_days": dict(sorted(self.saving_days.items())[-62:]),
             "day_stats": dict(sorted(self.day_stats.items())[-62:]),
+            "window_hours": sorted(h for h in self.window.hours if h > time.time() - 400 * 86400),
             "pred": {str(k): v for k, v in self.pred.items() if k > time.time() - 7200},
             "pv_k": self.pv_k, "load_profile": self.load_profile, "price_seen": self._price_seen_recent(),
             "check": self.check, "changes": [c for c in self.changes if c["ts"] > time.time() - 30 * 86400],
@@ -709,6 +712,7 @@ class RoostManager:
             await self._async_weather()
             if self.conf.get(CONF_PRICE_MODE) == "epex":
                 await self._async_epex(now)
+            self._watch_window(t)
             self._track_storage(t)
             self._track_hour(t)
             self._count_cost(now)
@@ -772,7 +776,7 @@ class RoostManager:
                               # for looking back: the plan, its reason, what was predicted for this hour, the mode
                               "sp_plan": self.plan.first.sp if self.plan and self.plan.first else None,
                               "reason": self.reason.code, "args": dict(self.reason.args),
-                              "p6": pr.get("p6"), "p1": pr.get("p1"), "mode": self.mode,
+                              "p6": pr.get("p6"), "p1": pr.get("p1"), "mode": self.mode, "window": hour in self.window.hours,
                               "paused": bool(self.mem.pause_until and self.mem.pause_until > time.time())})
         self.hour_log = self.hour_log[-HOUR_LOG_KEPT:]
         self.pred = {k: v for k, v in self.pred.items() if k > hour - 7200}
@@ -804,7 +808,7 @@ class RoostManager:
         """Everything the card's look back needs (websocket roost/history): the hours, the events that explain them,
         the days in numbers."""
         cut = time.time() - days * 86400
-        kinds = {"set", "by_hand", "pause", "resume", "mode", "learned", "set_failed", "login_needed"}
+        kinds = {"set", "by_hand", "pause", "resume", "mode", "learned", "set_failed", "login_needed", "window"}
         return {"hours": [e for e in self.hour_log if e["ts"] >= cut],
                 "events": [e for e in self.events if e.get("kind") in kinds and _iso_ts(e.get("t")) >= cut],
                 "days": dict(sorted(self.day_stats.items())[-62:]),
@@ -869,7 +873,29 @@ class RoostManager:
         finally:
             self._planning = False
 
+    def _windows_open(self) -> bool | None:
+        """The chosen window/door sensors: True when one is open, None when none are chosen (or none report)."""
+        ids = self.conf.get(CONF_WINDOW_SENSORS) or []
+        states = [self._state(e) for e in ids]
+        known = [s.state for s in states if s is not None and s.state in ("on", "off")]
+        return ("on" in known) if known else None
+
+    def _watch_window(self, t: float) -> None:
+        ev = self.window.feed(t, self.room(), self._windows_open())
+        if ev == "open":
+            self.event("window", phase="open", via=self.window.via, before=self.window.before, room=self.room())
+            self._notify()
+        elif ev == "end":
+            self.event("window", phase="end", room=self.room())
+            self.window.prune(t - 400 * 86400)
+            self._notify()
+
     async def _async_control(self, t: float) -> None:
+        if self.window.active():
+            # airing: changing the thermostat now would heat the outdoors; wait until the room is back
+            self.reason = Reason("window_open")
+            self.decision = control.Decision(None, Reason("window_open"), self.thermostat_sp())
+            return
         if self.mode == "off" or self.plan is None or self.plan.first is None:
             self.decision = control.Decision(None, Reason("off") if self.mode == "off" else self.reason, self.thermostat_sp())
             return
@@ -1085,6 +1111,8 @@ class RoostManager:
         try:
             from .learning import async_rows
             rows, extra = await async_rows(self)
+            # airing: those hours look like a house that suddenly loses much more heat; leave them out
+            rows = [r for r in rows if r.ts not in self.window.hours]
             # hours without the setpoint in the Weheat logs (an on/off thermostat): Roost's own record of the thermostat
             rows = [replace(r, sp=self.sp_hist[r.ts][0] if r.sp is None else r.sp,
                             T_th=self.sp_hist[r.ts][1] if r.T_th is None else r.T_th) if r.ts in self.sp_hist else r for r in rows]

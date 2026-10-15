@@ -119,3 +119,13 @@ async def test_look_back_over_the_websocket(hass: HomeAssistant, entry) -> None:
     _ws_history(hass, bad, {"id": 2, "type": "roost/history", "entity_id": "sensor.not_roost", "days": 7})
     await hass.async_block_till_done(wait_background_tasks=True)
     assert bad.error == "not_found" and bad.result is None
+
+
+async def test_a_window_open_leaves_the_thermostat_alone(hass: HomeAssistant, entry, climate_calls) -> None:
+    """Airing: Roost does not change the thermostat (it would heat the outdoors) and says why."""
+    m = entry.runtime_data
+    await m.async_set_mode("active")
+    m.window.open_at = time.time()
+    await m._async_control(time.time())
+    await hass.async_block_till_done()
+    assert not climate_calls and m.decision.why.code == "window_open" and m.reason.code == "window_open"

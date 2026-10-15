@@ -38,6 +38,8 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
   metering or not.
 - **Extra rooms**: radiators upstairs or a bedroom get a minimum in their own hours, so Roost never lets the heat pump
   rest longer than they can take.
+- **Knows when you air the room.** A fast drop of the room temperature (or a window sensor) means a window is open:
+  Roost waits instead of heating the outdoors, and does not learn from it.
 - **Respects you.** At most one change an hour, steps aside for two hours when you change the thermostat, never below
   your minimums or its lowest setting, comfort suggestions instead of changing your settings by itself.
 - **Its own dashboard card** with the plan, the expected room temperature, the tariff per hour and what it saves — and

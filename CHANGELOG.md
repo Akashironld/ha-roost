@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.5.6 — unreleased
+
+**For everyone** — Roost now recognises airing: it waits instead of heating the outdoors, and does not learn from it.
+
+### Improvements
+- **Window open**: a fast drop of the room temperature (0.5 °C within 15 minutes) or a window/door sensor you chose (optional, *Configure → The house*) means a window is open. Roost does not change the thermostat until the room is back (at most three hours), the card says *window open: Roost waits*, and those hours are left out of the correction, the self-check, the heat pump's response and the house model. The look back marks it
+- The hourly log is saved every hour, so a restart, crash or power cut loses at most an hour of the look back
+
+### Fixes
+- The card's address carries a fingerprint of the file, so a browser fetches the card again whenever it changed — also after installing a zip over the same version
+
 ## v0.5.5 — look back
 
 **For everyone** — see what Roost planned beside what happened: a look back in the card, a log of every change and why, a report to keep.

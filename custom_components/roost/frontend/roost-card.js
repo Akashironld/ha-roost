@@ -23,7 +23,7 @@ const T = {
         h_room: "room measured", h_pred6: "room predicted 6 h before", h_heat: "heat kWh", h_pause: "pause",
         h_expected: "expected", h_dev: "deviation", h_room_after: "room", h_set_hand: "by hand, Roost pauses {h} h",
         h_pause_ev: "paused {h} h", h_resume: "resumed", h_mode: "mode", h_learned: "learned the house again",
-        h_period: "Period", h_day: "Day", h_kwh: "kWh", h_cop: "COP", h_deficit: "\u00b0C\u00b7h below" },
+        h_window: "window open", h_window_end: "window closed, room back", h_win_mark: "W", h_period: "Period", h_day: "Day", h_kwh: "kWh", h_cop: "COP", h_deficit: "\u00b0C\u00b7h below" },
   nl: { title: "Roost", room: "Kamer", thermostat: "Thermostaat", planned: "Gepland", next24: "Komende 24 uur",
         setpoint: "setpoint", expected: "kamer verwacht", price: "tarief", guessed: "geschat", uses: "rekent met", comfort: "comforturen", now: "nu",
         night: "nacht", saving24: "verwachte besparing", month: "deze maand", yesterday: "gisteren", vs: "t.o.v. vast", accuracy: "planfout 6 u", ready: "klaar om te sturen", min: "min", steer: "Laat Roost sturen", sure: "Zeker? Klik nogmaals", importing: "Weheat-import", months: "maanden", done_at: "klaar", eta: { import: "na de import", heating: "na meer stookuren", heating_season: "in het stookseizoen", check: "mogelijk bij de volgende controle", lever: "nog niet (setpoint werkt niet)", following: "nog niet (warmtepomp volgt niet)" },
@@ -40,13 +40,13 @@ const T = {
         h_room: "kamer gemeten", h_pred6: "kamer voorspeld 6 u eerder", h_heat: "warmte kWh", h_pause: "pauze",
         h_expected: "verw.", h_dev: "afwijking", h_room_after: "kamer", h_set_hand: "met de hand, Roost pauzeert {h} u",
         h_pause_ev: "gepauzeerd {h} u", h_resume: "hervat", h_mode: "modus", h_learned: "huis opnieuw geleerd",
-        h_period: "Periode", h_day: "Dag", h_kwh: "kWh", h_cop: "COP", h_deficit: "\u00b0C\u00b7u onder" },
+        h_window: "raam open", h_window_end: "raam dicht, kamer terug", h_win_mark: "R", h_period: "Periode", h_day: "Dag", h_kwh: "kWh", h_cop: "COP", h_deficit: "\u00b0C\u00b7u onder" },
 };
 
 // Why Roost plans or does something: the integration sends a code with values (reason_code/_args,
 // decision_code/_args); the card words it. Unknown codes fall back to the English text of the integration.
 const WHY = {
-  en: { starting: "starting", no_price: "no price", no_room: "no room temperature",
+  en: { starting: "starting", window_open: "window open: Roost waits until the room is back", no_price: "no price", no_room: "no room temperature",
         no_weather: "no weather forecast and no outdoor temperature", no_plan: "no plan", off: "Roost is off",
         store_solar: "charging the floor on own solar (up to {sp} \u00b0C)",
         store_cheap: "charging the floor now ({ct} ct) before more expensive hours",
@@ -58,7 +58,7 @@ const WHY = {
         paused: "changed by hand: leaving the thermostat alone for {min} more min",
         already_right: "thermostat already right", wait: "next change allowed in {min} min",
         urgent: "room below the minimum: correcting now", following: "following the plan" },
-  nl: { starting: "opstarten", no_price: "geen prijs", no_room: "geen kamertemperatuur",
+  nl: { starting: "opstarten", window_open: "raam open: Roost wacht tot de kamer terug is", no_price: "geen prijs", no_room: "geen kamertemperatuur",
         no_weather: "geen weersverwachting en geen buitentemperatuur", no_plan: "geen plan", off: "Roost staat uit",
         store_solar: "vloer opladen met eigen zonnestroom (tot {sp} \u00b0C)",
         store_cheap: "vloer opladen ({ct} ct), straks wordt het duurder",
@@ -487,7 +487,7 @@ class RoostCard extends HTMLElement {
     g += `<path d="${step("sp_plan")}" class="hplan"/><path d="${step("sp_t")}" class="sp"/>` +
       `<path d="${line("p6")}" class="hpred"/><path d="${line("T")}" class="hroom"/>`;
     s.events.forEach((e) => {
-      const tag = e.kind === "by_hand" ? "H" : (e.kind === "mode" ? "M" : "");
+      const tag = e.kind === "by_hand" ? "H" : (e.kind === "mode" ? "M" : (e.kind === "window" && e.phase === "open" ? this._t("h_win_mark") : ""));
       if (!tag) return;
       const xx = Math.max(L + 6, Math.min(VW - R - 6, x(e.ts)));
       g += `<circle cx="${xx.toFixed(1)}" cy="${TOP - 5}" r="5.5" class="hmark"/><text x="${xx.toFixed(1)}" y="${TOP - 2}" text-anchor="middle" class="hmt">${tag}</text>`;
@@ -549,6 +549,9 @@ class RoostCard extends HTMLElement {
       }
       else if (e.kind === "by_hand") items.push({ ts: e.ts, what: `\u2192 ${this._num(e.new, 1)}${DEG}`, why: this._t("h_set_hand").replace("{h}", this._num(e.pause_h || 2, 0)), out: "", cls: "", hand: true });
       else if (e.kind === "pause") items.push({ ts: e.ts, what: "", why: this._t("h_pause_ev").replace("{h}", this._num(e.hours, 1)), out: "", cls: "", hand: true });
+      else if (e.kind === "window") items.push({ ts: e.ts, what: "", why: this._t(e.phase === "open" ? "h_window" : "h_window_end") +
+        (e.phase === "open" && e.before !== undefined && e.before !== null && e.room !== null && e.room !== undefined ?
+          ` (${this._num(e.before, 1)} \u2192 ${this._num(e.room, 1)}${DEG})` : ""), out: "", cls: "", hand: e.phase === "open" });
       else if (e.kind === "resume") items.push({ ts: e.ts, what: "", why: this._t("h_resume"), out: "", cls: "" });
       else if (e.kind === "mode") items.push({ ts: e.ts, what: "", why: `${this._t("h_mode")}: ${this._t(e.new) || e.new}`, out: "", cls: "" });
       else if (e.kind === "learned" && String(e.house || "").indexOf("adopted") >= 0) items.push({ ts: e.ts, what: "", why: this._t("h_learned"), out: "", cls: "" });
