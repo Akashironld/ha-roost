@@ -89,7 +89,8 @@ Or by hand:
 1. In Home Assistant open **HACS**.
 2. Top right, click the **⋮** (three dots) → **Custom repositories**.
 3. Paste the address of this repository, choose type **Integration**, click **Add**.
-4. Search HACS for **Roost** and open it → **Download** → confirm.
+4. Search HACS for **Roost** and open it. While Roost is in beta its versions are *pre-releases*, which HACS hides
+   by default: **⋮ → Redownload** → turn on **Show beta versions** → pick the newest version → **Download**.
 5. **Restart Home Assistant** (Settings → System → ⏻ Restart). Roost is not visible before the restart.
 
 ---

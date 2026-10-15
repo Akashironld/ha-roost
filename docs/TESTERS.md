@@ -16,7 +16,8 @@ and what is useful to report. Every screen, setting and the card are in the [set
 With [HACS](https://hacs.xyz):
 
 1. **HACS → ⋮ → Custom repositories**: paste `https://github.com/Akashironld/ha-roost`, type **Integration**, **Add**.
-2. Search HACS for **Roost** → **Download** → restart Home Assistant.
+2. Search HACS for **Roost** and open it. The beta versions are *pre-releases*, which HACS hides by default: **⋮ →
+   Redownload**, turn on **Show beta versions**, pick the newest version → **Download**. Restart Home Assistant.
 3. **Settings → Devices & services → Add integration → Roost**, and go on with section 4 of the
    [guide](GUIDE.md#4-add-the-integration-screen-by-screen).
 4. After the first setup screen Weheat's login page opens: log in with your Weheat account (nothing else to fill in).
@@ -28,8 +29,9 @@ unzip it into `custom_components/roost` in your Home Assistant configuration fol
 
 ## Updates
 
-- HACS offers new versions by itself (*Settings → Updates*). To hear about them on GitHub: on the repository page
-  **Watch → Custom → Releases**.
+- HACS offers new beta versions by itself (*Settings → Updates*) once *Show beta versions* is on for Roost (also the
+  switch *Roost pre-release* on the HACS device). To hear about them on GitHub: on the repository page **Watch →
+  Custom → Releases**.
 - Without HACS: download the new `roost.zip`, **delete the old files** in `custom_components/roost`, unzip the new ones
   there and restart. Your settings and what Roost learned stay (Home Assistant keeps them, not that folder).
 - Updating from 0.5.2: Home Assistant shows *Re-authenticate* at Roost once — click it and log in with your Weheat

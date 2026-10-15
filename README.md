@@ -45,7 +45,8 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
 ## Quick start
 
 1. **HACS**: click the button below (or HACS → ⋮ → *Custom repositories* → add this repository as an
-   *Integration*) → download **Roost** → restart Home Assistant.
+   *Integration*) → open **Roost** → ⋮ → *Redownload* → turn on **Show beta versions** (the beta versions are
+   pre-releases) → download → restart Home Assistant.
 
    [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Akashironld&repository=ha-roost&category=integration)
 2. **Settings → Devices & services → Add integration → Roost**
