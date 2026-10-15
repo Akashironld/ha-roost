@@ -36,8 +36,9 @@ First install: follow [docs/TESTERS.md](docs/TESTERS.md), then the [guide](docs/
 - How far the Weheat import is: sensor *Weheat import progress* (%), and "3 of 12 months, done around 13:40" in
   *Configure → Mode* and on the card. The time of the last Weheat call is kept, so a restart during the import still
   keeps Weheat's limits
-- The self-check uses the newest week with enough heating when the last week had too little (mild weather, right
-  after the import), so Roost can say right away whether it is ready
+- The self-check uses the newest week of the last two months with enough heating when the last week had too little
+  (mild weather, right after the import), so Roost can say right away whether it is ready; a spring week is not
+  used to judge steering in autumn
 - Optional: Roost's own Weheat login (*Reconfigure → Weheat login*), with the same Client ID and Secret as the Weheat
   integration; Roost keeps and refreshes it itself, so the import never waits for the Weheat integration's login.
   Default stays the Weheat integration's login

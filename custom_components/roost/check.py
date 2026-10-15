@@ -22,6 +22,7 @@ from .planner import HourIn, Settings, Simulator
 
 HORIZONS = (1, 6, 24)
 CHECK_DAYS = 7
+CHECK_BACK_DAYS = 60       # an older week with enough heating is checked when the last week had too little
 WARMUP = 6
 # ready to steer
 READY_HEATING_HOURS = 30
@@ -41,9 +42,11 @@ def _hourin(r: HourRow) -> HourIn:
     return HourIn(t_out=r.T_out, wind=r.wind, rad=r.rad, p_grid=0.0, p_own=0.0, dhw=min(1.0, r.dhw_s / 3600), hour=r.hour)
 
 
-def check_end(rows: list[HourRow], house: HouseModel, hp: HeatPumpModel, days: int = CHECK_DAYS, back: int = 365) -> int | None:
-    """End of the window to check: the last hour, or, when the last days had too little heating (summer, or just after
-    the import), the end of the newest window of `days` days that had enough (with the setpoint known)."""
+def check_end(rows: list[HourRow], house: HouseModel, hp: HeatPumpModel, days: int = CHECK_DAYS, back: int = CHECK_BACK_DAYS) -> int | None:
+    """End of the window to check: the last hour, or, when the last days had too little heating (mild weather, or just
+    after the import), the end of the newest window of `days` days in the last `back` days that had enough (with the
+    setpoint known). Not further back: a spring week says little about steering in autumn (the unit may stop heating
+    above an outdoor limit, the sun is different) — then Roost waits for the heating season."""
     unf = unfollowed(rows, house, hp)
     heat = sorted(r.ts for r in rows if r.Q > 0.3 and r.sp is not None and r.ts not in unf)
     if not heat:

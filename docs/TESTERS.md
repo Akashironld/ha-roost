@@ -27,6 +27,9 @@ HACS cannot install from a private repository, so a tester installs by hand. It 
 4. **Restart Home Assistant** (Settings → System → ⏻ Restart).
 5. Go on with section 4 of the [guide](GUIDE.md#4-add-the-integration-screen-by-screen): *Settings → Devices &
    services → Add integration → Roost*.
+6. Roost imports your heat pump's history from Weheat (read-only) through the Weheat integration's login; a year takes
+   a few hours in the background. Optional: give Roost its own login under *Reconfigure → Weheat login*, with the same
+   Client ID and Secret as the Weheat integration, so the import never waits for that integration's login.
 
 ## Updates
 

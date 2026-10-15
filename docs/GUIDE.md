@@ -218,7 +218,8 @@ In shadow mode Roost plans and shows everything, but never touches the thermosta
    comes in through, and more.
 3. **Self-check** — every night Roost replays the last 7 days with the setpoints that were really on the thermostat
    and compares with what happened. When the last week had too little heating (mild weather, or right after the
-   import) it checks the newest week from the history that had enough, so it can tell right away. Sensor *Plan accuracy* = how close it predicts the room 6 hours ahead (°C).
+   import) it checks the newest week of the last two months that had enough, so it can tell right away; with less
+   heating than that it waits for the heating season. Sensor *Plan accuracy* = how close it predicts the room 6 hours ahead (°C).
 4. **Look at the card** in the morning and the evening: does the plan make sense? Does the expected room temperature
    follow the real one?
 

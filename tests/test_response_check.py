@@ -146,6 +146,9 @@ def test_self_check_falls_back_to_the_last_week_with_heating():
     assert chk["heating_hours"] >= check.READY_HEATING_HOURS and chk["heating_per_day"] == 0, chk
     assert "rmse_6h" in chk and "heat_ratio" in chk
     assert not check.self_check(rows, HOUSE, hp).get("window_end")          # enough heating lately: the last week
+    summer = [model.HourRow(**{**r.__dict__, "ts": r.ts + 70 * 86400, "Q": 0.0, "E": 0.0, "heating_s": 0.0}) for r in rows[-24 * 64:]]
+    late = check.self_check(rows + summer, HOUSE, hp)                       # only heating over two months ago: not used
+    assert not late.get("window_end") and late["heating_hours"] == 0, late
 
 
 def test_heating_without_the_thermostat_is_left_out():
