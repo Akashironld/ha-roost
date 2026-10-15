@@ -1,6 +1,7 @@
 """Roost: smart heating planner for Weheat heat pumps."""
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import traceback
@@ -80,7 +81,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         from homeassistant.loader import async_get_integration
         version = str((await async_get_integration(hass, DOMAIN)).version)
         hass.data[DOMAIN]["version"] = version
-    url = f"{CARD_URL}?v={version}"
+    # the version plus a fingerprint of the file: a browser fetches the card again whenever it changed, also within a
+    # version (a test build, a zip installed over the same version)
+    digest = await hass.async_add_executor_job(lambda: hashlib.sha1(card.read_bytes()).hexdigest()[:8])
+    url = f"{CARD_URL}?v={version}-{digest}"
     add_extra_js_url(hass, url, es5=True)             # legacy frontend (older browsers, wall tablets)
     if _resources(hass) is not None:
         # Dashboards managed in the UI: the card only as a dashboard resource (an early start-page module can be
