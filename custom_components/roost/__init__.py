@@ -92,7 +92,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     async def import_history(call: ServiceCall) -> None:
         for m in targets(call):
-            hass.async_create_background_task(m.async_import(int(call.data["days"])), f"{DOMAIN} weheat import")
+            m.spawn(m.async_import(int(call.data["days"])), "weheat import")
 
     hass.services.async_register(DOMAIN, "pause", pause, vol.Schema({vol.Optional("hours", default=2): vol.All(vol.Coerce(float), vol.Range(min=0.25, max=72))}))
     hass.services.async_register(DOMAIN, "resume", resume, vol.Schema({}))

@@ -1,6 +1,7 @@
 """Runtime of one Roost entry: read sources, keep track of stored heat, plan, steer the thermostat, learn."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import traceback
@@ -12,7 +13,9 @@ from typing import Any, Callable
 
 from homeassistant.components.recorder import get_instance, history as rh
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_ENTITY_ID, ATTR_UNIT_OF_MEASUREMENT, STATE_UNAVAILABLE, STATE_UNKNOWN, UnitOfTemperature
+from homeassistant.const import (
+    ATTR_ENTITY_ID, ATTR_UNIT_OF_MEASUREMENT, EVENT_HOMEASSISTANT_STOP, STATE_UNAVAILABLE, STATE_UNKNOWN, UnitOfTemperature,
+)
 from homeassistant.core import Context, Event, HomeAssistant, State, callback
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -126,6 +129,8 @@ class RoostManager:
         # what Roost did and why, for a bug report (diagnostics): thermostat changes, changes by hand, mode, learning,
         # import, repairs, plans that could not be made, errors
         self.events: deque = deque(maxlen=EVENTS_KEPT)
+        self._tasks: set[asyncio.Task] = set()
+        self._stop_unsub: Callable[[], None] | None = None
         self.weheat_last: dict[str, float] = {}       # unix time of the last Weheat call per kind (its limits, over restarts)
         self._last_reason_code: str | None = None
         self.ready: bool = False
@@ -198,7 +203,8 @@ class RoostManager:
         self._unsubs.append(async_track_time_interval(self.hass, self._async_tick, timedelta(seconds=TICK_SECONDS)))
         self._unsubs.append(async_track_time_change(self.hass, self._async_nightly, hour=LEARN_HOUR, minute=LEARN_MINUTE, second=0))
         self._unsubs.append(async_track_state_change_event(self.hass, [self.conf[CONF_THERMOSTAT]], self._on_thermostat))
-        self.hass.async_create_task(self._async_first_run())
+        self._stop_unsub = self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, self._on_ha_stop)
+        self.spawn(self._async_first_run(), "first run", background=False)
 
     async def _async_building(self) -> None:
         """Opt-in: the building register (BAG via PDOK) around the home location, once (again when the home moves).
@@ -231,16 +237,40 @@ class RoostManager:
         await self._async_tick(None, force_plan=True)
         if not self.import_info.get("done") and self.import_info.get("oldest"):
             # an import in months was cut off by a restart: carry on with the older months
-            self.hass.async_create_background_task(self.async_import(WEHEAT_IMPORT_DAYS), f"{DOMAIN} weheat import (resumed)")
+            self.spawn(self.async_import(WEHEAT_IMPORT_DAYS), "weheat import (resumed)")
         elif self.import_info.get("done") and self.import_info.get("fields", 1) < WEHEAT_FIELDS:
             # imported by an older version: read again, now with the setpoint per hour (needed for the response)
-            self.hass.async_create_background_task(self.async_import(WEHEAT_IMPORT_DAYS), f"{DOMAIN} weheat import")
+            self.spawn(self.async_import(WEHEAT_IMPORT_DAYS), "weheat import")
         elif self.conf.get(CONF_IMPORT_ON_SETUP) and not self.import_info.get("done"):
-            self.hass.async_create_background_task(self.async_import(WEHEAT_IMPORT_DAYS), f"{DOMAIN} weheat import")
+            self.spawn(self.async_import(WEHEAT_IMPORT_DAYS), "weheat import")
         elif self.house.source != "learned":
-            self.hass.async_create_background_task(self.async_learn(), f"{DOMAIN} first learning")
+            self.spawn(self.async_learn(), "first learning")
+
+    def spawn(self, coro, name: str, background: bool = True) -> asyncio.Task:
+        """A job of Roost's own (import, learning; background=False: the first run, which startup waits for): tied to
+        the config entry, and cancelled when Roost unloads or Home Assistant stops, so nothing asks the executor for
+        work after it has shut down. The import carries on after a restart from the last month it finished."""
+        task = (self.entry.async_create_background_task(self.hass, coro, f"{DOMAIN} {name}") if background
+                else self.entry.async_create_task(self.hass, coro, f"{DOMAIN} {name}"))
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+        return task
+
+    def _cancel_tasks(self) -> None:
+        for task in list(self._tasks):
+            task.cancel()
+
+    @callback
+    def _on_ha_stop(self, _event) -> None:
+        self._stop_unsub = None                 # fired: nothing to remove any more
+        self._cancel_tasks()
+        self.hass.async_create_task(self.async_save(), f"{DOMAIN} save on stop")   # the last Weheat call times, events
 
     async def async_stop(self) -> None:
+        self._cancel_tasks()
+        if self._stop_unsub is not None:
+            self._stop_unsub()
+            self._stop_unsub = None
         for u in self._unsubs:
             u()
         self._unsubs.clear()
@@ -644,7 +674,7 @@ class RoostManager:
         day = dt_util.as_local(now).date().isoformat()
         if self._cost_day != day:
             if self._cost_day is not None:
-                self.hass.async_create_task(self._async_close_day(self._cost_day))
+                self.spawn(self._async_close_day(self._cost_day), "close the day", background=False)
             self._cost_day, self.cost_today, self.kwh_today = day, 0.0, 0.0
         e = (self._num(self.ent.get("elec")) or 0.0) + (self._num(self.ent.get("elec_defrost")) or 0.0)
         if e and self._last_elec is not None and 0 <= e - self._last_elec < 5:
@@ -1035,7 +1065,7 @@ class RoostManager:
             self._notify()
             if not learned_once:                    # the newest month is in: learn from it now, the rest follows
                 learned_once = True
-                self.hass.async_create_background_task(self.async_learn(), f"{DOMAIN} learning after the first month")
+                self.spawn(self.async_learn(), "learning after the first month")
         try:
             calls = await async_fetch_months(self.hass, weheat_entry, pump, start, end, on_month,
                                              lambda **k: self.event("weheat_call", **k), self.weheat_last)

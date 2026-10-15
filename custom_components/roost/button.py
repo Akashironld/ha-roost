@@ -7,7 +7,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import RoostConfigEntry
-from .const import DOMAIN, WEHEAT_IMPORT_DAYS
+from .const import WEHEAT_IMPORT_DAYS
 from .entity import RoostEntity
 
 
@@ -24,7 +24,7 @@ class LearnButton(RoostEntity, ButtonEntity):
         super().__init__(mgr, "learn_now")
 
     async def async_press(self) -> None:
-        self.hass.async_create_background_task(self.mgr.async_learn(), f"{DOMAIN} learning")
+        self.mgr.spawn(self.mgr.async_learn(), "learning")
 
 
 class ImportButton(RoostEntity, ButtonEntity):
@@ -35,4 +35,4 @@ class ImportButton(RoostEntity, ButtonEntity):
         super().__init__(mgr, "import_history")
 
     async def async_press(self) -> None:
-        self.hass.async_create_background_task(self.mgr.async_import(WEHEAT_IMPORT_DAYS), f"{DOMAIN} weheat import")
+        self.mgr.spawn(self.mgr.async_import(WEHEAT_IMPORT_DAYS), "weheat import")
