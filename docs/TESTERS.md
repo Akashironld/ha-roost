@@ -1,7 +1,7 @@
-# Testing Roost (private beta)
+# Testing Roost (beta)
 
-Thanks for testing Roost! This page is for the handful of people testing it before it is public. Everything else —
-every screen, setting and the card — is in the [setup and user guide](GUIDE.md).
+Thanks for trying Roost while it is in beta! This page is about testing: what to expect, how to install and update,
+and what is useful to report. Every screen, setting and the card are in the [setup and user guide](GUIDE.md).
 
 ## What to expect
 
@@ -10,35 +10,30 @@ every screen, setting and the card — is in the [setup and user guide](GUIDE.md
   *Let Roost steer* button). You can switch back to shadow or off at any time.
 - **It is a beta.** Expect rough edges: odd plans, unclear texts, a setting that does not fit your home. That is what
   this test is for.
-- **The repository is private.** Only the testers and the author see the code, the releases and the issues. Please
-  do not share the files.
 
-## Install (without HACS)
+## Install
 
-HACS cannot install from a private repository, so a tester installs by hand. It takes a few minutes.
+With [HACS](https://hacs.xyz):
 
-1. Open the [Releases](../../releases) of this repository and take the newest one (marked *Pre-release*). Under
-   **Assets**, download **`roost.zip`**.
-2. In your Home Assistant configuration folder (where `configuration.yaml` is — with the *File editor*, *Samba
-   share* or *Studio Code Server* app), open the folder **`custom_components`** (create it if it is not there) and
-   in it create a folder **`roost`**.
-3. Unzip `roost.zip` **into that `roost` folder**, so that `custom_components/roost/manifest.json` exists (not
-   `custom_components/roost/roost/…`).
-4. **Restart Home Assistant** (Settings → System → ⏻ Restart).
-5. Go on with section 4 of the [guide](GUIDE.md#4-add-the-integration-screen-by-screen): *Settings → Devices &
-   services → Add integration → Roost*.
-6. After the first setup screen Weheat's login page opens: log in with your Weheat account (nothing else to fill in).
+1. **HACS → ⋮ → Custom repositories**: paste `https://github.com/Akashironld/ha-roost`, type **Integration**, **Add**.
+2. Search HACS for **Roost** → **Download** → restart Home Assistant.
+3. **Settings → Devices & services → Add integration → Roost**, and go on with section 4 of the
+   [guide](GUIDE.md#4-add-the-integration-screen-by-screen).
+4. After the first setup screen Weheat's login page opens: log in with your Weheat account (nothing else to fill in).
    Roost then imports your heat pump's history from Weheat (read-only); a year takes a few hours in the background.
-   Updating from 0.5.2: Home Assistant shows *Re-authenticate* at Roost once — click it and log in.
+
+Without HACS: download **`roost.zip`** from the newest [release](https://github.com/Akashironld/ha-roost/releases),
+unzip it into `custom_components/roost` in your Home Assistant configuration folder (so that
+`custom_components/roost/manifest.json` exists) and restart.
 
 ## Updates
 
-- To hear about new versions: on the repository page click **Watch → Custom → Releases**. GitHub then emails you
-  when a new version is out.
-- To update: download the new `roost.zip`, **delete the old files** in `custom_components/roost`, unzip the new ones
-  there and restart Home Assistant. Your settings and what Roost learned stay (they are kept by Home Assistant, not in
-  that folder).
-- Once Roost is public you can switch to HACS; the guide will say how.
+- HACS offers new versions by itself (*Settings → Updates*). To hear about them on GitHub: on the repository page
+  **Watch → Custom → Releases**.
+- Without HACS: download the new `roost.zip`, **delete the old files** in `custom_components/roost`, unzip the new ones
+  there and restart. Your settings and what Roost learned stay (Home Assistant keeps them, not that folder).
+- Updating from 0.5.2: Home Assistant shows *Re-authenticate* at Roost once — click it and log in with your Weheat
+  account.
 
 ## What I would like to hear
 
@@ -52,6 +47,6 @@ HACS cannot install from a private repository, so a tester installs by hand. It 
 
 ## Stopping
 
-Remove the integration (*Settings → Devices & services → Roost → ⋮ → Delete*), then delete the folder
-`custom_components/roost` and restart. If Roost was steering, check that your thermostat is back on your usual
-temperature or schedule.
+Remove the integration (*Settings → Devices & services → Roost → ⋮ → Delete*), then remove Roost in HACS (or delete
+the folder `custom_components/roost`) and restart. If Roost was steering, check that your thermostat is back on your
+usual temperature or schedule.

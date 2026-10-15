@@ -1,7 +1,8 @@
 name: Release
 
 # Push a tag like v0.5.2 and this publishes the GitHub release, with the notes from CHANGELOG.md and roost.zip (the
-# integration folder, for installing by hand). Versions below 1.0 are published as a pre-release (beta).
+# integration folder, for installing by hand). Versions like 0.6.0b1 are published as a pre-release; HACS only offers
+# those to who turned on "show beta versions".
 # It refuses when the tag does not match the version in manifest.json or the changelog has no section for it.
 # Run it by hand (Actions → Release → Run workflow) to rewrite the notes and zip of a release, or to publish one whose
 # tag is there but whose release is missing.
@@ -36,7 +37,8 @@ jobs:
           python3 .github/scripts/release_notes.py "${tag}" > notes.md
           echo "title=$(head -n 1 notes.md)" >> "$GITHUB_OUTPUT"
           tail -n +3 notes.md > body.md
-          case "${version}" in 0.*) echo "pre=--prerelease" >> "$GITHUB_OUTPUT" ;; *) echo "pre=--latest" >> "$GITHUB_OUTPUT" ;; esac
+          # a pre-release only for versions like 0.6.0b1 / 1.0.0rc1: HACS hides pre-releases unless "show beta" is on
+          case "${version}" in *[ab]*|*rc*) echo "pre=--prerelease" >> "$GITHUB_OUTPUT" ;; *) echo "pre=--latest" >> "$GITHUB_OUTPUT" ;; esac
       - name: Zip the integration
         run: cd custom_components/roost && zip -r -q "${GITHUB_WORKSPACE}/roost.zip" . -x "__pycache__/*"
       - name: Publish
