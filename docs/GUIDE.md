@@ -209,8 +209,29 @@ Click **Submit**. Roost is set up — in shadow mode — and starts importing an
   **plan error 6 h** from the nightly self-check, with *ready to steer* when Roost thinks it is — and then a
   **Let Roost steer** button (click twice).
 
+### Look back
+
+The switch **Ahead / Look back** in the card's header shows what happened instead of what is planned — in the same
+place, so the card does not grow. Choose **24 h**, **48 h** or **7 d**:
+
+- **Four numbers**: what heating cost (and the saving against the equally comfortable steady thermostat), how well the
+  room was predicted 6 hours ahead, minutes below comfort (and the lowest room), and thermostat changes by Roost and
+  by hand.
+- **The graph**: the thermostat setting (orange) beside what Roost planned (orange, dashed) — where they part someone
+  intervened; the measured room (white) beside what Roost predicted 6 hours earlier (blue, dashed) — the closer, the
+  better the model; per hour the tariff and the heat delivered. **H** marks a change by hand (with the pause behind
+  it), **M** a mode change, a red dot an hour that was 0.5 °C or more off. Slide over the graph for each hour: planned
+  and real setting, room, price, heat and why.
+- **Log** (folded; click to open): every change with its reason, and what happened an hour later against what was
+  expected (✓, or *deviation*).
+- **Report**: a page with the period's numbers, the graph, the log and the days, to keep or share (made in your
+  browser, nothing is sent anywhere).
+
+Roost keeps a week of hours and 60 days of day numbers for this; the history starts when you install 0.5.5.
+
 Options (also in the visual editor): `compact: true` (header and tiles only, for a wall tablet), `show_tiles`,
-`show_chart`, `show_footer`, `language` (`en`, `nl`), `time_format` (`24`, `12`), `title`.
+`show_chart`, `show_footer`, `view: history` (open in the look back — e.g. a second card on an analysis page),
+`history: false` (no look back switch), `language` (`en`, `nl`), `time_format` (`24`, `12`), `title`.
 
 ```yaml
 type: custom:roost-card
@@ -366,6 +387,8 @@ integration page: click it and log in again. Installs from before 0.5.3 get that
 | `sensor.roost_energy_value_now` | What a kWh is worth to Roost this hour (grid price, solar it would export, or the battery's refill cost) |
 | `sensor.roost_heat_pump_model` | The learned heat pump: COP, lowest output, how it follows the thermostat, hot water hours (details) |
 | `sensor.roost_plan_accuracy` | Nightly self-check: the room 6 hours ahead (°C) |
+| `sensor.roost_room_expected_in_6_hours` | The room the plan expects in 6 hours — beside the room sensor in a history graph it shows how well Roost predicts |
+| `sensor.roost_heat_planned_this_hour` | The heat the plan has the heat pump deliver this hour (kWh) |
 | `sensor.roost_house_model_error` | How well the house model predicts a day (°C); the learned house in the details |
 | `sensor.roost_weheat_import` | Status of the Weheat history import |
 | `sensor.roost_weheat_import_progress` | How far the import is (%), the expected end in its details |

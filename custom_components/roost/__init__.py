@@ -10,13 +10,14 @@ from pathlib import Path
 
 import voluptuous as vol
 
+from homeassistant.components import websocket_api
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers import config_validation as cv, issue_registry as ir
+from homeassistant.helpers import config_validation as cv, entity_registry as er, issue_registry as ir
 from homeassistant.helpers.typing import ConfigType
 
 from .const import CARD_URL, DOMAIN
@@ -55,8 +56,23 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 type RoostConfigEntry = ConfigEntry[RoostManager]
 
 
+@websocket_api.websocket_command({vol.Required("type"): "roost/history", vol.Required("entity_id"): str,
+                                  vol.Optional("days", default=7): vol.All(int, vol.Range(min=1, max=7))})
+@websocket_api.async_response
+async def _ws_history(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
+    """The look back for the card: the hours, events and days of the Roost that owns this entity."""
+    ent = er.async_get(hass).async_get(msg["entity_id"])
+    entry = hass.config_entries.async_get_entry(ent.config_entry_id) if ent and ent.config_entry_id else None
+    mgr = getattr(entry, "runtime_data", None) if entry and entry.domain == DOMAIN else None
+    if mgr is None:
+        connection.send_error(msg["id"], "not_found", "No Roost for this entity")
+        return
+    connection.send_result(msg["id"], mgr.history_payload(msg["days"]))
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Serve the dashboard card and register the services."""
+    """Serve the dashboard card, register the services and the card's look back (websocket)."""
+    websocket_api.async_register_command(hass, _ws_history)
     card = Path(__file__).parent / "frontend" / "roost-card.js"
     await hass.http.async_register_static_paths([StaticPathConfig(CARD_URL, str(card), True)])
     version = hass.data.setdefault(DOMAIN, {}).get("version")

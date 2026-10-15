@@ -412,6 +412,12 @@
       },
       "plan_accuracy": {
         "name": "Plan accuracy"
+      },
+      "room_expected_6h": {
+        "name": "Room expected in 6 hours"
+      },
+      "heat_planned": {
+        "name": "Heat planned this hour"
       }
     },
     "binary_sensor": {

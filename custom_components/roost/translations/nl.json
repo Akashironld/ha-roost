@@ -412,6 +412,12 @@
       },
       "plan_accuracy": {
         "name": "Plannauwkeurigheid"
+      },
+      "room_expected_6h": {
+        "name": "Kamer verwacht over 6 uur"
+      },
+      "heat_planned": {
+        "name": "Warmte gepland dit uur"
       }
     },
     "binary_sensor": {

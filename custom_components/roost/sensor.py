@@ -17,7 +17,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RoostConfigEntry, async_
     m = entry.runtime_data
     async_add_entities([SetpointSensor(m), SavingNext24hSensor(m), SavingYesterdaySensor(m), SavingMonthSensor(m),
                         CostTodaySensor(m), EnergyTodaySensor(m), EnergyValueSensor(m), HouseModelSensor(m), HeatPumpModelSensor(m),
-                        ImportSensor(m), ImportProgressSensor(m), PlanAccuracySensor(m)])
+                        ImportSensor(m), ImportProgressSensor(m), PlanAccuracySensor(m), RoomExpectedSensor(m), HeatPlannedSensor(m)])
 
 
 def _cur(hass) -> str:
@@ -248,6 +248,42 @@ def _response(p) -> dict:
             "follows_per_hour": p.follow, "thermostat_reads_vs_room": p.th_diff, "lowest_output_kw": p.q_min or None,
             "cop_while_cycling": p.cyc, "response_hours": p.resp_hours, "response_error_kwh": p.resp_error, "response_source": p.resp_source,
             "hot_water_hours_today": [h for h, x in enumerate(today) if x >= 0.2], "hot_water_weeks": p.dhw_weeks}
+
+
+class RoomExpectedSensor(RoostEntity, SensorEntity):
+    """The room temperature the plan expects in 6 hours: with the room sensor in a history graph, how well Roost
+    predicts (the card's look back shows the same)."""
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_suggested_display_precision = 1
+    _attr_icon = "mdi:home-thermometer-outline"
+
+    def __init__(self, mgr) -> None:
+        super().__init__(mgr, "room_expected_6h")
+
+    @property
+    def native_value(self):
+        p = self.mgr.plan
+        return round(p.hours[5].t_end, 2) if p and len(p.hours) > 5 else None
+
+
+class HeatPlannedSensor(RoostEntity, SensorEntity):
+    """The heat the plan has the heat pump deliver this hour (kWh)."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "kWh"
+    _attr_suggested_display_precision = 2
+    _attr_icon = "mdi:radiator"
+
+    def __init__(self, mgr) -> None:
+        super().__init__(mgr, "heat_planned")
+
+    @property
+    def native_value(self):
+        p = self.mgr.plan
+        return round(p.first.heat, 2) if p and p.first else None
 
 
 class PlanAccuracySensor(RoostEntity, SensorEntity):

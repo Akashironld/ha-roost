@@ -23,7 +23,7 @@ from homeassistant.helpers.event import async_track_state_change_event, async_tr
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from . import building, check, comfort, control, epex, heatpump, history, model, planner, response, rooms, series, sun, value, weather as om
+from . import building, check, comfort, control, epex, lookback, heatpump, history, model, planner, response, rooms, series, sun, value, weather as om
 from .const import (
     CONF_BASELINE_NIGHT, CONF_BATTERY_KW, CONF_BATTERY_KWH, CONF_BATTERY_POWER, CONF_BATTERY_RESERVE, CONF_BATTERY_SOC,
     CONF_COMFORT, CONF_DAY_FROM, CONF_DAY_MIN, CONF_DAY_TO, CONF_EXPORT_PRICE, CONF_GRID_POWER, CONF_GRID_PREFERENCE,
@@ -39,6 +39,14 @@ from .reasons import Reason
 from .weheat_api import WeheatLoginNeeded, WeheatUnavailable, async_fetch_history, async_fetch_months, heat_pump_id
 
 _LOGGER = logging.getLogger(__name__)
+HOUR_LOG_KEPT = 7 * 24 + 2                       # a week of hours: the replay of yesterday and the look back
+
+
+def _iso_ts(v) -> float:
+    try:
+        return datetime.fromisoformat(str(v)).timestamp()
+    except (TypeError, ValueError):
+        return 0.0
 DHW_STATES = ("dhw", "legionella_prevention")
 DHW_WEEKS = 8                 # hot water profile from the last weeks
 EVENTS_KEPT = 300             # what Roost did, for a bug report
@@ -101,6 +109,8 @@ class RoostManager:
         self.import_info: dict = {}
         self.hour_log: list[dict] = []              # last ~48 h: state and inputs per hour, for the daily saving
         self.saving_days: dict[str, float] = {}     # date -> saving (currency)
+        self.day_stats: dict[str, dict] = {}        # date -> the day in numbers (look back, day report)
+        self.pred: dict[int, dict] = {}             # hour start -> room predicted for it 6 h and 1 h ahead
         self.cost_today = 0.0
         self.kwh_today = 0.0
         self._cost_day: str | None = None
@@ -142,6 +152,8 @@ class RoostManager:
         self._acc_hour: int | None = None           # the current hour: seconds on hot water, heat for the house
         self._dhw_acc = 0.0
         self._heat_acc = 0.0
+        self._elec_acc = 0.0                        # heating electricity in this hour (kWh) and its cost
+        self._cost_acc = 0.0
         # per hour: mean room setpoint and the thermostat's own reading, from the thermostat entity (an on/off thermostat
         # never tells the heat pump its setpoint, so the Weheat logs do not have it; HA statistics keep no attributes)
         self.sp_hist: dict[int, list] = {}
@@ -187,6 +199,8 @@ class RoostManager:
         self.import_info = data.get("import", {})
         self.hour_log = data.get("hour_log", [])
         self.saving_days = data.get("saving_days", {})
+        self.day_stats = data.get("day_stats") or {}
+        self.pred = {int(k): v for k, v in (data.get("pred") or {}).items()}
         self.pv_k = data.get("pv_k")
         self.load_profile = data.get("load_profile")
         self.price_seen = {e: {int(k): v for k, v in d.items()} for e, d in (data.get("price_seen") or {}).items()}
@@ -293,7 +307,9 @@ class RoostManager:
         await self._store.async_save({
             "mode": self.mode, "house": self.house.as_dict(), "pump": self.pump.as_dict(), "control": self.mem.as_dict(),
             "storage_e": round(self.storage_e, 3), "learn": self.learn_info, "import": self.import_info,
-            "hour_log": self.hour_log[-60:], "saving_days": dict(sorted(self.saving_days.items())[-62:]),
+            "hour_log": self.hour_log[-HOUR_LOG_KEPT:], "saving_days": dict(sorted(self.saving_days.items())[-62:]),
+            "day_stats": dict(sorted(self.day_stats.items())[-62:]),
+            "pred": {str(k): v for k, v in self.pred.items() if k > time.time() - 7200},
             "pv_k": self.pv_k, "load_profile": self.load_profile, "price_seen": self._price_seen_recent(),
             "check": self.check, "changes": [c for c in self.changes if c["ts"] > time.time() - 30 * 86400],
             "building": self.building,
@@ -732,6 +748,8 @@ class RoostManager:
             price = self.plan_hours[0].p_grid if self.plan_hours else 0.0
             self.kwh_today += d
             self.cost_today += d * price
+            self._elec_acc += d
+            self._cost_acc += d * price
         if e:
             self._last_elec = e
 
@@ -746,11 +764,26 @@ class RoostManager:
         if room is None or sp is None or wx is None or not self.plan_hours:
             return
         h = self.plan_hours[0]
+        pr = self.pred.get(hour, {})
         self.hour_log.append({"ts": hour, "T": round(room, 2), "E": round(self.storage_e, 2), "sp": sp, "sp_t": self.thermostat_sp(),
                               "t_out": wx[0], "rad": round(self.sun_on_house(hour, wx), 4), "hour": dt_util.as_local(now).hour,
                               "wind": wx[2] if wx[2] is not None else 3.5, "p_grid": h.p_grid, "p_own": h.p_own, "own": h.own_kw,
-                              "day": self.is_day(dt_util.as_local(now))})
-        self.hour_log = self.hour_log[-60:]
+                              "day": self.is_day(dt_util.as_local(now)),
+                              # for looking back: the plan, its reason, what was predicted for this hour, the mode
+                              "sp_plan": self.plan.first.sp if self.plan and self.plan.first else None,
+                              "reason": self.reason.code, "args": dict(self.reason.args),
+                              "p6": pr.get("p6"), "p1": pr.get("p1"), "mode": self.mode,
+                              "paused": bool(self.mem.pause_until and self.mem.pause_until > time.time())})
+        self.hour_log = self.hour_log[-HOUR_LOG_KEPT:]
+        self.pred = {k: v for k, v in self.pred.items() if k > hour - 7200}
+
+    def _remember_prediction(self, now: datetime, p) -> None:
+        """The room the plan expects at the start of the coming hours, 1 and 6 hours ahead, to set beside what happened."""
+        base = int(now.timestamp() // 3600 * 3600)
+        for j, hp in enumerate(p.hours[:6]):
+            ahead = j + 1
+            if ahead in (1, 6):
+                self.pred.setdefault(base + ahead * 3600, {})[f"p{ahead}"] = round(hp.t_end, 2)
 
     async def _async_close_day(self, day: str) -> None:
         """Replay yesterday with what Roost set and with a steady thermostat, from the same start (same model, same
@@ -761,7 +794,20 @@ class RoostManager:
         res = await self.hass.async_add_executor_job(planner.replay_day, self.house, self.pump, self.settings(), entries)
         if res is not None:
             self.saving_days[day] = round(res[1] - res[0], 3)
-            await self.async_save()
+        by_hand = sum(1 for e in self.events if e.get("kind") == "by_hand" and str(e.get("t", "")).startswith(day))
+        self.day_stats[day] = lookback.day_stats(entries, self.settings().comfort, by_hand,
+                                                 res[0] if res else None, res[1] if res else None)
+        await self.async_save()
+
+    def history_payload(self, days: int = 7) -> dict:
+        """Everything the card's look back needs (websocket roost/history): the hours, the events that explain them,
+        the days in numbers."""
+        cut = time.time() - days * 86400
+        kinds = {"set", "by_hand", "pause", "resume", "mode", "learned", "set_failed", "login_needed"}
+        return {"hours": [e for e in self.hour_log if e["ts"] >= cut],
+                "events": [e for e in self.events if e.get("kind") in kinds and _iso_ts(e.get("t")) >= cut],
+                "days": dict(sorted(self.day_stats.items())[-62:]),
+                "comfort": self.settings().comfort, "currency": self.hass.config.currency or "EUR", "mode": self.mode}
 
     def saving_month(self) -> float:
         month = dt_util.now().date().isoformat()[:7]
@@ -813,6 +859,7 @@ class RoostManager:
                                                        self.thermostat_sp(), 24, w_now, room_in)
             self.room_status = [{**meta, "expected": temps[:24]} for meta, temps in zip(room_meta, p.rooms)]
             self.plan, self.plan_hours, self.plan_at = p, hours, now.timestamp()
+            self._remember_prediction(now, p)
             self.plan_tariff = list(inp.import_price)
             mode = self.conf.get(CONF_PRICE_MODE)
             self.plan_guess = [] if mode == "fixed" else list(self._price_guess.get("epex_import" if mode == "epex" else self.conf.get(CONF_IMPORT_PRICE)) or [])
@@ -836,7 +883,8 @@ class RoostManager:
                 await self.hass.services.async_call("climate", "set_temperature",
                                                     {ATTR_ENTITY_ID: self.conf[CONF_THERMOSTAT], "temperature": self._c_to_sys(d.setpoint)},
                                                     blocking=True, context=ctx)
-                self.event("set", old=before, new=d.setpoint, why=d.why.code, reason=self.reason.code, room=self.room())
+                self.event("set", old=before, new=d.setpoint, why=d.why.code, reason=self.reason.code, args=dict(self.reason.args),
+                           room=self.room())
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning("Roost could not set the thermostat: %s", err)
                 self.event("set_failed", new=d.setpoint, error=str(err)[:200])
@@ -928,10 +976,13 @@ class RoostManager:
                     if e["ts"] == self._acc_hour:
                         e["dhw"] = round(min(1.0, self._dhw_acc / 3600), 2)
                         e["q"] = round(self._heat_acc, 2)
+                        e["e"] = round(self._elec_acc, 3)
+                        e["cost"] = round(self._cost_acc, 4)
                 a = self._sp_acc
                 if a[1] >= 1800:                      # at least half the hour seen
                     self.sp_hist[self._acc_hour] = [round(a[0] / a[1], 2), round(a[2] / a[3], 2) if a[3] >= 1800 else None]
             self._acc_hour, self._dhw_acc, self._heat_acc = hour, 0.0, 0.0
+            self._elec_acc = self._cost_acc = 0.0
             self._sp_acc = [0.0, 0.0, 0.0, 0.0]
         if self._last_tick is None:
             return

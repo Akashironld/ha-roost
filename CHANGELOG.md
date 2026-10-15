@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.5.5 — look back
+
+**For everyone** — see what Roost planned beside what happened: a look back in the card, a log of every change and why, a report to keep.
+
+### Improvements
+- **Look back in the card**: the switch *Ahead / Look back* in the header shows the last 24 hours, 48 hours or 7 days in the same place: the thermostat setting beside what Roost planned, the measured room beside what Roost predicted 6 hours earlier, the tariff and the heat per hour, changes by hand and mode changes marked. Four numbers on top: cost and saving, how well the room was predicted, minutes below comfort, changes by Roost and by hand
+- **Log** (folded): every change with its reason, and what happened an hour later against what was expected
+- **Report**: a page with the period's numbers, graph, log and days, made in your browser
+- **Day numbers** for 60 days: electricity, heat, COP, cost, saving, comfort, changes, how well the plan predicted
+- New sensors with history: *Room expected in 6 hours* and *Heat planned this hour* — beside the room sensor in any history graph
+- Card options `view: history` (a second card that opens in the look back) and `history: false`
+
+### After updating
+Update in HACS (or install the new `roost.zip`) and restart Home Assistant. The look back fills from then on: Roost now keeps a week of hours.
+
 ## v0.5.4 — built-in day-ahead prices, Zonneplan
 
 **For everyone with a dynamic contract** — no price sensor needed any more: Roost can fetch the day-ahead prices itself. And Zonneplan's price sensor now works.

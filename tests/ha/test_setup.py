@@ -88,3 +88,18 @@ async def test_built_in_day_ahead_prices(hass: HomeAssistant, weheat: str, aiocl
     assert m.sources.get("price") == "epex"
     tariff = [round(x, 4) for x in m.plan_tariff[:4]]
     assert set(tariff[1:]) <= {round(0.1 * 1.21 + 0.15, 4), round(0.3 * 1.21 + 0.15, 4)}, tariff
+
+
+async def test_look_back_over_the_websocket(hass: HomeAssistant, entry, hass_ws_client) -> None:
+    """The card's look back: roost/history for the planned-setpoint entity gives the hours, events and days."""
+    m = entry.runtime_data
+    m.hour_log.append({"ts": int(time.time() // 3600 * 3600) - 3600, "T": 20.4, "sp_t": 20.5, "sp_plan": 20.5, "p6": 20.6,
+                       "reason": "holding", "args": {}, "p_grid": 0.3, "q": 1.2, "day": True})
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": "roost/history", "entity_id": _plan_entity(hass), "days": 2})
+    msg = await client.receive_json()
+    assert msg["success"], msg
+    res = msg["result"]
+    assert res["hours"] and res["hours"][-1]["p6"] == 20.6 and "events" in res and "days" in res
+    await client.send_json({"id": 2, "type": "roost/history", "entity_id": "sensor.not_roost"})
+    assert not (await client.receive_json())["success"]

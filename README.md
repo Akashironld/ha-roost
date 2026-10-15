@@ -40,7 +40,9 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
   rest longer than they can take.
 - **Respects you.** At most one change an hour, steps aside for two hours when you change the thermostat, never below
   your minimums or its lowest setting, comfort suggestions instead of changing your settings by itself.
-- **Its own dashboard card** with the plan, the expected room temperature, the tariff per hour and what it saves.
+- **Its own dashboard card** with the plan, the expected room temperature, the tariff per hour and what it saves — and
+  a **look back**: what was planned beside what happened, how well it predicted, a log of every change and why, and a
+  report to keep.
 
 ## Quick start
 

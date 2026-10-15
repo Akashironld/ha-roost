@@ -14,12 +14,13 @@
     "recorder",
     "http",
     "frontend",
-    "lovelace"
+    "lovelace",
+    "websocket_api"
   ],
   "documentation": "https://github.com/Akashironld/ha-roost",
   "integration_type": "service",
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/Akashironld/ha-roost/issues",
   "requirements": [],
-  "version": "0.5.4"
+  "version": "0.5.5"
 }
