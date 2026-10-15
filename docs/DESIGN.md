@@ -1,5 +1,9 @@
 # Roost — design (draft 0.2, 14-10-2026)
 
+> **Design notes from the start of the project**, kept for the reasoning behind it. Much was built differently or
+> later (the Weheat login, the self-check, extra rooms, the settings). What Roost does now is in the
+> [guide](GUIDE.md) and the [changelog](../CHANGELOG.md).
+
 **Roost: smart heating planner for Weheat heat pumps.**
 
 > A HACS integration for **Weheat heat pumps** (Blackbird P60/P80, Sparrow, …) that are controlled by a room thermostat

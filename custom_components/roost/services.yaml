@@ -12,9 +12,9 @@ resume:
 import_history:
   fields:
     days:
-      default: 400
+      default: 365
       selector:
         number:
           min: 7
-          max: 1500
+          max: 365
           unit_of_measurement: d

@@ -97,7 +97,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.services.async_register(DOMAIN, "pause", pause, vol.Schema({vol.Optional("hours", default=2): vol.All(vol.Coerce(float), vol.Range(min=0.25, max=72))}))
     hass.services.async_register(DOMAIN, "resume", resume, vol.Schema({}))
     hass.services.async_register(DOMAIN, "import_history", import_history,
-                                 vol.Schema({vol.Optional("days", default=400): vol.All(vol.Coerce(int), vol.Range(min=7, max=1500))}))
+                                 vol.Schema({vol.Optional("days", default=365): vol.All(vol.Coerce(int), vol.Range(min=7, max=365))}))
     return True
 
 

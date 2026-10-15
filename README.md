@@ -24,10 +24,11 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
   sun comes in through, wind, internal gains per hour of the day. A new model is only used when it predicts better.
 - **Learns your heat pump**: its COP, how it responds to the thermostat (an OpenTherm thermostat modulates and the heat
   pump follows slowly — Roost plans with that delay), its lowest output, when it makes hot water.
-- **Starts from last winter.** It imports the heat pump's hourly history (up to 13 months) from Weheat, read-only,
+- **Starts from last winter.** It imports the heat pump's hourly history (a year) from Weheat, read-only,
   with its own Weheat login (you log in with your Weheat account in the setup) — so it knows your house from day one.
-- **Checks itself.** Every night it replays the last week with the setpoints that were really on the thermostat; when it
-  predicts well enough it offers to take over. Between nights it corrects from the last hours.
+- **Checks itself.** Every night it replays the last week with the setpoints that were really on the thermostat (in
+  mild weather the last heating weeks instead); when it predicts well enough it offers to take over. Between nights it
+  corrects from the last hours — what sunny hours miss as extra sun, so a sunny afternoon does not warm the night.
 - **Dynamic or fixed price**, solar, home battery (energy from the battery is valued at what refilling it costs), net
   metering or not.
 - **Extra rooms**: radiators upstairs or a bedroom get a minimum in their own hours, so Roost never lets the heat pump
@@ -43,8 +44,8 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
 2. **Settings → Devices & services → Add integration → Roost.** Pick your Weheat heat pump and thermostat; Roost fills in
    what it finds (room sensor, price sensor, solar and battery, your comfort temperatures) — check it and submit.
 3. **Add the card**: edit a dashboard → *Add card* → *Roost*.
-4. Watch it in **shadow mode** for some days. When its self-check is happy, a notice in **Settings → Repairs** offers to
-   let it steer. Turn off any other schedule or automation on the thermostat first.
+4. Watch it in **shadow mode** for some days. *Configure → Mode* shows what its self-check says and when it expects to
+   be ready; when it is, the card shows *Let Roost steer* and a notice in **Settings → Repairs** offers it. Turn off any other schedule or automation on the thermostat first.
 
 Everything else — every screen, every setting, the card, repairs, troubleshooting — is in the
 **[guide](docs/GUIDE.md)**.

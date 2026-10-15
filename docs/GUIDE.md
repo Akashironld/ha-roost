@@ -40,7 +40,7 @@ Roost turns it into a **planner**:
   than your minimums, changes the thermostat **at most once an hour**, and steps aside for **two hours** when you
   change the thermostat yourself.
 - It **learns your house and your heat pump by itself** — from Home Assistant's history and from the heat pump's own
-  hourly logs at Weheat (up to 13 months back, read-only) — and checks every night how well its plans come true.
+  hourly logs at Weheat (a year back, read-only) — and checks every night how well its plans come true.
 - It starts in **shadow mode**: it only shows what it would do. You decide when it may steer.
 
 Roost is not made by or affiliated with Weheat. It only changes the setpoint of your thermostat — never anything in
@@ -221,13 +221,15 @@ In shadow mode Roost plans and shows everything, but never touches the thermosta
    comes in through, and more.
 3. **Self-check** — every night Roost replays the last 7 days with the setpoints that were really on the thermostat
    and compares with what happened. When the last week had too little heating (mild weather, or right after the
-   import) it checks the newest week of the last two months that had enough, so it can tell right away; with less
-   heating than that it waits for the heating season. Sensor *Plan accuracy* = how close it predicts the room 6 hours ahead (°C).
+   import) it checks the newest week of the last two months that had enough; when there is none, it judges itself on
+   the **last 8 heating weeks of the past year** (60+ heating hours each; 6 have to pass), so it can tell right away.
+   Only without such weeks (no history) it waits for the heating season. Sensor *Plan accuracy* = how close it
+   predicts the room 6 hours ahead (°C).
 4. **Look at the card** in the morning and the evening: does the plan make sense? Does the expected room temperature
    follow the real one?
 
-In mild autumn weather the heat pump hardly runs and there is little to learn or to save; Roost's self-check will say it
-is not ready yet. That is normal.
+In mild autumn weather the heat pump hardly runs and there is little to save; the plan then mostly says *warm enough*.
+That is normal.
 
 ---
 
@@ -239,14 +241,15 @@ after more heating hours, or only when the heating season starts. A setting that
 follow the thermostat) is named instead of a time.
 
 - **Settings → Devices & services → Roost → Configure → Mode.** It shows what the nightly self-check says, point by
-  point (✅ or ⏳), with *Expected:* when it thinks it will be ready: the plan error 6 hours ahead (0.5 °C or less needed), heating hours in the last week (30 needed), heat
-  predicted against measured, whether the heat pump follows the thermostat and whether the setpoint moves it. Choose
+  point (✅ or ⏳), with *Expected:* when it thinks it will be ready and *Checked on:* the last week or, in mild weather,
+  the last heating weeks: the plan error 6 hours ahead (0.5 °C or less needed), heating hours (30 in a week needed),
+  heat predicted against measured, whether the heat pump follows the thermostat and whether the setpoint moves it. Choose
   *Active* and submit — or *Shadow* / *Off* — right there.
 - **The card** shows when it expects to be ready in its footer, and a green **Let Roost steer** button once it is
   (click twice, so it never happens by accident).
 - **Settings → Repairs** gets a notice *ready to steer the heat pump*, and the entity *Ready to steer*
   (`binary_sensor.roost_ready_to_steer`) turns on — handy for a notification on your phone. Its details hold
-  *waiting_for* and *expected*.
+  *waiting_for*, *expected* and, in mild weather, *heating_weeks_check*.
 
 You can always switch yourself as well: entity **Roost Mode** (`select.roost_mode`).
 
@@ -340,9 +343,12 @@ integration page: click it and log in again. Installs from before 0.5.3 get that
 |---|---|
 | `select.roost_mode` | Off / Shadow / Active |
 | `sensor.roost_planned_setpoint` | The thermostat setting Roost wants now. Attributes: reason, decision, the 24-hour plan, extra rooms |
-| `sensor.roost_expected_saving_next_24_h` | Against a steady thermostat at your comfort temperature |
+| `sensor.roost_expected_saving_next_24_h` | Against the lowest steady thermostat that is as comfortable as the plan |
 | `sensor.roost_saving_yesterday`, `sensor.roost_saving_this_month` | Yesterday replayed with the same model, weather and prices |
 | `sensor.roost_heating_cost_today` | Heat pump electricity for heating × the price of each hour |
+| `sensor.roost_heating_electricity_today` | The kWh of heating electricity today |
+| `sensor.roost_energy_value_now` | What a kWh is worth to Roost this hour (grid price, solar it would export, or the battery's refill cost) |
+| `sensor.roost_heat_pump_model` | The learned heat pump: COP, lowest output, how it follows the thermostat, hot water hours (details) |
 | `sensor.roost_plan_accuracy` | Nightly self-check: the room 6 hours ahead (°C) |
 | `sensor.roost_house_model_error` | How well the house model predicts a day (°C); the learned house in the details |
 | `sensor.roost_weheat_import` | Status of the Weheat history import |
@@ -352,7 +358,7 @@ integration page: click it and log in again. Installs from before 0.5.3 get that
 | `binary_sensor.roost_ready_to_steer` | On when the nightly self-check says Roost can steer; what is still missing in its details |
 | `button.roost_learn_now`, `button.roost_import_history_from_weheat` | Learn now; read the Weheat history again |
 
-Switched off by default (enable them if you want): heating electricity today, energy value now, heat pump model.
+Switched off by default (enable them on the device page under *+ disabled entities* if you want): heating electricity today, energy value now, heat pump model.
 
 **Services**
 
@@ -360,7 +366,7 @@ Switched off by default (enable them if you want): heating electricity today, en
 |---|---|---|
 | `roost.pause` | `hours` (default 2) | Leave the thermostat alone for a while |
 | `roost.resume` | — | End a pause and plan again |
-| `roost.import_history` | `days` (default 400) | Read the heat pump's history from Weheat again and learn |
+| `roost.import_history` | `days` (default 365) | Read the heat pump's history from Weheat again and learn |
 
 **Example: pause while nobody is home**
 
@@ -424,7 +430,7 @@ automation:
 | Bedroom upstairs gets cold | Radiators get no water while the heat pump rests | Add the bedroom as an extra room (section [9](#9-extra-rooms-radiators-upstairs-a-bedroom)) |
 | Savings negative | A warm house at the end of the day counts as cost until it is used; in mild weather there is little to save | Look at the month figure, not one day |
 | *Weheat import*: waiting for the Weheat login | Roost has no Weheat login yet, or Weheat refused it | *Re-authenticate* at Roost on the integration page (section [10](#the-weheat-login)) |
-| *Configure → Mode* says *Heating hours* ⏳ in autumn | The heat pump heated with the room well above the setpoint: not the thermostat asking (its own heating curve?). Roost leaves those hours out of its checks (*unfollowed_hours* in *Plan accuracy*'s details) | Nothing; if it happens a lot, check the heat pump follows only the thermostat (Weheat app) |
+| *Configure → Mode* says *Heating hours* ⏳ | Too little heating lately and no heating weeks in the history yet (a new install without the Weheat import). Hours the heat pump heated with the room well above the setpoint do not count: not the thermostat asking (its own heating curve?) — *unfollowed_hours* in *Plan accuracy*'s details | Wait for colder weather; if *unfollowed_hours* is high, check the heat pump follows only the thermostat (Weheat app) |
 | *Plan accuracy* high (> 1 °C) | Little heating data yet, or a change in the house (a new window, a stove) | Wait a week; the nightly learning catches up |
 | Roost keeps pausing | Something else changes the thermostat | Turn off the thermostat's schedule / other automations |
 | Names are English in a Dutch Home Assistant | Entity names follow the *system* language | Settings → System → General → Language |
