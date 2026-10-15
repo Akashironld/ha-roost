@@ -97,3 +97,14 @@ async def test_reconfigure_weheat_login(hass: HomeAssistant, entry) -> None:
     assert r["type"] is FlowResultType.ABORT and r["reason"] == "reconfigure_successful"
     assert entry.data["weheat_auth"] == "integration" and "token" not in entry.data
     assert entry.data["thermostat"] == THERMOSTAT                       # the rest of the setup is kept
+
+
+async def test_options_never_copy_the_weheat_login(hass: HomeAssistant, entry) -> None:
+    hass.config_entries.async_update_entry(entry, data={**entry.data, "weheat_auth": "own", "auth_implementation": "roost_x",
+                                                        "token": {"access_token": "a", "refresh_token": "r", "expires_at": 0}})
+    await hass.async_block_till_done()
+    r = await hass.config_entries.options.async_init(entry.entry_id)
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {"next_step_id": "comfort"})
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {**COMFORT, "comfort": 21.0, "store_max": 23.0})
+    assert r["type"] is FlowResultType.CREATE_ENTRY
+    assert not {"token", "auth_implementation", "weheat_auth"} & set(entry.options) and entry.data["token"]["access_token"] == "a"

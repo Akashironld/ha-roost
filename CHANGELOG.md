@@ -31,6 +31,11 @@
 - Hours the heat pump heated without the thermostat asking (the room well above its setpoint, beyond what the learned
   response explains — e.g. its own heating curve in spring and autumn) are left out of learning the response and of
   the self-check, and counted (*unfollowed_hours*)
+- The heat pump's response fit leaves out its worst 10 % of windows (cooking, a door open, the unit doing something
+  else), so a few odd hours do not steer it
+- Simulations of seven more kinds of houses and prices (old house, new build, apartment, cold snap, volatile prices,
+  a heat pump that responds differently than learned, autumn with an own heating curve): 1.5–10 % saving at about the
+  steady thermostat's comfort ([docs/SIMULATIONS.md](docs/SIMULATIONS.md))
 - A house that changed (insulated): the heat pump's response is learned from the new house's days only, like the
   house model (in the simulation it was too cold before: 15–20 °C·h a week below comfort, now ~1)
 

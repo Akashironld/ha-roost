@@ -62,6 +62,9 @@ async def _sees_pump(hass: HomeAssistant, token: str, pump: str | None) -> bool 
     return any(str(p.get("id")) == str(pump) for p in pumps if isinstance(p, dict))
 
 
+LOGIN_KEYS = ("token", "auth_implementation", CONF_WEHEAT_AUTH)
+
+
 def _sel(options, key):
     return selector.SelectSelector(selector.SelectSelectorConfig(options=options, translation_key=key,
                                                                  mode=selector.SelectSelectorMode.DROPDOWN))
@@ -461,7 +464,8 @@ class RoostOptionsFlow(OptionsFlow):
     @property
     def opts(self) -> dict[str, Any]:
         if self._opts is None:
-            self._opts = {**DEFAULTS, **self.config_entry.data, **self.config_entry.options}
+            self._opts = {k: v for k, v in {**DEFAULTS, **self.config_entry.data, **self.config_entry.options}.items()
+                          if k not in LOGIN_KEYS}      # the Weheat login stays in the entry's data only
             o = self._opts
             o.setdefault(CONF_HAS_SOLAR, bool(o.get(CONF_PV_POWER) or o.get(CONF_PV_FORECAST) or o.get(CONF_GRID_POWER)))
             o.setdefault(CONF_HAS_BATTERY, bool(o.get(CONF_BATTERY_SOC)))
