@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.5.3 — unreleased
+
+**For everyone on 0.5.2** — Roost now logs in to Weheat itself: after updating, click *Re-authenticate* at Roost once.
+
+### Improvements
+- **Log in with your Weheat account**: in the setup, after the first screen, Weheat's login page opens — nothing to
+  fill in (Roost uses the app registration the Weheat integration already has). Roost keeps and refreshes that login
+  itself and no longer borrows the Weheat integration's token; when Weheat no longer accepts it, Home Assistant shows
+  *Re-authenticate*. The choice under *Reconfigure → Weheat login* is gone
+
+### Fixes
+- The reason said *charging the floor on own solar* while no heat went in (the room at 24 °C, the thermostat at 21):
+  with no heat planned and the room above the setpoint it now says *warm enough*
+- *Expected ready to steer* said a date when the heating pace could never fill a week; now *when the heating season
+  starts*
+- Roost's background work (import, learning) stops cleanly with Home Assistant (flaky tests: *cannot schedule new
+  futures after shutdown*)
+
+### After updating
+Restart Home Assistant, then *Settings → Devices & services → Roost → Re-authenticate*, and log in with your Weheat
+account.
+
 ## v0.5.2 — first beta for testers
 
 **For the private beta testers** — the first version to install: everything in the sections below, in one beta.

@@ -1,12 +1,11 @@
-"""Read-only access to a Weheat heat pump's history, with the login of the user's Weheat integration or Roost's own.
+"""Read-only access to a Weheat heat pump's history, with Roost's own Weheat login.
 
-With the Weheat integration's login (the default) Roost never refreshes or stores the Weheat token: the Weheat
-integration refreshes it every couple of minutes, and Roost only uses the current access token; when it has expired,
-the import waits and tries again later. With its own login (optional, Reconfigure) Roost keeps and refreshes its own
-token in its config entry, through Home Assistant's OAuth helper.
-Endpoints are the Weheat third-party API the Weheat integration itself uses (hourly logs and energy logs). The first
-import fetches the whole history in as few calls as possible and Roost keeps it; after that only the last hours, once a
-night. Weheat's limits (logs at most every 2 minutes, energy logs at most every half hour) are kept."""
+The login is made in Roost's setup (or its reauth): the user logs in with the Weheat account on Weheat's page, through
+the app registration the Weheat integration already has in Home Assistant. Roost keeps the token in its config entry
+and refreshes it with Home Assistant's OAuth helper; when that is refused, Home Assistant asks the user to log in again.
+Endpoints are the Weheat third-party API (hourly logs and energy logs). The first import fetches the history a month
+per call and Roost keeps it; after that only the last hours, once a night. Weheat's limits (logs at most every 2
+minutes, energy logs at most every half hour) are kept."""
 from __future__ import annotations
 
 import asyncio
@@ -28,7 +27,11 @@ API_URL = "https://api.weheat.nl/third_party"
 
 
 class WeheatUnavailable(Exception):
-    """No usable Weheat login right now."""
+    """No usable Weheat login right now (try again later)."""
+
+
+class WeheatLoginNeeded(WeheatUnavailable):
+    """No Weheat login, or Weheat refused it: the user has to log in (reauth)."""
 
 
 def heat_pump_id(hass: HomeAssistant, device_id: str) -> tuple[str | None, str | None]:
@@ -43,36 +46,29 @@ def heat_pump_id(hass: HomeAssistant, device_id: str) -> tuple[str | None, str |
     return hp, entry
 
 
-def _token(hass: HomeAssistant, entry_id: str) -> str:
-    entry = hass.config_entries.async_get_entry(entry_id)
-    if entry is None:
-        raise WeheatUnavailable("the Weheat integration is not set up")
-    tok = (entry.data or {}).get("token") or {}
-    access, expires = tok.get("access_token"), tok.get("expires_at")
-    if not access:
-        raise WeheatUnavailable("the Weheat integration has no login")
-    if expires is not None and float(expires) < time.time() + 30:
-        raise WeheatUnavailable("the Weheat login is being refreshed")
-    return access
-
-
 async def _access(hass: HomeAssistant, entry_id: str) -> str:
-    """The access token: the Weheat integration's (entry_id is its entry), or Roost's own login (Roost's entry)."""
+    """The access token of Roost's own Weheat login (entry_id: Roost's entry), refreshed when needed."""
     entry = hass.config_entries.async_get_entry(entry_id)
-    if entry is None or entry.domain == "weheat":
-        return _token(hass, entry_id)
+    if entry is None or not entry.data.get("token"):
+        raise WeheatLoginNeeded("not logged in to Weheat yet")
     try:
         if entry.data.get("auth_from") == "weheat":       # logged in with the Weheat integration's app registration
             impl = (await async_get_implementations(hass, "weheat")).get(entry.data.get("auth_implementation"))
             if impl is None:
-                raise WeheatUnavailable("the Weheat integration's app registration is gone: log in again (Reconfigure)")
+                raise WeheatLoginNeeded("the Weheat integration's app registration is gone")
         else:
             impl = await async_get_config_entry_implementation(hass, entry)
         session = OAuth2Session(hass, entry, impl)
         await session.async_ensure_token_valid()          # refreshes when needed and keeps it in the entry
         return session.token["access_token"]
-    except Exception as err:  # noqa: BLE001 - no credentials, refused refresh, Weheat's login server unreachable
-        raise WeheatUnavailable(f"Roost's own Weheat login: {err}") from err
+    except WeheatUnavailable:
+        raise
+    except ClientResponseError as err:
+        if err.status in (400, 401, 403):                 # the refresh was refused: log in again
+            raise WeheatLoginNeeded(f"Weheat refused the login ({err.status})") from err
+        raise WeheatUnavailable(f"Weheat's login server: {err.status}") from err
+    except Exception as err:  # noqa: BLE001 - Weheat's login server unreachable, provider unavailable
+        raise WeheatUnavailable(f"Weheat login: {err}") from err
 
 
 async def weheat_implementation(hass: HomeAssistant) -> AbstractOAuth2Implementation | None:
@@ -90,16 +86,17 @@ async def _get(hass: HomeAssistant, entry_id: str, path: str, params: dict) -> l
     for attempt in range(4):
         try:
             token = await _access(hass, entry_id)
+        except WeheatLoginNeeded:
+            raise
         except WeheatUnavailable:
             if attempt == 3:
                 raise
-            await asyncio.sleep(40)             # the Weheat integration refreshes its token within ~2 minutes
+            await asyncio.sleep(40)             # Weheat's login server did not answer: a little later
             continue
         async with async_get_clientsession(hass).get(f"{API_URL}{path}", params=params, timeout=60,
                                                      headers={"Authorization": f"Bearer {token}"}) as r:
-            if r.status == 401 and attempt < 3:
-                await asyncio.sleep(40)
-                continue
+            if r.status == 401:
+                raise WeheatLoginNeeded("Weheat refused the token (401)")
             r.raise_for_status()
             data = await r.json()
             return data if isinstance(data, list) else []

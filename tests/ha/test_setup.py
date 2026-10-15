@@ -59,3 +59,9 @@ async def test_diagnostics_and_unload(hass: HomeAssistant, entry) -> None:
     assert d["mode"] == "shadow" and d["plan"] and d["weheat_entities"]
     assert await hass.config_entries.async_unload(entry.entry_id)
     assert entry.state is ConfigEntryState.NOT_LOADED
+
+
+async def test_without_a_weheat_login_it_asks_for_one(hass: HomeAssistant, entry) -> None:
+    """Installed without a Weheat login (or from before 0.5.3): Home Assistant shows the re-authenticate notice."""
+    flows = hass.config_entries.flow.async_progress_by_handler("roost")
+    assert any(f["context"]["source"] == "reauth" for f in flows), flows

@@ -104,7 +104,10 @@ Assistant; you check it. Every setting can be changed later (section [10](#10-al
 | Name | Leave *Roost* (it becomes the start of the entity names) |
 | Weheat heat pump | Your heat pump, from the Weheat integration |
 | Thermostat | The thermostat that drives the heat pump. If you have one thermostat that heats and does not cool, it is filled in already (air conditioners are left out) |
-| Import the heat pump's history from Weheat now | Leave **on**. Roost reads up to 13 months of the heat pump's hourly logs from Weheat (read-only, through the login of your Weheat integration) and learns your house from it in a few minutes. Off: Roost learns from scratch, which takes a couple of weeks |
+| Import the heat pump's history from Weheat now | Leave **on**. Roost reads a year of the heat pump's hourly logs from Weheat (read-only) and learns your house from it: the newest month right away, the rest in the background (a month every half hour). Off: Roost learns from scratch, which takes a couple of weeks |
+
+Click **Submit**: **Weheat's login page** opens. Log in with your Weheat account and allow it; you come back to the
+next screen. Nothing else to fill in — see [The Weheat login](#the-weheat-login).
 
 ### Screen 2 — The house
 
@@ -210,8 +213,8 @@ In shadow mode Roost plans and shows everything, but never touches the thermosta
    once every half hour: a full year takes about six hours. Sensor *Weheat import progress* shows how far it is (%,
    with the months and the expected end in its details), *Configure → Mode* and the card say "3 of 12 months, done
    around 13:40"; sensor *Weheat import* turns to *Done* at the end. A restart carries on where it was, and still
-   keeps Weheat's limits. *Waiting for the Weheat login*: the Weheat integration was
-   refreshing its login; Roost tries again by itself.
+   keeps Weheat's limits. *Waiting for the Weheat login*: Roost has no Weheat login yet or Weheat refused it — use
+   *Re-authenticate* at Roost on the integration page.
 2. **Learning** — right after the import, and every night at 03:30. Sensor *House model error* shows how well the house
    model predicts a day (°C; below about 0.6 is good). Its details hold what Roost learned (Settings → Devices &
    services → Roost → the sensor → ⋮ → **Details** → *Attributes*): heat loss, storage, floor delay, the facade the sun
@@ -316,24 +319,17 @@ it.
 
 Extra rooms are on the integration page (*Add room*, and ⋮ → *Reconfigure* per room).
 
-### The Weheat login (optional)
+### The Weheat login
 
-Roost reads the history from Weheat read-only. By default it uses the **Weheat integration's login**: nothing to set
-up. Now and then it then waits a minute or two while the Weheat integration refreshes that login.
+Roost reads your heat pump's history from Weheat read-only, with **its own Weheat login**. You make it in the setup:
+after the first screen Weheat's login page opens — log in with your **Weheat account** and allow it. Nothing else to
+fill in: Roost uses the app registration you already gave the Weheat integration (only if the Weheat integration has
+none, Home Assistant first asks for *application credentials* for Roost: the same Client ID and Client Secret as for
+the Weheat integration, from Weheat's knowledge base).
 
-Prefer Roost to keep **its own login**? On the integration page: Roost's ⋮ → **Reconfigure** → *Weheat login* →
-*Roost's own login* → Submit.
-
-1. Weheat's login page opens: log in with your **Weheat account** and allow the link. Nothing else to fill in: Roost
-   uses the app registration you already gave the Weheat integration.
-2. Back in Home Assistant: *The Weheat login is set.* Roost checks the account sees your heat pump.
-
-(Only if the Weheat integration has no app registration in Home Assistant, Home Assistant first asks for *application
-credentials* for Roost: the same Client ID and Client Secret as for the Weheat integration, from Weheat's knowledge
-base.)
-
-Roost then keeps and refreshes that login itself (in its own config entry, like any Home Assistant login). Back to the
-default: *Reconfigure* → *Through the Weheat integration*; Roost then forgets its own login.
+Roost keeps and refreshes that login itself, in its own config entry like any Home Assistant login. When Weheat no
+longer accepts it (a changed password, a revoked link), Home Assistant shows **Re-authenticate** at Roost on the
+integration page: click it and log in again. Installs from before 0.5.3 get that notice once.
 
 ---
 
@@ -426,7 +422,7 @@ automation:
 | The room gets too warm in the afternoon | Roost charges the floor | Lower *Warmest while storing heat* (equal to comfort switches it off) |
 | Bedroom upstairs gets cold | Radiators get no water while the heat pump rests | Add the bedroom as an extra room (section [9](#9-extra-rooms-radiators-upstairs-a-bedroom)) |
 | Savings negative | A warm house at the end of the day counts as cost until it is used; in mild weather there is little to save | Look at the month figure, not one day |
-| *Weheat import*: waiting for the Weheat login | The Weheat integration was refreshing its login | Wait; Roost retries. Persistent: re-authenticate the Weheat integration, or give Roost its own login (section [10](#10-all-settings)) |
+| *Weheat import*: waiting for the Weheat login | Roost has no Weheat login yet, or Weheat refused it | *Re-authenticate* at Roost on the integration page (section [10](#the-weheat-login)) |
 | *Configure → Mode* says *Heating hours* ⏳ in autumn | The heat pump heated with the room well above the setpoint: not the thermostat asking (its own heating curve?). Roost leaves those hours out of its checks (*unfollowed_hours* in *Plan accuracy*'s details) | Nothing; if it happens a lot, check the heat pump follows only the thermostat (Weheat app) |
 | *Plan accuracy* high (> 1 °C) | Little heating data yet, or a change in the house (a new window, a stove) | Wait a week; the nightly learning catches up |
 | Roost keeps pausing | Something else changes the thermostat | Turn off the thermostat's schedule / other automations |
@@ -452,11 +448,12 @@ automation:
 | To | What | When |
 |---|---|---|
 | Open-Meteo | Your home location (latitude/longitude) | Every 30 minutes for the forecast; once in a while for past weather |
-| Weheat (api.weheat.nl) | Read-only requests with the login of **your** Weheat integration, within Weheat's limits for developers | The history import (a month per request, at most a year back), and once a night for the last hours |
+| Weheat (auth.weheat.nl, api.weheat.nl) | Your Weheat login (made on Weheat's own page, refreshed by Home Assistant's OAuth helper); read-only requests, within Weheat's limits for developers | The history import (a month per request, at most a year back), and once a night for the last hours |
 | PDOK (Kadaster), only if you turned it on | Your home location, once | Building register lookup |
 
-Roost never stores or refreshes your Weheat login, never writes to the heat pump, has no account and sends nothing
-anywhere else.
+Roost never sees your Weheat password (you type it on Weheat's page), never writes to the heat pump, has no account
+and sends nothing anywhere else. Its Weheat login is kept like any Home Assistant login and is left out of the
+diagnostics.
 
 **Safety**
 

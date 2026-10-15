@@ -25,7 +25,7 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
 - **Learns your heat pump**: its COP, how it responds to the thermostat (an OpenTherm thermostat modulates and the heat
   pump follows slowly — Roost plans with that delay), its lowest output, when it makes hot water.
 - **Starts from last winter.** It imports the heat pump's hourly history (up to 13 months) from Weheat, read-only,
-  through your Weheat integration's login — so it knows your house from day one.
+  with its own Weheat login (you log in with your Weheat account in the setup) — so it knows your house from day one.
 - **Checks itself.** Every night it replays the last week with the setpoints that were really on the thermostat; when it
   predicts well enough it offers to take over. Between nights it corrects from the last hours.
 - **Dynamic or fixed price**, solar, home battery (energy from the battery is valued at what refilling it costs), net
@@ -78,8 +78,8 @@ saving is smaller. A thermostat with its own schedule or learning works against 
 
 ## Privacy
 
-Roost talks to **Open-Meteo** (weather, with your home location), to **Weheat** (read-only, with your own Weheat
-integration's login, for the history) and — only if you turn it on — once to **PDOK** (Dutch building register). Nothing
+Roost talks to **Open-Meteo** (weather, with your home location), to **Weheat** (read-only, with the Weheat login you make in
+the setup, for the history) and — only if you turn it on — once to **PDOK** (Dutch building register). Nothing
 else, no account, no telemetry. Details in the [guide](docs/GUIDE.md#15-privacy-and-safety).
 
 ## How it decides

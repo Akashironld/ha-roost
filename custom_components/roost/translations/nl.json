@@ -1,12 +1,12 @@
 {
   "application_credentials": {
-    "description": "De eigen Weheat-login van Roost gebruikt dezelfde Client ID en Client Secret als de [Weheat-integratie]({more_info_url}): ze staan in de kennisbank van Weheat."
+    "description": "Alleen nodig als de Weheat-integratie geen app-registratie in Home Assistant heeft: dezelfde Client ID en Client Secret als de [Weheat-integratie]({more_info_url}) (ze staan in de kennisbank van Weheat)."
   },
   "config": {
     "step": {
       "user": {
         "title": "Roost",
-        "description": "Roost plant de thermostaat van je Weheat-warmtepomp 24 uur vooruit op prijs, weer en de warmte die je huis opslaat. Hij begint in meekijkmodus: hij laat alleen zien wat hij zou doen. Gevonden entiteiten zijn al ingevuld; controleer ze.",
+        "description": "Roost plant de thermostaat van je Weheat-warmtepomp 24 uur vooruit op prijs, weer en de warmte die je huis opslaat. Hij begint in meekijkmodus: hij laat alleen zien wat hij zou doen. Gevonden entiteiten zijn al ingevuld; controleer ze. Na dit scherm log je in met je Weheat-account.",
         "data": {
           "name": "Naam",
           "heat_pump": "Weheat-warmtepomp",
@@ -16,7 +16,7 @@
         "data_description": {
           "heat_pump": "Het apparaat van de officiële Weheat-integratie. De sensoren worden automatisch gevonden.",
           "thermostat": "Roost verandert alleen de ingestelde temperatuur van deze thermostaat, zoals jij dat ook doet. De warmtepomp moet de thermostaat volgen (niet zijn eigen stooklijn).",
-          "import_weheat_history": "Alleen lezen, via de login van je Weheat-integratie: tot 13 maanden aan uurlogboeken (warmte, stroom, standen), zodat Roost je huis en warmtepomp vanaf dag één kent. Duurt een paar minuten."
+          "import_weheat_history": "Alleen lezen, met een eigen Weheat-login van Roost (na dit scherm opent de inlogpagina van Weheat): een jaar aan uurlogboeken (warmte, stroom, standen), zodat Roost je huis en warmtepomp vanaf dag één kent. Elk half uur komt er een maand binnen, op de achtergrond."
         }
       },
       "house": {
@@ -134,12 +134,9 @@
           }
         }
       },
-      "reconfigure": {
-        "title": "Weheat-login",
-        "description": "Hoe Roost de historie uit Weheat leest (alleen lezen). **Via de Weheat-integratie** gebruikt diens login: niets in te stellen, maar soms wacht Roost een minuut of twee terwijl de Weheat-integratie die ververst. **Eigen login van Roost**: na Verzenden opent de inlogpagina van Weheat — log in met je Weheat-account en sta het toe. Roost houdt daarna zelf een eigen login bij.",
-        "data": {
-          "weheat_auth": "Weheat-login"
-        }
+      "reauth_confirm": {
+        "title": "Inloggen bij Weheat",
+        "description": "Roost leest de historie van je warmtepomp uit Weheat (alleen lezen) met een eigen Weheat-login. Die is er nog niet, of Weheat accepteert hem niet meer. Verzenden: de inlogpagina van Weheat opent — log in met je Weheat-account en sta het toe."
       },
       "pick_implementation": {
         "title": "Kies de login"
@@ -156,7 +153,7 @@
     },
     "abort": {
       "already_configured": "Deze warmtepomp is al ingesteld.",
-      "reconfigure_successful": "De Weheat-login is ingesteld.",
+      "reauth_successful": "Ingelogd bij Weheat.",
       "wrong_account": "Dit Weheat-account ziet deze warmtepomp niet. Log in met het account van de warmtepomp.",
       "oauth_failed": "Inloggen bij Weheat lukte niet. Probeer het opnieuw.",
       "oauth_error": "Weheat gaf iets terug dat Roost niet kon lezen. Probeer het opnieuw.",
@@ -447,12 +444,6 @@
     }
   },
   "selector": {
-    "weheat_auth": {
-      "options": {
-        "integration": "Via de Weheat-integratie (standaard)",
-        "own": "Eigen login van Roost"
-      }
-    },
     "mode": {
       "options": {
         "off": "Uit",

@@ -1,7 +1,7 @@
-"""Roost's own Weheat login (optional): OAuth with the Client ID and Secret Weheat publishes for Home Assistant.
+"""Fallback for Roost's Weheat login: OAuth with the Client ID and Secret Weheat publishes for Home Assistant.
 
-By default Roost reads the Weheat history with the login of the Weheat integration. With its own login (Reconfigure →
-Weheat login) it keeps and refreshes its own token, so it never has to wait for the Weheat integration's."""
+Normally Roost's login uses the app registration the Weheat integration already has (nothing to fill in); these
+application credentials are only asked for when the Weheat integration has none."""
 from __future__ import annotations
 
 from homeassistant.components.application_credentials import ClientCredential

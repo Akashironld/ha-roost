@@ -406,6 +406,9 @@ def explain(p: Plan, hours: list[HourIn], room: float, s: Settings, hp: HeatPump
     now = hours[0].p_grid
     cheap = now <= sorted(prices)[len(prices) // 3]
     dear = now >= sorted(prices)[(2 * len(prices)) // 3]
+    if p.first.heat < 0.1 and sp <= room + th:
+        # no heat this hour: the room is warmer than the setpoint (sun, a warm day), whatever the price — not storing
+        return Reason("warm_enough", {"room": round(room, 1)})
     if hours[0].own_kw >= 0.5 and sp > hold + 0.25:
         return Reason("store_solar" if floor else "store_solar_house", {"sp": sp})
     if sp > hold + 0.25 and cheap:

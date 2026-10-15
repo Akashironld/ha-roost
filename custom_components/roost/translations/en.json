@@ -1,12 +1,12 @@
 {
   "application_credentials": {
-    "description": "Roost's own Weheat login uses the same Client ID and Client Secret as the [Weheat integration]({more_info_url}): Weheat's knowledge base gives them."
+    "description": "Only needed when the Weheat integration has no app registration in Home Assistant: the same Client ID and Client Secret as the [Weheat integration]({more_info_url}) (Weheat's knowledge base gives them)."
   },
   "config": {
     "step": {
       "user": {
         "title": "Roost",
-        "description": "Roost plans your Weheat heat pump's thermostat 24 hours ahead on price, weather and the heat your house stores. It starts in shadow mode: it only shows what it would do. Found entities are filled in already; check them.",
+        "description": "Roost plans your Weheat heat pump's thermostat 24 hours ahead on price, weather and the heat your house stores. It starts in shadow mode: it only shows what it would do. Found entities are filled in already; check them. After this screen you log in with your Weheat account.",
         "data": {
           "name": "Name",
           "heat_pump": "Weheat heat pump",
@@ -16,7 +16,7 @@
         "data_description": {
           "heat_pump": "The device of the official Weheat integration. Its sensors are found automatically.",
           "thermostat": "Roost only changes this thermostat's target temperature, like you would. The heat pump must follow the thermostat (not its own heating curve).",
-          "import_weheat_history": "Read-only, through the login of your Weheat integration: up to 13 months of hourly logs (heat, electricity, states), so Roost knows your house and heat pump from day one. Takes a few minutes."
+          "import_weheat_history": "Read-only, with Roost's own Weheat login (after this screen Weheat's login page opens): a year of hourly logs (heat, electricity, states), so Roost knows your house and heat pump from day one. A month comes in every half hour, in the background."
         }
       },
       "house": {
@@ -134,12 +134,9 @@
           }
         }
       },
-      "reconfigure": {
-        "title": "Weheat login",
-        "description": "How Roost reads the history from Weheat (read-only). **Through the Weheat integration** uses its login: nothing to set up, but now and then Roost waits a minute or two while the Weheat integration refreshes it. **Roost's own login**: after Submit the Weheat login page opens — log in with your Weheat account and allow it. Roost then keeps and refreshes its own login.",
-        "data": {
-          "weheat_auth": "Weheat login"
-        }
+      "reauth_confirm": {
+        "title": "Log in to Weheat",
+        "description": "Roost reads your heat pump's history from Weheat (read-only) with its own Weheat login. It has none yet, or Weheat no longer accepts it. Submit: Weheat's login page opens — log in with your Weheat account and allow it."
       },
       "pick_implementation": {
         "title": "Pick the login"
@@ -156,7 +153,7 @@
     },
     "abort": {
       "already_configured": "This heat pump is already set up.",
-      "reconfigure_successful": "The Weheat login is set.",
+      "reauth_successful": "Logged in to Weheat.",
       "wrong_account": "This Weheat account does not see this heat pump. Log in with the account of the heat pump.",
       "oauth_failed": "The Weheat login did not work. Try again.",
       "oauth_error": "Weheat returned something Roost could not read. Try again.",
@@ -447,12 +444,6 @@
     }
   },
   "selector": {
-    "weheat_auth": {
-      "options": {
-        "integration": "Through the Weheat integration (default)",
-        "own": "Roost's own login"
-      }
-    },
     "mode": {
       "options": {
         "off": "Off",

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 from functools import partial
 from typing import Any
@@ -9,7 +10,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import (
-    SOURCE_RECONFIGURE, ConfigEntry, ConfigFlowResult, ConfigSubentryFlow, OptionsFlow, SubentryFlowResult,
+    SOURCE_REAUTH, ConfigEntry, ConfigFlowResult, ConfigSubentryFlow, OptionsFlow, SubentryFlowResult,
 )
 from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant, callback
@@ -336,8 +337,8 @@ class RoomSubentryFlow(ConfigSubentryFlow):
 
 class RoostConfigFlow(AbstractOAuth2FlowHandler, domain=DOMAIN):
     """Setup in steps by subject: heat pump and thermostat, the house, the price, solar and battery, comfort.
-    Reconfigure: the Weheat login, the Weheat integration's (default) or Roost's own: log in with the Weheat account,
-    through the app registration the Weheat integration already has (else Roost's own application credentials)."""
+    After the first screen Weheat's login page: Roost keeps its own Weheat login (read-only history), through the app
+    registration the Weheat integration already has. Reauth when it is missing or expired."""
 
     DOMAIN = DOMAIN
     VERSION = 1
@@ -350,32 +351,36 @@ class RoostConfigFlow(AbstractOAuth2FlowHandler, domain=DOMAIN):
     def extra_authorize_data(self) -> dict[str, str]:
         return {"scope": "openid offline_access"}
 
-    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        entry = self._get_reconfigure_entry()
-        if user_input is not None:
-            if user_input[CONF_WEHEAT_AUTH] == "own":
-                impl = await weheat_implementation(self.hass)
-                if impl is None:                # no Weheat integration login to borrow: Roost's own application credentials
-                    self._auth_from = DOMAIN
-                    return await self.async_step_pick_implementation()
-                self.flow_impl, self._auth_from = impl, "weheat"
-                return await self.async_step_auth()     # straight to Weheat's login page
-            data = {k: v for k, v in entry.data.items() if k not in ("token", "auth_implementation", CONF_AUTH_FROM)}
-            return self.async_update_reload_and_abort(entry, data={**data, CONF_WEHEAT_AUTH: "integration"})
-        now = "own" if entry.data.get(CONF_WEHEAT_AUTH) == "own" and entry.data.get("token") else "integration"
-        schema = vol.Schema({vol.Required(CONF_WEHEAT_AUTH, default=now): _sel(["integration", "own"], CONF_WEHEAT_AUTH)})
-        return self.async_show_form(step_id="reconfigure", data_schema=schema)
+    async def _async_login(self) -> ConfigFlowResult:
+        """Weheat's login page, with the app registration the Weheat integration already has (nothing to fill in);
+        without one, Roost's own application credentials (Home Assistant asks for them)."""
+        impl = await weheat_implementation(self.hass)
+        if impl is None:
+            self._auth_from = DOMAIN
+            return await self.async_step_pick_implementation()
+        self.flow_impl, self._auth_from = impl, "weheat"
+        return await self.async_step_auth()
+
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """No Weheat login yet (an install from before 0.5.3), or it expired: log in with the Weheat account."""
+        if user_input is None:
+            return self.async_show_form(step_id="reauth_confirm")
+        return await self._async_login()
 
     async def async_oauth_create_entry(self, data: dict) -> ConfigFlowResult:
-        """Roost's own Weheat login came back: check it sees this heat pump, keep it in the entry."""
-        if self.source != SOURCE_RECONFIGURE:
-            return self.async_abort(reason="oauth_failed")
-        entry = self._get_reconfigure_entry()
-        pump, _ = heat_pump_id(self.hass, entry.data.get(CONF_HEAT_PUMP))
+        """The Weheat login came back: check it sees this heat pump, keep it in the entry's data."""
+        entry = self._get_reauth_entry() if self.source == SOURCE_REAUTH else None
+        pump, _ = heat_pump_id(self.hass, (entry.data if entry else self._data).get(CONF_HEAT_PUMP))
         if await _sees_pump(self.hass, data["token"]["access_token"], pump) is False:
             return self.async_abort(reason="wrong_account")
-        return self.async_update_reload_and_abort(entry, data_updates={**data, CONF_WEHEAT_AUTH: "own",
-                                                                       CONF_AUTH_FROM: self._auth_from})
+        login = {"auth_implementation": data["auth_implementation"], "token": data["token"], CONF_AUTH_FROM: self._auth_from}
+        if entry is not None:
+            return self.async_update_reload_and_abort(entry, data_updates=login)
+        self._data.update(login)
+        return await self.async_step_house()
 
     @classmethod
     @callback
@@ -399,7 +404,9 @@ class RoostConfigFlow(AbstractOAuth2FlowHandler, domain=DOMAIN):
                 await self.async_set_unique_id(user_input[CONF_HEAT_PUMP])
                 self._abort_if_unique_id_configured()
                 self._data.update(_clean(user_input))
-                return await self.async_step_house()
+                if await weheat_implementation(self.hass) is not None:
+                    return await self._async_login()
+                return await self.async_step_house()        # no app registration to use: Roost asks later (reauth)
         return self._form("user", start_schema(), _suggest(self.hass, user_input or {}, {CONF_THERMOSTAT: detect.thermostat(self.hass)}), errors)
 
     async def async_step_house(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:

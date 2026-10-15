@@ -84,21 +84,6 @@ async def test_options_menu_saves_each_part(hass: HomeAssistant, entry) -> None:
     assert r["type"] is FlowResultType.CREATE_ENTRY and entry.options["comfort"] == 21.0
 
 
-async def test_reconfigure_weheat_login(hass: HomeAssistant, entry) -> None:
-    """Reconfigure → Weheat login: the Weheat integration's (default), or Roost's own, which needs application
-    credentials first (Home Assistant then offers to add them)."""
-    assert await async_setup_component(hass, "application_credentials", {})
-    r = await entry.start_reconfigure_flow(hass)
-    assert r["type"] is FlowResultType.FORM and r["step_id"] == "reconfigure"
-    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"weheat_auth": "own"})
-    assert r["type"] is FlowResultType.ABORT and r["reason"] == "missing_credentials"
-    r = await entry.start_reconfigure_flow(hass)
-    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"weheat_auth": "integration"})
-    assert r["type"] is FlowResultType.ABORT and r["reason"] == "reconfigure_successful"
-    assert entry.data["weheat_auth"] == "integration" and "token" not in entry.data
-    assert entry.data["thermostat"] == THERMOSTAT                       # the rest of the setup is kept
-
-
 async def test_options_never_copy_the_weheat_login(hass: HomeAssistant, entry) -> None:
     hass.config_entries.async_update_entry(entry, data={**entry.data, "weheat_auth": "own", "auth_implementation": "roost_x",
                                                         "token": {"access_token": "a", "refresh_token": "r", "expires_at": 0}})
@@ -110,12 +95,33 @@ async def test_options_never_copy_the_weheat_login(hass: HomeAssistant, entry) -
     assert not {"token", "auth_implementation", "weheat_auth"} & set(entry.options) and entry.data["token"]["access_token"] == "a"
 
 
-async def test_own_login_uses_the_weheat_integrations_registration(hass: HomeAssistant, entry, current_request_with_host) -> None:
-    """With the Weheat integration's app registration in Home Assistant, Roost's own login goes straight to Weheat's
-    login page: nothing to fill in."""
+def _weheat_registration(hass: HomeAssistant) -> None:
+    """The app registration the Weheat integration has (application credentials), as Roost finds it."""
     config_entry_oauth2_flow.async_register_implementation(hass, "weheat", config_entry_oauth2_flow.LocalOAuth2Implementation(
         hass, "weheat", "weheat-client", "secret", "https://auth.example/authorize", "https://auth.example/token"))
-    r = await entry.start_reconfigure_flow(hass)
-    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"weheat_auth": "own"})
+
+
+async def test_setup_logs_in_with_the_weheat_account(hass: HomeAssistant, weheat: str, current_request_with_host) -> None:
+    """After the first screen Weheat's login page: nothing to fill in, the Weheat integration's app registration."""
+    _weheat_registration(hass)
+    r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"name": "Roost", "heat_pump": weheat, "thermostat": THERMOSTAT,
+                                                                       "import_weheat_history": False})
     assert r["type"] is FlowResultType.EXTERNAL_STEP
     assert r["url"].startswith("https://auth.example/authorize") and "client_id=weheat-client" in r["url"]
+
+
+async def test_reauth_logs_in_again(hass: HomeAssistant, entry, current_request_with_host) -> None:
+    _weheat_registration(hass)
+    r = await entry.start_reauth_flow(hass)
+    assert r["type"] is FlowResultType.FORM and r["step_id"] == "reauth_confirm"
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {})
+    assert r["type"] is FlowResultType.EXTERNAL_STEP and "client_id=weheat-client" in r["url"]
+
+
+async def test_reauth_without_an_app_registration(hass: HomeAssistant, entry) -> None:
+    """No Weheat integration app registration: Home Assistant asks for application credentials for Roost."""
+    assert await async_setup_component(hass, "application_credentials", {})
+    r = await entry.start_reauth_flow(hass)
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {})
+    assert r["type"] is FlowResultType.ABORT and r["reason"] == "missing_credentials"

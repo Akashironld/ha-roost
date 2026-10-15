@@ -31,11 +31,11 @@ from .const import (
     CONF_MIN_INTERVAL, CONF_NIGHT_MIN, CONF_PAUSE_HOURS, CONF_PV_FORECAST, CONF_PV_FORECAST_TOMORROW, CONF_PV_POWER,
     CONF_ROOM, CONF_STORE_MAX, CONF_THERMOSTAT, CONF_WEATHER, CONF_WEATHER_SOURCE, DEFAULTS, DOMAIN,
     CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND, CONF_PRICE_MODE,
-    CONF_EMITTER, CONF_SP_MIN, CONF_USE_BAG, CONF_WEHEAT_AUTH,
+    CONF_EMITTER, CONF_SP_MIN, CONF_USE_BAG,
     LEARN_HOUR, LEARN_MINUTE, PLAN_MINUTES, STORAGE_VERSION, TICK_SECONDS, WEATHER_MINUTES, WEHEAT, WEHEAT_IMPORT_DAYS,
 )
 from .reasons import Reason
-from .weheat_api import WeheatUnavailable, async_fetch_history, async_fetch_months, heat_pump_id
+from .weheat_api import WeheatLoginNeeded, WeheatUnavailable, async_fetch_history, async_fetch_months, heat_pump_id
 
 _LOGGER = logging.getLogger(__name__)
 DHW_STATES = ("dhw", "legionella_prevention")
@@ -232,6 +232,8 @@ class RoostManager:
         await self.async_save()
 
     async def _async_first_run(self) -> None:
+        if not self.entry.data.get("token"):
+            self._ask_login("not logged in to Weheat yet")     # installed before 0.5.3, or setup without a login
         await self._async_building()
         await self._async_seed_prices()
         await self._async_tick(None, force_plan=True)
@@ -554,12 +556,14 @@ class RoostManager:
             self.event("no_plan", reason=self.reason.code, sources=dict(self.sources))
 
     def _weheat_login(self) -> tuple[str | None, str | None]:
-        """(Weheat heat pump id, config entry whose login reads the API): Roost's own login when set up (Reconfigure),
-        else the Weheat integration's."""
-        pump, weheat_entry = heat_pump_id(self.hass, self.conf.get(CONF_HEAT_PUMP))
-        if self.entry.data.get(CONF_WEHEAT_AUTH) == "own" and self.entry.data.get("token"):
-            return pump, self.entry.entry_id
-        return pump, weheat_entry
+        """(Weheat heat pump id, config entry whose login reads the API: Roost's own)."""
+        pump, _ = heat_pump_id(self.hass, self.conf.get(CONF_HEAT_PUMP))
+        return pump, self.entry.entry_id
+
+    def _ask_login(self, why: str) -> None:
+        """No Weheat login, or Weheat refused it: Home Assistant shows 'Reconfigure / re-authenticate' for Roost."""
+        self.event("login_needed", why=why[:200])
+        self.entry.async_start_reauth(self.hass)
 
     def ready_eta(self) -> tuple[str, datetime | None]:
         """What Roost still waits for before it can steer, and when it expects that (local time, or None)."""
@@ -965,6 +969,9 @@ class RoostManager:
                                                             note=lambda **k: self.event("weheat_call", **k),
                                                             last_calls=self.weheat_last)
             self.event("weheat_refresh", calls=calls, hours=len(logs))
+        except WeheatLoginNeeded as err:
+            self._ask_login(str(err))
+            return
         except Exception as err:  # noqa: BLE001 - learn with what there is
             _LOGGER.debug("Roost: Weheat refresh skipped: %s", err)
             return
@@ -1079,6 +1086,8 @@ class RoostManager:
         except WeheatUnavailable as err:
             self.import_info.update(status=f"waiting for the Weheat login ({err})")        # keeps how far it got
             self.event("import_waiting", error=str(err)[:200])
+            if isinstance(err, WeheatLoginNeeded):
+                self._ask_login(str(err))
         except Exception as err:  # noqa: BLE001
             _LOGGER.exception("Roost: Weheat import failed")
             self.import_info.update(status=f"failed: {err}")

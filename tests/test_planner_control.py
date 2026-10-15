@@ -173,5 +173,17 @@ def test_reasons_follow_the_heat_emitter():
     assert planner.explain(p, hours, 20.8, s, floor=False).code == "expensive_house"
 
 
+
+def test_a_warm_room_is_not_storing():
+    """Evening, battery power counts as own, the room at 24.3 °C and the thermostat at 21: no heat goes in, so the
+    reason is 'warm enough', not 'charging the floor'."""
+    s = planner.Settings(comfort=20.5)
+    hours = [planner.HourIn(t_out=14.0, wind=3.5, rad=0.0, p_grid=0.34, p_own=0.30, own_kw=2.0) for _ in range(12)]
+    p = planner.Plan([planner.HourPlan(21.0, 23.5, 0.0, 0.0, 0.0, 0.34)], 0, 0, 0, 0, 0, None)
+    r = planner.explain(p, hours, 24.3, s)
+    assert r.code == "warm_enough" and r.args["room"] == 24.3, r
+    p = planner.Plan([planner.HourPlan(21.0, 20.9, 0.6, 2.4, 0.1, 0.34)], 0, 0, 0, 0, 0, None)
+    assert planner.explain(p, hours, 20.4, s).code == "store_solar"          # heat going in: it is storing
+
 if __name__ == "__main__":
     run_all(dict(globals()))
