@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.5.6 — unreleased
+## v0.5.6 — window open, German and French
 
 **For everyone** — Roost now recognises airing: it waits instead of heating the outdoors, and does not learn from it.
 
