@@ -7,6 +7,8 @@
 ### Improvements
 - **Window open**: a fast drop of the room temperature (0.5 °C within 15 minutes) or a window/door sensor you chose (optional, *Configure → The house*) means a window is open. Roost does not change the thermostat until the room is back (at most three hours), the card says *window open: Roost waits*, and those hours are left out of the correction, the self-check, the heat pump's response and the house model. The look back marks it
 - The hourly log is saved every hour, so a restart, crash or power cut loses at most an hour of the look back
+- **German and French**: the setup, the settings, the notices and the card
+- The README shows the card; the simulations add a winter month (28 days with a cold week: 3.8–8.8 % saving, never below the minimum); the diagnostics hold the full week of hours
 
 ### Fixes
 - The card's address carries a fingerprint of the file, so a browser fetches the card again whenever it changed — also after installing a zip over the same version

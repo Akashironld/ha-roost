@@ -344,12 +344,42 @@ ETA_TEXT = {
                                                     "solar": "Zon en thuisaccu", "comfort": "Comfort"},
            "basis_winter": "de laatste {weeks} stookweken van het afgelopen jaar, omdat de afgelopen week te weinig stookte — {passed} van {weeks} goed (nodig: {need}); hieronder de medianen",
            "today": "vandaag", "tomorrow": "morgen"},
+    "de": {"ready": "jetzt.", "lever": "noch nicht: der Sollwert bewegt die Wärmepumpe nicht (siehe die Reparaturmeldung).",
+           "following": "noch nicht: stelle die Wärmepumpe zuerst so ein, dass sie dem Thermostat folgt (in der Weheat-App).",
+           "import": "gegen {time}, nach dem Weheat-Import und dem Lernen danach, wenn die Selbstprüfung dann besteht.",
+           "heating": "gegen {time}: es braucht erst mehr Heizstunden.",
+           "heating_season": "wenn die Heizsaison beginnt: jetzt wird zu wenig geheizt, um den Plan zu prüfen.",
+           "check": "vielleicht bei der nächsten Selbstprüfung, {time}. Bis es gut genug vorhersagt, lernt es jede Nacht.",
+           "importing": "Weheat-Import: {done} von {total} Monaten, fertig gegen {time}.",
+           "basis_week": "der letzten Woche",
+           "saved": "✅ Gespeichert: {part}", "parts": {"mode": "Modus", "house": "Haus und Thermostat", "price": "Strompreis",
+                                                    "solar": "Solar und Heimspeicher", "comfort": "Komfort"},
+           "basis_winter": "den letzten {weeks} Heizwochen des vergangenen Jahres, weil die letzte Woche zu wenig geheizt hat — {passed} von {weeks} gut (nötig: {need}); unten die Mediane",
+           "today": "heute", "tomorrow": "morgen"},
+    "fr": {"ready": "maintenant.", "lever": "pas encore : la consigne ne fait pas varier la pompe à chaleur (voir la notification de réparation).",
+           "following": "pas encore : réglez d'abord la pompe à chaleur pour suivre le thermostat (dans l'application Weheat).",
+           "import": "vers {time}, après l'import Weheat et l'apprentissage qui suit, si l'auto-contrôle réussit alors.",
+           "heating": "vers {time} : il faut d'abord plus d'heures de chauffe.",
+           "heating_season": "au début de la saison de chauffe : trop peu de chauffe maintenant pour vérifier le plan.",
+           "check": "peut-être au prochain auto-contrôle, {time}. Tant qu'il ne prévoit pas assez bien, il apprend chaque nuit.",
+           "importing": "Import Weheat : {done} sur {total} mois, terminé vers {time}.",
+           "basis_week": "la dernière semaine",
+           "saved": "✅ Enregistré : {part}", "parts": {"mode": "Mode", "house": "La maison et le thermostat", "price": "Prix de l'électricité",
+                                                     "solar": "Solaire et batterie domestique", "comfort": "Confort"},
+           "basis_winter": "les {weeks} dernières semaines de chauffe de l'année passée, car la dernière semaine a trop peu chauffé — {passed} sur {weeks} bonnes (requis : {need}) ; ci-dessous les médianes",
+           "today": "aujourd'hui", "tomorrow": "demain"},
 }
+
+
+def _texts(hass: HomeAssistant) -> dict:
+    """The in-code texts in the user's language (English when Roost does not speak it)."""
+    lang = (hass.config.language or "en")[:2]
+    return ETA_TEXT.get(lang, ETA_TEXT["en"])
 
 
 def _eta_text(hass: HomeAssistant, mgr) -> str:
     """Expected ready to steer, as a sentence in the user's language."""
-    t = ETA_TEXT["nl" if (hass.config.language or "").startswith("nl") else "en"]
+    t = _texts(hass)
     if mgr is None:
         return "—"
     code, when = mgr.ready_eta()
@@ -561,7 +591,7 @@ class RoostOptionsFlow(OptionsFlow):
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         rooms = sum(1 for s in self.config_entry.subentries.values() if s.subentry_type == "room")
-        t = ETA_TEXT["nl" if (self.hass.config.language or "").startswith("nl") else "en"]
+        t = _texts(self.hass)
         saved = t["saved"].format(part=t["parts"].get(self._saved, self._saved)) + "\n\n" if self._saved else ""
         return self.async_show_menu(step_id="init", menu_options=["mode", "house", "price", "solar", "comfort", "done"],
                                     description_placeholders={**_summary(self.hass, self.opts, rooms), "saved": saved})
@@ -581,7 +611,7 @@ class RoostOptionsFlow(OptionsFlow):
         ok, no = "✅", "⏳"
         missing = set(mgr.ready_missing) if mgr else {"temperature"}
         w = c.get("winter") if c.get("heating_hours", 0) < check.READY_HEATING_HOURS else None
-        t = ETA_TEXT["nl" if (self.hass.config.language or "").startswith("nl") else "en"]
+        t = _texts(self.hass)
         if w:                       # mild weather: judged on the last heating weeks
             c = {**c, "rmse_6h": w.get("rmse_6h"), "heat_ratio": w.get("heat_ratio")}
             passed = w.get("passed", 0) >= check.WINTER_PASS

@@ -232,7 +232,7 @@ Roost keeps a week of hours and 60 days of day numbers for this; the history sta
 
 Options (also in the visual editor): `compact: true` (header and tiles only, for a wall tablet), `show_tiles`,
 `show_chart`, `show_footer`, `view: history` (open in the look back — e.g. a second card on an analysis page),
-`history: false` (no look back switch), `language` (`en`, `nl`), `time_format` (`24`, `12`), `title`.
+`history: false` (no look back switch), `language` (`en`, `nl`, `de`, `fr`), `time_format` (`24`, `12`), `title`.
 
 ```yaml
 type: custom:roost-card

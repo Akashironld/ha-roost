@@ -74,7 +74,9 @@ Everything else — every screen, every setting, the card, repairs, troubleshoot
 - An **electricity price**: a sensor with the prices of the coming hours (evcc, Nord Pool, Tibber, ENTSO-e, Frank
   Energie, Zonneplan, … are read automatically) — or, without one, the **built-in day-ahead prices** with your
   supplier's formula — or your fixed contract's rate.
-- Optional: a room sensor, solar and battery sensors, solar forecast, extra room sensors.
+- Optional: a room sensor, solar and battery sensors, solar forecast, extra room sensors, window sensors.
+
+Roost speaks English, Dutch, German and French (the setup, the card and the notices).
 
 ## Thermostats and heating
 
