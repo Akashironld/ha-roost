@@ -26,7 +26,8 @@ CHECK_BACK_DAYS = 60       # an older week with enough heating is checked when t
 # mild weather: judged on the last heating weeks instead (within a year)
 WINTER_WEEK_HOURS = 60     # a heating week: at least this many heating hours the thermostat asked for
 WINTER_WEEKS = 8           # the newest ones checked: two months, so one odd week does not decide
-WINTER_PASS = 6            # this many have to pass
+WINTER_PASS = 4            # at least this many have to pass on their own, and the medians over all of them
+MONDAY = 4 * 86400         # the epoch was a Thursday: weeks from Monday 00:00 UTC, so they do not shift every night
 WARMUP = 6
 # ready to steer
 READY_HEATING_HOURS = 30
@@ -143,8 +144,9 @@ def winter_check(rows: list[HourRow], house: HouseModel, hp: HeatPumpModel) -> d
     last = max(r.ts for r in rows)
     span = CHECK_DAYS * 86400
     ends = []
+    this_week = (last - MONDAY) // span * span + MONDAY            # fixed weeks: the same verdict tomorrow
     for k in range(1, 53):
-        end = last - k * span
+        end = this_week - (k - 1) * span
         if len(heat) and end > last - 365 * 86400 and bisect_right(heat, end) - bisect_right(heat, end - span) >= WINTER_WEEK_HOURS:
             ends.append(end)
         if len(ends) == WINTER_WEEKS:
@@ -161,11 +163,20 @@ def winter_check(rows: list[HourRow], house: HouseModel, hp: HeatPumpModel) -> d
             "until": max(ends)}
 
 
+def winter_ok(w: dict | None) -> bool:
+    """The heating weeks say ready: the medians within the limits, and at least WINTER_PASS weeks passing on their own
+    (so one odd week does not flip the verdict, and two good weeks do not decide it)."""
+    if not w or w.get("passed", 0) < WINTER_PASS:
+        return False
+    rmse, ratio = w.get("rmse_6h"), w.get("heat_ratio")
+    return rmse is not None and rmse <= READY_RMSE_6H and ratio is not None and abs(ratio - 1) <= READY_HEAT_RATIO
+
+
 def readiness(chk: dict, following: bool | None, lever: bool = True, winter: dict | None = None) -> tuple[bool, list[str]]:
     """Ready to steer? -> (ready, what is still missing as short codes). lever: the setpoint moves the heat pump.
     winter (winter_check): when the last week had too little heating, the last heating weeks decide."""
     missing = [] if lever else ["lever"]
-    if chk.get("heating_hours", 0) < READY_HEATING_HOURS and winter and winter.get("passed", 0) >= WINTER_PASS:
+    if chk.get("heating_hours", 0) < READY_HEATING_HOURS and winter_ok(winter):
         if following is False:
             missing.append("following")
         return not missing, missing

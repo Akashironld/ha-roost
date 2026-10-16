@@ -1,83 +1,18 @@
-"""Runtime of one Roost entry: read sources, keep track of stored heat, plan, steer the thermostat, learn."""
+"""Runtime of one Roost entry: read sources, keep track of stored heat, plan, steer the thermostat, learn.
+
+Split by subject: prices (prices.py), the Weheat login and history (weheat_sync.py), the hourly log and the look back
+(hourlog.py), notices and watching for a window open (health.py); shared imports and constants in mgr_common.py."""
 from __future__ import annotations
 
-import asyncio
-import logging
-import time
-import traceback
-from collections import deque
-from dataclasses import dataclass, field, replace
-from datetime import datetime, timedelta, timezone
-from functools import partial
-from typing import Any, Callable
-
-from homeassistant.components.recorder import get_instance, history as rh
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import (
-    ATTR_ENTITY_ID, ATTR_UNIT_OF_MEASUREMENT, EVENT_HOMEASSISTANT_STOP, STATE_UNAVAILABLE, STATE_UNKNOWN, UnitOfTemperature,
-)
-from homeassistant.core import Context, Event, HomeAssistant, State, callback
-from homeassistant.helpers import entity_registry as er, issue_registry as ir
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.event import async_track_state_change_event, async_track_time_change, async_track_time_interval
-from homeassistant.helpers.storage import Store
-from homeassistant.util import dt as dt_util
-
-from . import building, check, comfort, control, epex, lookback, window, heatpump, history, model, planner, response, rooms, series, sun, value, weather as om
-from .const import (
-    CONF_BASELINE_NIGHT, CONF_BATTERY_KW, CONF_BATTERY_KWH, CONF_BATTERY_POWER, CONF_BATTERY_RESERVE, CONF_BATTERY_SOC,
-    CONF_COMFORT, CONF_DAY_FROM, CONF_DAY_MIN, CONF_DAY_TO, CONF_EXPORT_PRICE, CONF_GRID_POWER, CONF_GRID_PREFERENCE,
-    CONF_GRID_SIGN, CONF_HEAT_PUMP, CONF_IMPORT_ON_SETUP, CONF_IMPORT_PRICE, CONF_MAX_ABOVE,
-    CONF_MIN_INTERVAL, CONF_NIGHT_MIN, CONF_PAUSE_HOURS, CONF_PV_FORECAST, CONF_PV_FORECAST_TOMORROW, CONF_PV_POWER,
-    CONF_ROOM, CONF_STORE_MAX, CONF_THERMOSTAT, CONF_WEATHER, CONF_WEATHER_SOURCE, DEFAULTS, DOMAIN,
-    CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND, CONF_PRICE_MODE,
-    CONF_EMITTER, CONF_SP_MIN, CONF_USE_BAG, CONF_WINDOW_SENSORS, CONF_EPEX_ZONE, CONF_IMPORT_MULT, CONF_IMPORT_ADD, CONF_EXPORT_FORMULA,
-    CONF_EXPORT_MULT, CONF_EXPORT_ADD,
-    LEARN_HOUR, LEARN_MINUTE, PLAN_MINUTES, STORAGE_VERSION, TICK_SECONDS, WEATHER_MINUTES, WEHEAT, WEHEAT_IMPORT_DAYS,
-)
-from .reasons import Reason
-from .weheat_api import WeheatLoginNeeded, WeheatUnavailable, async_fetch_history, async_fetch_months, heat_pump_id
-
-_LOGGER = logging.getLogger(__name__)
-HOUR_LOG_KEPT = 7 * 24 + 2                       # a week of hours: the replay of yesterday and the look back
+from .mgr_common import *  # noqa: F401,F403 - the shared imports and constants
+from .mgr_common import _LOGGER, _f, _i, _iso_ts  # noqa: F401
+from .health import HealthMixin
+from .hourlog import HourLogMixin
+from .prices import PricesMixin
+from .weheat_sync import WeheatMixin
 
 
-def _iso_ts(v) -> float:
-    try:
-        return datetime.fromisoformat(str(v)).timestamp()
-    except (TypeError, ValueError):
-        return 0.0
-DHW_STATES = ("dhw", "legionella_prevention")
-DHW_WEEKS = 8                 # hot water profile from the last weeks
-EVENTS_KEPT = 300             # what Roost did, for a bug report
-SP_HIST_DAYS = 120            # own record of the thermostat's setpoint per hour
-NO_LEVER_KW = 0.2             # learned gain below this (kW per °C): the setpoint hardly moves the heat pump
-WEHEAT_FIELDS = 2             # 2: the import includes the setpoint per hour
-NOT_FOLLOWING_MIN = 45
-ROOM_SILENT_MIN = 30
-
-
-def _i(v: Any) -> int | None:
-    x = _f(v)
-    return None if x is None else int(x)
-
-
-def _f(v: Any) -> float | None:
-    try:
-        x = float(v)
-    except (TypeError, ValueError):
-        return None
-    return x if x == x else None
-
-
-@dataclass
-class Health:
-    not_following_since: float | None = None
-    room_missing_since: float | None = None
-    issues: set = field(default_factory=set)
-
-
-class RoostManager:
+class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.hass = hass
         self.entry = entry
@@ -320,50 +255,6 @@ class RoostManager:
             "room_models": {k: v.as_dict() for k, v in self.room_models.items() if any(r.id == k for r in self.rooms)},
             "weheat_last": self.weheat_last, "events": list(self.events)})
 
-    def _weheat_last_from_events(self) -> dict[str, float]:
-        """The last Weheat call per kind, from the event log (stored by versions before weheat_last was kept)."""
-        last: dict[str, float] = {}
-        for e in self.events:
-            if e.get("kind") == "weheat_call" and e.get("endpoint") in ("logs", "energy"):
-                try:
-                    last[e["endpoint"]] = datetime.fromisoformat(e["t"]).timestamp()
-                except (KeyError, TypeError, ValueError):
-                    pass
-        return last
-
-    def _price_seen_recent(self) -> dict[str, dict[str, float]]:
-        cut = time.time() - 3 * 86400
-        self.price_seen = {e: {k: v for k, v in d.items() if k >= cut} for e, d in self.price_seen.items()}
-        return {e: {str(k): round(v, 5) for k, v in sorted(d.items())} for e, d in self.price_seen.items()}
-
-    async def _async_seed_prices(self) -> None:
-        """Hourly prices of the last two days from the recorder (the state of the price sensor), so hours without a
-        forecast yet can be filled with the same hour a day earlier right after setup or a restart."""
-        now = dt_util.utcnow()
-        start = now - timedelta(hours=49)
-        for key in (CONF_IMPORT_PRICE, CONF_EXPORT_PRICE):
-            eid = self.conf.get(key) if self.conf.get(CONF_PRICE_MODE, "sensor") == "sensor" else None
-            st = self._state(eid)
-            if not eid or st is None:
-                continue
-            try:
-                res = await get_instance(self.hass).async_add_executor_job(
-                    partial(rh.state_changes_during_period, self.hass, start, now, entity_id=eid, no_attributes=True,
-                            include_start_time_state=True))
-            except Exception as err:  # noqa: BLE001 - without the recorder the last known price is used, as before
-                _LOGGER.debug("Roost could not read the price history of %s: %s", eid, err)
-                continue
-            changes = [(s.last_changed.timestamp(), v) for s in res.get(eid, []) if (v := _f(s.state)) is not None]
-            if not changes:
-                continue
-            scale = series.price_scale(st.attributes.get(ATTR_UNIT_OF_MEASUREMENT), [v for _, v in changes])
-            h0 = int(start.timestamp() // 3600 * 3600) + 3600
-            n = int((now.timestamp() - h0) // 3600)                # complete hours only
-            seen = self.price_seen.setdefault(eid, {})
-            for h, v in enumerate(series.hourly(series.slots_from_changes(changes, now.timestamp()), h0, n, fill_last=False)):
-                if v is not None:
-                    seen.setdefault(h0 + h * 3600, v * scale)
-
     async def _async_save_history(self) -> None:
         await self._hist_store.async_save({"weheat": {str(k): v for k, v in self._weheat_hours.items()},
                                            "weather": {str(k): list(v) for k, v in self._weather_hist.items()}})
@@ -496,75 +387,6 @@ class RoostManager:
         return max(0.0, 0.9 * s)
 
     # ------------------------------------------------------------ energy value
-    def _filled(self, key: str, raw: list[float | None], now: datetime, cur: float | None) -> list[float]:
-        """Hours past the forecast (tomorrow's prices come in the afternoon) from the same hour a day earlier."""
-        seen = self.price_seen.setdefault(key, {})
-        base = int(now.timestamp() // 3600 * 3600)
-        for h, v in enumerate(raw):
-            if v is not None and h > 0:                     # hour 0 is only the rest of the hour: keep the full one
-                seen[base + h * 3600] = v
-            elif v is not None:
-                seen.setdefault(base, v)
-        vals, guess = series.fill_gaps(raw, now.timestamp(), seen, cur)
-        self._price_guess[key] = guess
-        return [v or 0.0 for v in vals]
-
-    def _epex_series(self, now: datetime, hours: int, mult_key: str, add_key: str, key: str) -> list[float] | None:
-        """The built-in day-ahead prices through the user's formula (day-ahead × multiplier + fixed amount)."""
-        if not self._epex:
-            return None
-        mult, add = _f(self.conf.get(mult_key)) or 0.0, _f(self.conf.get(add_key)) or 0.0
-        raw = [None if v is None else epex.formula(v, mult, add) for v in series.hourly(self._epex, now.timestamp(), hours, fill_last=False)]
-        cur = series.current_value(self._epex, now.timestamp())
-        return self._filled(key, raw, now, epex.formula(cur, mult, add) if cur is not None else None)
-
-    async def _async_epex(self, now: datetime) -> None:
-        """Fetch the built-in day-ahead prices when due (Energy-Charts limits how often an address may ask)."""
-        loc = dt_util.as_local(now)
-        tomorrow_end = (dt_util.start_of_local_day(loc) + timedelta(days=2)).timestamp()
-        if not epex.needs_refresh(self._epex, self._epex_at, now.timestamp(), loc.hour, tomorrow_end):
-            return
-        self._epex_at = now.timestamp()
-        zone = self.conf.get(CONF_EPEX_ZONE) or epex.zone_for(self.hass.config.country)
-        try:
-            slots = await epex.async_fetch(async_get_clientsession(self.hass), zone, loc.date())
-        except Exception as err:  # noqa: BLE001 - keep what there is, try again later
-            self.sources["epex"] = f"error: {err}"[:120]
-            self.event("epex", zone=zone, error=str(err)[:200])
-            return
-        if slots:
-            self._epex = slots
-            self.sources["epex"] = "ok"
-            self.event("epex", zone=zone, slots=len(slots), until=datetime.fromtimestamp(slots[-1][1], tz=timezone.utc).isoformat())
-
-    def _price_series(self, eid: str | None, now: datetime, hours: int) -> list[float] | None:
-        st = self._state(eid)
-        if st is None:
-            return None
-        mid = dt_util.start_of_local_day(dt_util.as_local(now)).timestamp()
-        slots = series.find_slots(dict(st.attributes), mid)
-        cur = _f(st.state)
-        unit = st.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
-        scale = series.price_scale(unit, [cur] if cur is not None else [v for _, _, v in slots])     # for the state
-        if slots:
-            fscale = series.slot_scale(slots, unit, cur * scale if cur is not None else None, now.timestamp())
-            raw = [None if v is None else v * fscale for v in series.hourly(slots, now.timestamp(), hours, fill_last=False)]
-            return self._filled(eid, raw, now, cur * scale if cur is not None else None)
-        self._price_guess[eid] = [h > 0 for h in range(hours)]
-        return [cur * scale] * hours if cur is not None else None
-
-    def _pv_forecast(self, start: float, hours: int) -> list[float] | None:
-        slots = []
-        for key in (CONF_PV_FORECAST, CONF_PV_FORECAST_TOMORROW):
-            st = self._state(self.conf.get(key))
-            if st is not None:
-                slots += series.find_slots(dict(st.attributes))
-        if slots:
-            return series.energy_per_hour(sorted(slots), start, hours)
-        if self.conf.get(CONF_PV_POWER) and self.pv_k:
-            base = start - start % 3600
-            return [self.pv_k * (self._weather.get(int(base + i * 3600)) or (0, 0, 0))[1] for i in range(hours)]
-        return None
 
     def _rooms_ahead(self, hours: list[planner.HourIn]) -> tuple[list[dict], list[dict]]:
         """The extra rooms for the planner (model, temperature now, minimum, hours it holds) and for the card."""
@@ -611,34 +433,6 @@ class RoostManager:
             self._last_reason_code = self.reason.code
             self.event("no_plan", reason=self.reason.code, sources=dict(self.sources))
 
-    def _weheat_login(self) -> tuple[str | None, str | None]:
-        """(Weheat heat pump id, config entry whose login reads the API: Roost's own)."""
-        pump, _ = heat_pump_id(self.hass, self.conf.get(CONF_HEAT_PUMP))
-        return pump, self.entry.entry_id
-
-    def _ask_login(self, why: str) -> None:
-        """No Weheat login, or Weheat refused it: Home Assistant shows 'Reconfigure / re-authenticate' for Roost."""
-        self.event("login_needed", why=why[:200])
-        self.entry.async_start_reauth(self.hass)
-
-    def ready_eta(self) -> tuple[str, datetime | None]:
-        """What Roost still waits for before it can steer, and when it expects that (local time, or None)."""
-        now = dt_util.now()
-        nxt = now.replace(hour=LEARN_HOUR, minute=LEARN_MINUTE, second=0, microsecond=0)
-        if nxt <= now:
-            nxt += timedelta(days=1)
-        missing = [] if self.ready else (self.ready_missing or ["temperature"])
-        code, ts = check.eta(missing, self.check, self.import_info if self.importing else {}, now.timestamp(), nxt.timestamp())
-        return code, dt_util.as_local(datetime.fromtimestamp(ts, tz=timezone.utc)) if ts else None
-
-    def import_progress(self) -> tuple[int, int, datetime | None]:
-        """A running Weheat import: months in, months in all, expected end (local time)."""
-        i = self.import_info
-        if not self.importing:
-            return i.get("months_done", i.get("months", 0)), i.get("months", 0), None
-        end = check.import_done_at(i, dt_util.now().timestamp())
-        return i.get("months_done", 0), i.get("months", 0), dt_util.as_local(datetime.fromtimestamp(end, tz=timezone.utc))
-
     def house_start(self) -> dict:
         """Starting values for the house model: heat emitter and (opt-in) the building register."""
         return model.starting_values(self.conf.get(CONF_EMITTER, "floor"), building.prior(self.building))
@@ -650,57 +444,7 @@ class RoostManager:
     def local_hour(self, ts: int) -> int:
         return dt_util.as_local(datetime.fromtimestamp(ts, tz=timezone.utc)).hour
 
-    def _fixed_series(self, now: datetime, hours: int, key: str) -> list[float] | None:
-        """A fixed contract per hour ahead (normal / low rate), or the fixed export price."""
-        c = self.conf
-        base = int(now.timestamp() // 3600 * 3600)
-        loc = [dt_util.as_local(datetime.fromtimestamp(base + i * 3600, tz=timezone.utc)) for i in range(hours)]
-        if key == CONF_FIXED_EXPORT_PRICE:
-            v = _f(c.get(CONF_FIXED_EXPORT_PRICE))
-            return None if v is None else [v] * hours
-        normal = _f(c.get(CONF_FIXED_PRICE))
-        if normal is None:
-            return None
-        return value.fixed_prices([(x.weekday(), x.hour) for x in loc], normal, _f(c.get(CONF_FIXED_LOW_PRICE)),
-                                  int(c.get(CONF_LOW_FROM, 23)), int(c.get(CONF_LOW_TO, 7)), bool(c.get(CONF_LOW_WEEKEND, True)))
 
-    def _energy(self, now: datetime, hours: int) -> tuple[value.EnergyInputs, value.EnergyValue] | None:
-        c = self.conf
-        if c.get(CONF_PRICE_MODE) == "fixed":
-            imp = self._fixed_series(now, hours, CONF_FIXED_PRICE)
-            exp = self._fixed_series(now, hours, CONF_FIXED_EXPORT_PRICE)
-            self._price_guess[CONF_FIXED_PRICE] = [False] * hours
-            if imp is None:
-                self.sources["price"] = "missing"
-                return None
-            self.sources["price"] = "fixed"
-        elif c.get(CONF_PRICE_MODE) == "epex":
-            imp = self._epex_series(now, hours, CONF_IMPORT_MULT, CONF_IMPORT_ADD, "epex_import")
-            if imp is None:
-                self.sources["price"] = "missing"
-                return None
-            self.sources["price"] = "epex"
-            exp = self._epex_series(now, hours, CONF_EXPORT_MULT, CONF_EXPORT_ADD, "epex_export") if c.get(CONF_EXPORT_FORMULA) else None
-        else:
-            imp = self._price_series(c.get(CONF_IMPORT_PRICE), now, hours)
-            if imp is None:
-                self.sources["price"] = "missing"
-                return None
-            self.sources["price"] = "ok"
-            exp = self._price_series(c.get(CONF_EXPORT_PRICE), now, hours) if c.get(CONF_EXPORT_PRICE) else None
-        surplus = value.solar_export_now(self._kw(c.get(CONF_GRID_POWER)), self._kw(c.get(CONF_BATTERY_POWER)),
-                                         self._kw(c.get(CONF_PV_POWER)), c.get(CONF_GRID_SIGN, "import_positive") == "import_positive")
-        soc = self._num(c.get(CONF_BATTERY_SOC))
-        load = None
-        if self.load_profile and len(self.load_profile) == 24:
-            h0 = dt_util.as_local(now).hour
-            load = [self.load_profile[(h0 + i) % 24] for i in range(hours)]
-        inp = value.EnergyInputs(import_price=imp, export_price=exp, pv_kwh=self._pv_forecast(now.timestamp(), hours), load_kwh=load,
-                                 surplus_now_kw=surplus, battery_soc=soc,
-                                 battery_kwh=_f(c.get(CONF_BATTERY_KWH)) if soc is not None else None,
-                                 battery_reserve=_f(c.get(CONF_BATTERY_RESERVE)) or 10.0, battery_max_kw=_f(c.get(CONF_BATTERY_KW)) or 5.0,
-                                 grid_preference=_f(c.get(CONF_GRID_PREFERENCE)) or 0.0)
-        return inp, value.compute(inp)
 
     # ------------------------------------------------------------ the run
     async def _async_tick(self, _now: datetime | None, force_plan: bool = False) -> None:
@@ -757,67 +501,6 @@ class RoostManager:
         if e:
             self._last_elec = e
 
-    def _log_hour(self, now: datetime) -> None:
-        """Once per hour: what the thermostat had and the inputs, so the day can be replayed for the saving."""
-        hour = int(now.timestamp() // 3600 * 3600)
-        if self.hour_log and self.hour_log[-1]["ts"] == hour:
-            return
-        room = self.room()
-        sp = self.thermostat_sp() if self.mode == "active" or self.mem.virtual_sp is None else self.mem.virtual_sp
-        wx = self._weather.get(hour)
-        if room is None or sp is None or wx is None or not self.plan_hours:
-            return
-        h = self.plan_hours[0]
-        pr = self.pred.get(hour, {})
-        self.hour_log.append({"ts": hour, "T": round(room, 2), "E": round(self.storage_e, 2), "sp": sp, "sp_t": self.thermostat_sp(),
-                              "t_out": wx[0], "rad": round(self.sun_on_house(hour, wx), 4), "hour": dt_util.as_local(now).hour,
-                              "wind": wx[2] if wx[2] is not None else 3.5, "p_grid": h.p_grid, "p_own": h.p_own, "own": h.own_kw,
-                              "day": self.is_day(dt_util.as_local(now)),
-                              # for looking back: the plan, its reason, what was predicted for this hour, the mode
-                              "sp_plan": self.plan.first.sp if self.plan and self.plan.first else None,
-                              "reason": self.reason.code, "args": dict(self.reason.args),
-                              "p6": pr.get("p6"), "p1": pr.get("p1"), "mode": self.mode, "window": hour in self.window.hours,
-                              "paused": bool(self.mem.pause_until and self.mem.pause_until > time.time())})
-        self.hour_log = self.hour_log[-HOUR_LOG_KEPT:]
-        self.pred = {k: v for k, v in self.pred.items() if k > hour - 7200}
-        self.spawn(self.async_save(), "save the hour", background=False)   # a crash or power cut loses at most an hour
-
-    def _remember_prediction(self, now: datetime, p) -> None:
-        """The room the plan expects at the start of the coming hours, 1 and 6 hours ahead, to set beside what happened."""
-        base = int(now.timestamp() // 3600 * 3600)
-        for j, hp in enumerate(p.hours[:6]):
-            ahead = j + 1
-            if ahead in (1, 6):
-                self.pred.setdefault(base + ahead * 3600, {})[f"p{ahead}"] = round(hp.t_end, 2)
-
-    async def _async_close_day(self, day: str) -> None:
-        """Replay yesterday with what Roost set and with a steady thermostat, from the same start (same model, same
-        weather, same prices): the difference is the saving."""
-        entries = [e for e in self.hour_log if dt_util.as_local(datetime.fromtimestamp(e["ts"], tz=timezone.utc)).date().isoformat() == day]
-        if len(entries) < 20:
-            return
-        res = await self.hass.async_add_executor_job(planner.replay_day, self.house, self.pump, self.settings(), entries)
-        if res is not None:
-            self.saving_days[day] = round(res[1] - res[0], 3)
-        by_hand = sum(1 for e in self.events if e.get("kind") == "by_hand" and str(e.get("t", "")).startswith(day))
-        self.day_stats[day] = lookback.day_stats(entries, self.settings().comfort, by_hand,
-                                                 res[0] if res else None, res[1] if res else None)
-        await self.async_save()
-
-    def history_payload(self, days: int = 7) -> dict:
-        """Everything the card's look back needs (websocket roost/history): the hours, the events that explain them,
-        the days in numbers."""
-        cut = time.time() - days * 86400
-        kinds = {"set", "by_hand", "pause", "resume", "mode", "learned", "set_failed", "login_needed", "window"}
-        return {"hours": [e for e in self.hour_log if e["ts"] >= cut],
-                "events": [e for e in self.events if e.get("kind") in kinds and _iso_ts(e.get("t")) >= cut],
-                "days": dict(sorted(self.day_stats.items())[-62:]),
-                "comfort": self.settings().comfort, "currency": self.hass.config.currency or "EUR", "mode": self.mode}
-
-    def saving_month(self) -> float:
-        month = dt_util.now().date().isoformat()[:7]
-        return round(sum(v for k, v in self.saving_days.items() if k.startswith(month)), 2)
-
     def _hours_ahead(self, now: datetime, prices: list[value.HourPrices]) -> list[planner.HourIn]:
         base = int(now.timestamp() // 3600 * 3600)
         out = []
@@ -873,23 +556,6 @@ class RoostManager:
         finally:
             self._planning = False
 
-    def _windows_open(self) -> bool | None:
-        """The chosen window/door sensors: True when one is open, None when none are chosen (or none report)."""
-        ids = self.conf.get(CONF_WINDOW_SENSORS) or []
-        states = [self._state(e) for e in ids]
-        known = [s.state for s in states if s is not None and s.state in ("on", "off")]
-        return ("on" in known) if known else None
-
-    def _watch_window(self, t: float) -> None:
-        ev = self.window.feed(t, self.room(), self._windows_open())
-        if ev == "open":
-            self.event("window", phase="open", via=self.window.via, before=self.window.before, room=self.room())
-            self._notify()
-        elif ev == "end":
-            self.event("window", phase="end", room=self.room())
-            self.window.prune(t - 400 * 86400)
-            self._notify()
-
     async def _async_control(self, t: float) -> None:
         if self.window.active():
             # airing: changing the thermostat now would heat the outdoors; wait until the room is back
@@ -937,61 +603,6 @@ class RoostManager:
         self._notify()
 
     # ------------------------------------------------------------ health (repairs)
-    def _issue(self, key: str, active: bool, fixable: bool = False, placeholders: dict | None = None,
-               translation_key: str | None = None, data: dict | None = None) -> None:
-        iid = f"{self.entry.entry_id}_{key}"
-        if active != (key in self.health.issues):
-            self.event("repair", issue=key, active=active)
-        if active and key not in self.health.issues:
-            ir.async_create_issue(self.hass, DOMAIN, iid, is_fixable=fixable, severity=ir.IssueSeverity.WARNING,
-                                  translation_key=translation_key or key,
-                                  data={"entry_id": self.entry.entry_id, "issue": key, **(data or {})} if fixable else None,
-                                  translation_placeholders={"name": self.entry.title, **(placeholders or {})})
-            self.health.issues.add(key)
-        elif not active and key in self.health.issues:
-            ir.async_delete_issue(self.hass, DOMAIN, iid)
-            self.health.issues.discard(key)
-
-    def _issue_comfort(self) -> None:
-        """A comfort setting suggested from the changes made by hand (comfort.suggest); the user accepts or ignores it."""
-        c = self.conf
-
-        def local(ts: float) -> tuple[str, int]:
-            loc = dt_util.as_local(datetime.fromtimestamp(ts, tz=timezone.utc))
-            return loc.date().isoformat(), loc.hour
-        def local_minute(ts: float) -> tuple[str, int]:
-            loc = dt_util.as_local(datetime.fromtimestamp(ts, tz=timezone.utc))
-            return loc.date().isoformat(), loc.hour * 60 + loc.minute
-        sched = comfort.scheduled(self.changes, local_minute, time.time())
-        self._issue("thermostat_schedule", bool(sched), placeholders={
-            "times": ", ".join(f"{s['minute'] // 60:02d}:{s['minute'] % 60:02d} → {s['to']:g} °C" for s in sched)})
-        by_schedule = {t for s in sched for t in s["ts"]}
-        own = [x for x in self.changes if x["ts"] not in by_schedule]
-        sug = comfort.suggest(own, local, time.time(), int(c[CONF_DAY_FROM]), int(c[CONF_DAY_TO]),
-                              float(c[CONF_COMFORT]), float(c[CONF_DAY_MIN]))
-        if self.suggestion is not None and (sug is None or sug.as_dict() != self.suggestion.as_dict()):
-            self._issue("comfort", False)
-        self.suggestion = sug
-        if sug is not None:
-            cur = {"comfort": c[CONF_COMFORT], "day_from": c[CONF_DAY_FROM], "day_to": c[CONF_DAY_TO]}[sug.key]
-            fmt = (lambda v: f"{float(v):g}") if sug.key == "comfort" else (lambda v: f"{int(v)}:00")
-            self._issue("comfort", True, fixable=True, translation_key=f"suggest_{sug.kind}", data=sug.as_dict(),
-                        placeholders={"current": fmt(cur), "value": fmt(sug.value), "days": str(sug.days), "count": str(sug.count)})
-
-    async def async_accept_suggestion(self, key: str, value: float) -> None:
-        """The user accepted a suggested comfort setting: store it (the entry reloads) and start counting afresh."""
-        self.changes = []
-        self.suggestion = None
-        await self.async_save()
-        v = int(value) if key in (CONF_DAY_FROM, CONF_DAY_TO) else float(value)
-        self.hass.config_entries.async_update_entry(self.entry, options={**self.entry.options, key: v})
-
-    def _issue_ready(self) -> None:
-        """Tell the user once the self-check says Roost can steer (only while in shadow mode; the user decides)."""
-        rmse = self.check.get("rmse_6h")
-        self._issue("ready_for_active", self.mode == "shadow" and self.ready, fixable=True,
-                    placeholders={"rmse": f"{rmse:.2f}" if rmse is not None else "?",
-                                  "hours": str(self.check.get("heating_hours", 0)), "days": str(self.check.get("days", 0))})
 
     def _track_hour(self, t: float) -> None:
         """Per hour: seconds on hot water (an hour on hot water is not a model error) and the heat delivered to the house
@@ -1039,27 +650,7 @@ class RoostManager:
             out.append((loc.weekday(), loc.hour, secs / 3600))
         return out
 
-    def _check_health(self, t: float) -> None:
-        # the heat pump heats while the thermostat asks for no heat: it is on its own heating curve
-        demand = self._num(self.ent.get("water_setpoint"))
-        heating = self.pump_state() == "heating" and (self._kw(self.ent.get("power_in")) or 0.0) > 0.4
-        if heating and demand is not None and demand <= 15:
-            self.health.not_following_since = self.health.not_following_since or t
-        else:
-            self.health.not_following_since = None
-        self._issue("not_following", bool(self.health.not_following_since and t - self.health.not_following_since > NOT_FOLLOWING_MIN * 60))
-        if self.room() is None:
-            self.health.room_missing_since = self.health.room_missing_since or t
-        else:
-            self.health.room_missing_since = None
-        self._issue("room_missing", bool(self.health.room_missing_since and t - self.health.room_missing_since > ROOM_SILENT_MIN * 60))
-        self._issue("weheat_missing", not self.ent)
 
-    @property
-    def following(self) -> bool | None:
-        if not self.ent.get("water_setpoint"):
-            return None
-        return not (self.health.not_following_since and time.time() - self.health.not_following_since > NOT_FOLLOWING_MIN * 60)
 
     # ------------------------------------------------------------ services
     async def async_pause(self, hours: float) -> None:
@@ -1079,30 +670,6 @@ class RoostManager:
     async def _async_nightly(self, _now: datetime) -> None:
         await self._async_refresh_weheat()
         await self.async_learn()
-
-    async def _async_refresh_weheat(self) -> None:
-        """The hours since the last import, from Weheat (read-only), so learning and the self-check use the unit's own
-        meters and states. Skipped quietly when the Weheat login is not available."""
-        if not self.import_info.get("done") or not self._weheat_hours or self.importing:
-            return
-        pump, weheat_entry = self._weheat_login()
-        if not pump or not weheat_entry:
-            return
-        end = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
-        start = max(end - timedelta(days=30), datetime.fromtimestamp(max(self._weheat_hours) - 3 * 3600, tz=timezone.utc))
-        try:
-            logs, energy, calls = await async_fetch_history(self.hass, weheat_entry, pump, start, end,
-                                                            note=lambda **k: self.event("weheat_call", **k),
-                                                            last_calls=self.weheat_last)
-            self.event("weheat_refresh", calls=calls, hours=len(logs))
-        except WeheatLoginNeeded as err:
-            self._ask_login(str(err))
-            return
-        except Exception as err:  # noqa: BLE001 - learn with what there is
-            _LOGGER.debug("Roost: Weheat refresh skipped: %s", err)
-            return
-        self._weheat_hours.update(history.weheat_hours(logs, energy))
-        await self._async_save_history()
 
     async def async_learn(self) -> None:
         if self._learning:
@@ -1173,60 +740,3 @@ class RoostManager:
         await self.async_save()
         await self._async_tick(None, force_plan=True)
 
-    async def async_import(self, days: int = WEHEAT_IMPORT_DAYS) -> None:
-        """Read the heat pump's history from Weheat (read-only), then learn."""
-        if self.importing:
-            return
-        pump, weheat_entry = self._weheat_login()
-        if not pump or not weheat_entry:
-            self.import_info = {"status": "no Weheat heat pump found"}
-            return
-        self.importing = True
-        prev = self.import_info if not self.import_info.get("done") and self.import_info.get("oldest") else None
-        end = datetime.fromisoformat(prev["oldest"]) if prev else dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
-        start = datetime.fromisoformat(prev["from"]) if prev else end - timedelta(days=days)
-        self.import_info = {"status": "importing", "from": start.isoformat(), "to": (prev or {}).get("to", end.isoformat()),
-                            "oldest": end.isoformat(), "months_done": (prev or {}).get("months_done", 0),
-                            "months": max(1, round((end - start).days / 31) + (prev or {}).get("months_done", 0)),
-                            "hours": (prev or {}).get("hours", 0)}
-        self._notify()
-        learned_once = bool(prev)
-
-        async def on_month(logs: list, energy: list, oldest: datetime) -> None:
-            nonlocal learned_once
-            rows = history.weheat_hours(logs, energy)
-            self._weheat_hours.update(rows)
-            await self._async_save_history()
-            info = self.import_info
-            info.update(oldest=oldest.isoformat(), months_done=info["months_done"] + 1, hours=info["hours"] + len(rows),
-                        at=dt_util.now().isoformat(timespec="seconds"))
-            await self.async_save()                 # a restart carries on from here
-            self._notify()
-            if not learned_once:                    # the newest month is in: learn from it now, the rest follows
-                learned_once = True
-                self.spawn(self.async_learn(), "learning after the first month")
-        try:
-            calls = await async_fetch_months(self.hass, weheat_entry, pump, start, end, on_month,
-                                             lambda **k: self.event("weheat_call", **k), self.weheat_last)
-            info = self.import_info
-            first = min(self._weheat_hours) if self._weheat_hours else None
-            self.event("import", hours=info["hours"], calls=calls, months=info["months_done"])
-            self.import_info = {"status": "done", "done": True, "fields": WEHEAT_FIELDS, "hours": info["hours"], "calls": calls,
-                                "months": info["months_done"],
-                                "from": first and datetime.fromtimestamp(first, tz=timezone.utc).isoformat(),
-                                "to": info["to"], "at": dt_util.now().isoformat(timespec="seconds")}
-        except WeheatUnavailable as err:
-            self.import_info.update(status=f"waiting for the Weheat login ({err})")        # keeps how far it got
-            self.event("import_waiting", error=str(err)[:200])
-            if isinstance(err, WeheatLoginNeeded):
-                self._ask_login(str(err))
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.exception("Roost: Weheat import failed")
-            self.import_info.update(status=f"failed: {err}")
-            self.event("error", where="import", error=repr(err)[:200], trace=traceback.format_exc(limit=4)[-800:])
-        finally:
-            self.importing = False
-        await self.async_save()
-        if self.import_info.get("done"):
-            await self.async_learn()
-        self._notify()

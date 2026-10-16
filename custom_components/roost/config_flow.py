@@ -330,7 +330,7 @@ ETA_TEXT = {
            "basis_week": "the last week",
            "saved": "✅ Saved: {part}", "parts": {"mode": "Mode", "house": "The house", "price": "Electricity price",
                                                 "solar": "Solar and home battery", "comfort": "Comfort"},
-           "basis_winter": "the last {weeks} heating weeks of the past year, because the last week had too little heating — {passed} of {weeks} good (needs {need}); the medians below",
+           "basis_winter": "the last {weeks} heating weeks of the past year, because the last week had too little heating — {passed} of {weeks} good on their own (needs {need}), and the medians below must be within the limits",
            "today": "today", "tomorrow": "tomorrow"},
     "nl": {"ready": "nu.", "lever": "nog niet: het setpoint stuurt de warmtepomp niet (zie de reparatiemelding).",
            "following": "nog niet: zet de warmtepomp eerst op het volgen van de thermostaat (in de Weheat-app).",
@@ -342,7 +342,7 @@ ETA_TEXT = {
            "basis_week": "de afgelopen week",
            "saved": "✅ Opgeslagen: {part}", "parts": {"mode": "Modus", "house": "Huis en thermostaat", "price": "Stroomprijs",
                                                     "solar": "Zon en thuisaccu", "comfort": "Comfort"},
-           "basis_winter": "de laatste {weeks} stookweken van het afgelopen jaar, omdat de afgelopen week te weinig stookte — {passed} van {weeks} goed (nodig: {need}); hieronder de medianen",
+           "basis_winter": "de laatste {weeks} stookweken van het afgelopen jaar, omdat de afgelopen week te weinig stookte — {passed} van {weeks} los goed (nodig: {need}), en de medianen hieronder moeten binnen de grenzen liggen",
            "today": "vandaag", "tomorrow": "morgen"},
     "de": {"ready": "jetzt.", "lever": "noch nicht: der Sollwert bewegt die Wärmepumpe nicht (siehe die Reparaturmeldung).",
            "following": "noch nicht: stelle die Wärmepumpe zuerst so ein, dass sie dem Thermostat folgt (in der Weheat-App).",
@@ -354,7 +354,7 @@ ETA_TEXT = {
            "basis_week": "der letzten Woche",
            "saved": "✅ Gespeichert: {part}", "parts": {"mode": "Modus", "house": "Haus und Thermostat", "price": "Strompreis",
                                                     "solar": "Solar und Heimspeicher", "comfort": "Komfort"},
-           "basis_winter": "den letzten {weeks} Heizwochen des vergangenen Jahres, weil die letzte Woche zu wenig geheizt hat — {passed} von {weeks} gut (nötig: {need}); unten die Mediane",
+           "basis_winter": "den letzten {weeks} Heizwochen des vergangenen Jahres, weil die letzte Woche zu wenig geheizt hat — {passed} von {weeks} einzeln gut (nötig: {need}), und die Mediane unten müssen innerhalb der Grenzen liegen",
            "today": "heute", "tomorrow": "morgen"},
     "fr": {"ready": "maintenant.", "lever": "pas encore : la consigne ne fait pas varier la pompe à chaleur (voir la notification de réparation).",
            "following": "pas encore : réglez d'abord la pompe à chaleur pour suivre le thermostat (dans l'application Weheat).",
@@ -366,7 +366,7 @@ ETA_TEXT = {
            "basis_week": "la dernière semaine",
            "saved": "✅ Enregistré : {part}", "parts": {"mode": "Mode", "house": "La maison et le thermostat", "price": "Prix de l'électricité",
                                                      "solar": "Solaire et batterie domestique", "comfort": "Confort"},
-           "basis_winter": "les {weeks} dernières semaines de chauffe de l'année passée, car la dernière semaine a trop peu chauffé — {passed} sur {weeks} bonnes (requis : {need}) ; ci-dessous les médianes",
+           "basis_winter": "les {weeks} dernières semaines de chauffe de l'année passée, car la dernière semaine a trop peu chauffé — {passed} sur {weeks} bonnes à elles seules (requis : {need}), et les médianes ci-dessous doivent être dans les limites",
            "today": "aujourd'hui", "tomorrow": "demain"},
 }
 
@@ -614,7 +614,7 @@ class RoostOptionsFlow(OptionsFlow):
         t = _texts(self.hass)
         if w:                       # mild weather: judged on the last heating weeks
             c = {**c, "rmse_6h": w.get("rmse_6h"), "heat_ratio": w.get("heat_ratio")}
-            passed = w.get("passed", 0) >= check.WINTER_PASS
+            passed = check.winter_ok(w)
             missing = missing | ({"temperature", "heat"} if not passed else set())
         ph = {"plan_error": f"{c['rmse_6h']:.2f}" if c.get("rmse_6h") is not None else "—", "plan_ok": no if "temperature" in missing else ok,
               "hours": f"{w.get('weeks', 0)} × {check.WINTER_WEEK_HOURS}+" if w else str(c.get("heating_hours", 0)),

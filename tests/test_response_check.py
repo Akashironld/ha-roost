@@ -176,12 +176,20 @@ def test_mild_weather_is_judged_on_the_last_heating_weeks():
     assert chk["heating_hours"] < check.READY_HEATING_HOURS
     assert check.readiness(chk, True)[1][:1] == ["heating_hours"]
     w = check.winter_check(every, HOUSE, hp)
-    assert w and w["weeks"] == check.WINTER_WEEKS and w["passed"] >= check.WINTER_PASS, w
+    assert w and w["weeks"] == check.WINTER_WEEKS and check.winter_ok(w), w
     assert check.readiness(chk, True, True, w) == (True, [])
     assert check.readiness(chk, False, True, w) == (False, ["following"])
     bad = heatpump.HeatPumpModel(a=0.3, k=4.0, offset=-0.5, follow=1.0, resp_source="learned")
     wb = check.winter_check(every, HOUSE, bad)                              # a wrong response does not pass
-    assert wb["passed"] < check.WINTER_PASS and not check.readiness(chk, True, True, wb)[0], wb
+    assert not check.winter_ok(wb) and not check.readiness(chk, True, True, wb)[0], wb
+
+
+def test_heating_weeks_verdict():
+    good = {"weeks": 8, "passed": 5, "rmse_6h": 0.45, "heat_ratio": 1.13}
+    assert check.winter_ok(good)                                               # one odd week more does not flip it
+    assert not check.winter_ok({**good, "passed": 3})                          # too few weeks pass on their own
+    assert not check.winter_ok({**good, "rmse_6h": 0.6})                       # the median is off
+    assert not check.winter_ok({**good, "heat_ratio": 1.4}) and not check.winter_ok(None)
 
 
 def test_expected_ready():
