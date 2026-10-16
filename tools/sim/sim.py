@@ -46,6 +46,7 @@ class Scenario:
     house: dict                                    # true house parameters (model.HouseModel fields)
     pump: dict                                     # true response (heatpump.HeatPumpModel fields)
     t_mean: float = 3.0                            # outdoor mean (°C); daily swing ±4
+    weeks: list | None = None                      # outdoor mean per week of the run instead (a winter month)
     sun: float = 0.25                              # peak global radiation on a clear day (kW/m²)
     prices: str = "dynamic"                        # dynamic | fixed | double
     forecast_sd: float = 1.0                       # °C forecast error after 24 h
@@ -98,6 +99,15 @@ SCENARIOS = {
     "autumn": Scenario("autumn, mild: in the history the unit also heats on its own curve now and then",
                        dict(C=18.0, H=0.15, g=5.0, lag=1.0, internal=0.2, Hw=0.007),
                        dict(a=0.9, k=1.0, offset=0.3, follow=0.35, q_min=2.4), t_mean=9.0, sun=0.4, own_curve=0.25),
+    "winter": Scenario("a winter month: weeks of 5, 2, −4 and 6 °C (floor heating, slow OpenTherm unit), 28 days",
+                       dict(C=18.0, H=0.15, g=5.0, lag=1.0, internal=0.2, Hw=0.007),
+                       dict(a=0.9, k=1.0, offset=0.3, follow=0.35, th_diff=-0.2, q_min=2.4), weeks=[5.0, 2.0, -4.0, 6.0]),
+    "winter_rad": Scenario("the same winter month with radiators and a fast unit, 28 days",
+                           dict(C=12.0, H=0.16, g=4.0, lag=0.15, internal=0.2, Hw=0.007),
+                           dict(a=0.95, k=3.0, offset=0.1, follow=0.8, q_min=2.0, alpha=2.4), weeks=[5.0, 2.0, -4.0, 6.0]),
+    "winter_onoff": Scenario("the same winter month with an on/off thermostat, 28 days",
+                             dict(C=16.0, H=0.15, g=4.0, lag=0.6, internal=0.2, Hw=0.007),
+                             dict(a=1.0, k=None, offset=0.0, follow=1.0, q_min=2.5), weeks=[5.0, 2.0, -4.0, 6.0]),
     "bedroom": Scenario("extra bedroom upstairs (radiators) with a minimum in the evening",
                         dict(C=18.0, H=0.15, g=5.0, lag=1.0, internal=0.2, Hw=0.007),
                         dict(a=0.9, k=1.0, offset=0.3, follow=0.35, q_min=2.4),
@@ -110,7 +120,10 @@ def weather(rnd: random.Random, sc: Scenario, days: int, start_day: int):
     out = {}
     for d in range(days):
         clear = rnd.random()
-        base = sc.t_mean + rnd.gauss(0, 2.0)
+        mean = sc.t_mean
+        if sc.weeks:
+            mean = sc.weeks[max(0, min(len(sc.weeks) - 1, (start_day + d - DAY0) // 7))]
+        base = mean + rnd.gauss(0, 2.0)
         wind = max(0.5, rnd.gauss(4.0, 1.5))
         for h in range(24):
             ts = (start_day + d) * 86400 + h * 3600

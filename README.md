@@ -17,6 +17,8 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
 >
 > 🧪 **Testing the beta?** What to expect and what to report: [docs/TESTERS.md](docs/TESTERS.md).
 
+<p align="center"><img src="assets/card-en.png" width="560" alt="The Roost card: the plan for the next 24 hours, the expected room temperature and the tariff per hour"></p>
+
 ## What it does
 
 - **Plans instead of reacting.** Every 15 minutes a 24-hour plan of thermostat settings. When an hour is cheap (or your

@@ -33,6 +33,7 @@ SIM_SETTINGS='{"switch_cost": 0.10}' python3 tools/sim/sim.py   # try planner se
 | spring | Mild and sunny |
 | onoff | On/off thermostat, heating curve when asked |
 | bedroom | An extra bedroom upstairs (radiators) with a minimum of 17 °C from 19 to 23 h |
+| winter, winter_rad, winter_onoff | A winter month: 28 days with a week of 5, 2, −4 and 6 °C on average |
 | insulated | Insulated since last winter: 90 days of the old house in the history (heat loss 0.22 kW/K), then 40 days of the new one (0.12) |
 | old | A 1930s house: heat loss 0.28 kW/K, radiators, a fast unit |
 | newbuild | A new build: heat loss 0.07 kW/K, a heavy floor (delay 2 h), much glass; the unit is oversized and cycles |
@@ -41,6 +42,24 @@ SIM_SETTINGS='{"switch_cost": 0.10}' python3 tools/sim/sim.py   # try planner se
 | volatile | Dynamic price with cheap windy nights (8–24 ct), cheap sunny noons (2–26 ct) and steep evenings (40–70 ct) |
 | slowpump | The heat pump follows twice as slowly as Roost learned, with half the gain |
 | autumn | Mild; in the history the unit also heats on its own curve now and then (heat the thermostat did not ask for) |
+
+## A winter month (v0.5.6)
+
+28 days in a row with a week of 5, 2, −4 and 6 °C on average — the planner, the correction and the control rules run
+the whole month, through a cold snap where the heat pump is near its maximum:
+
+```bash
+python3 tools/sim/sim.py winter,winter_rad,winter_onoff 28
+```
+
+| Scenario | Saving | Comfort | Thermostat changes |
+|---|---|---|---|
+| winter (floor heating, slow OpenTherm unit) | 3.8 % | never below the minimum; ≈ 0.2 °C·h a day below comfort (the steady thermostat ≈ 0) | ~2 a day |
+| winter_rad (radiators, a fast unit) | 7.2 % | never below the minimum; ≈ 0.2 °C·h a day below comfort | ~2 a day |
+| winter_onoff (on/off thermostat) | 8.8 % | never below the minimum; ≈ 0.1 °C·h a day below comfort | ~2 a day |
+
+The savings hold over a whole month and through a cold week, at about the same comfort, with no more thermostat
+changes than in a single week.
 
 ## Results (v0.5.2, three weeks of different weather and prices)
 
