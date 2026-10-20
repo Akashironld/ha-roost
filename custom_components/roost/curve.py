@@ -36,6 +36,7 @@ MARGIN_MIN_DAYS = 10
 MIN_DAYS, MIN_HOURS = 20, 30
 RELIABLE_DAYS, RELIABLE_HOURS, RELIABLE_SE = 30, 50, 0.10
 NEAR = 2.0                   # °C: hours this close to a point count for what the unit made there
+CLOUD_MAX = 300              # steady hours kept for the card's graph (evenly over all of them)
 CYCLING_RUN_S = 3420         # an hour with less space heating than this (95 %) was interrupted
 CYCLING_MIN_HOURS = 10       # hours per degree of outdoor temperature to judge it
 
@@ -57,6 +58,8 @@ class CurveAdvice:
     reliable: bool
     extrapolated: list[float] = field(default_factory=list)   # points colder than any day measured
     measured_by: str | None = None    # what controlled the unit in the measured hours: opentherm | heating_curve
+    cloud: list[list[float]] = field(default_factory=list)    # [outdoor, flow] of the steady hours (at most CLOUD_MAX)
+    cold_hour: float | None = None    # the coldest hour the unit heated in: colder than this the curve is calculated
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -225,7 +228,9 @@ def advise(rows: list[HourRow], flows: dict[int, float], emitter: str, room: flo
                        k_kw=round(k, 4), n=n, cycling_from=None if cycling is None else round(cycling, 1), days=len(res),
                        hours=len(steady), out_min=round(min(out_days), 1), out_max=round(max(out_days), 1),
                        reliable=reliable, extrapolated=[x for x in xs if x < min(out_days)],
-                       measured_by=measured_by(rows, flows, opentherm or set()))
+                       measured_by=measured_by(rows, flows, opentherm or set()),
+                       cloud=[[round(o, 1), round(f, 1)] for o, _t, f, _q in steady[::max(1, -(-len(steady) // CLOUD_MAX))]],
+                       cold_hour=round(min(r.T_out for r in rows if r.Q >= 0.3), 1) if any(r.Q >= 0.3 for r in rows) else None)
 
 
 def opentherm_from_weheat(hours: dict[int, dict]) -> set[int]:

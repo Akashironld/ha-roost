@@ -30,16 +30,57 @@ away:
           step: 0.5
           unit_of_measurement: "°C"
 home:
-set_comfort:
+set_settings:
   fields:
-    temperature:
-      required: true
+    comfort:
       selector:
         number:
           min: 15
           max: 25
           step: 0.5
           unit_of_measurement: "°C"
+    day_min:
+      selector:
+        number:
+          min: 10
+          max: 25
+          step: 0.5
+          unit_of_measurement: "°C"
+    night_min:
+      selector:
+        number:
+          min: 5
+          max: 25
+          step: 0.5
+          unit_of_measurement: "°C"
+    store_max:
+      selector:
+        number:
+          min: 15
+          max: 28
+          step: 0.5
+          unit_of_measurement: "°C"
+    lowest_setpoint:
+      selector:
+        number:
+          min: 5
+          max: 25
+          step: 0.5
+          unit_of_measurement: "°C"
+    day_from:
+      selector:
+        number:
+          min: 0
+          max: 23
+          step: 1
+          unit_of_measurement: "h"
+    day_to:
+      selector:
+        number:
+          min: 1
+          max: 24
+          step: 1
+          unit_of_measurement: "h"
 import_history:
   fields:
     days:

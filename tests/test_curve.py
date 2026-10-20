@@ -55,6 +55,7 @@ def test_the_line_stays_on_or_above_the_need():
     assert a.points[-1][1] == curve._up(ROOM)                     # 25 °C: no heat needed, water at room temperature
     assert a.points[2][1] >= need(15.0) - 0.01                    # 15 °C, in the cycling zone: still covers the need
     assert -20.0 in a.extrapolated and a.points[1][2] is not None   # 9 °C: what the unit made there (measured)
+    assert 0 < len(a.cloud) <= curve.CLOUD_MAX and a.cold_hour == -2.0      # the steady hours for the graph; coldest heated hour
 
 
 def test_margin_from_the_cold_days():

@@ -20,7 +20,8 @@
 - **Weheat history**: the flow and return temperature, thermostat demand, backup heater, gas boiler, compressor limits and errors are kept per hour (for later use without a new import); 13 months are kept; new fields are read from the hourly logs only, so that takes half an hour instead of hours
 - Helper sensors (Weheat import, its progress, energy value, heat pump model, heating curve advice) are hidden in entity lists; the card still uses them
 - **Away** (card menu or `roost.away`): only a minimum (default 16 °C), no comfort hours, warm again in time; `roost.home` ends it
-- **Comfort from the card**: − / + in the mode menu (`roost.set_comfort`), no trip to the settings
+- **Settings from the card**: tap the mode label → ⚙ Settings for every temperature and the comfort hours with − / + (`roost.set_settings`); they are the same settings as *Configure → Comfort*
+- The first view of the card is called **Overview**
 - **Notifications** (off until you choose where they go, *Configure → Notifications*): thermostat unreachable or not changeable, check no longer passing while steering, learning failed, Weheat login needed; optionally a weekly summary on Monday morning
 - **Where the heating electricity came from**: own solar, home battery or grid, per day in the table and over the look back's period (hot water not counted)
 - **Why a day cost more** than a steady thermostat: the table says it per day

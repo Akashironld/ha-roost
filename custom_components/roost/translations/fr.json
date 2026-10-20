@@ -704,12 +704,30 @@
       "description": "Terminer l'absence : les heures de confort comptent de nouveau.",
       "fields": {}
     },
-    "set_comfort": {
-      "name": "Régler la température de confort",
-      "description": "La température de confort de Roost pour les heures de jour (réglage de Roost, pas le thermostat).",
+    "set_settings": {
+      "name": "Régler les températures et les heures de confort",
+      "description": "Les réglages de Roost (pas le thermostat), comme dans Configurer → Confort ; celui modifié l'emporte, les autres suivent.",
       "fields": {
-        "temperature": {
-          "name": "Température"
+        "comfort": {
+          "name": "Confort (jour)"
+        },
+        "day_min": {
+          "name": "Minimum le jour"
+        },
+        "night_min": {
+          "name": "Minimum la nuit"
+        },
+        "store_max": {
+          "name": "Stocker la chaleur jusqu'à"
+        },
+        "lowest_setpoint": {
+          "name": "Consigne la plus basse"
+        },
+        "day_from": {
+          "name": "Heures de confort à partir de"
+        },
+        "day_to": {
+          "name": "Heures de confort jusqu'à"
         }
       }
     },

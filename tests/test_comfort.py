@@ -79,5 +79,19 @@ def test_comfort_from_the_thermostats_history():
     assert comfort.from_history([(12, 20.0)] * 30) is None                                  # too little
 
 
+def test_settings_from_the_card_follow_the_one_changed():
+    c = {"comfort": 20.0, "day_min": 19.0, "night_min": 18.0, "store_max": 22.5, "lowest_setpoint": 19.0, "day_from": 7, "day_to": 22}
+    f = comfort.adjust_settings({**c, "day_min": 20.5}, {"day_min"})
+    assert f["day_min"] == 20.5 and f["comfort"] == 20.5                       # comfort follows the minimum up
+    f = comfort.adjust_settings({**c, "comfort": 18.5}, {"comfort"})
+    assert f["comfort"] == 18.5 and f["day_min"] == 18.5 and f["lowest_setpoint"] == 18.5    # the minimum and lowest follow down
+    f = comfort.adjust_settings({**c, "store_max": 19.5}, {"store_max"})
+    assert f["store_max"] == 19.5 and f["comfort"] == 19.5
+    f = comfort.adjust_settings({**c, "lowest_setpoint": 21.0}, {"lowest_setpoint"})
+    assert f["lowest_setpoint"] == 21.0 and f["comfort"] == 21.0 and f["store_max"] >= 21.0
+    assert comfort.adjust_settings({**c, "day_to": 7}, {"day_to"}) is None    # the comfort hours must end after they start
+    assert comfort.adjust_settings({**c, "comfort": 20.3}, {"comfort"})["comfort"] == 20.5     # half degrees
+
+
 if __name__ == "__main__":
     run_all(dict(globals()))

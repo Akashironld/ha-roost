@@ -146,3 +146,29 @@ def suggest(changes: list[dict], local: Callable[[float], tuple[str, int]], now_
         if best is None or s.days > best.days:
             best = s
     return best
+
+
+def adjust_settings(c: dict, changed: set[str]) -> dict | None:
+    """The temperatures and comfort hours after a change from the card: the setting that was changed wins, the others
+    follow it (comfort never below the day minimum, storing never below comfort, the lowest setpoint never above
+    comfort). c: comfort, day_min, night_min, store_max, lowest_setpoint, day_from, day_to. None when the comfort hours
+    would end before they start."""
+    if int(c["day_to"]) <= int(c["day_from"]):
+        return None
+    f = {k: round(float(c[k]) * 2) / 2 for k in ("comfort", "day_min", "night_min", "store_max", "lowest_setpoint")}
+    if "day_min" in changed and f["day_min"] > f["comfort"]:
+        f["comfort"] = f["day_min"]
+    f["day_min"] = min(f["day_min"], f["comfort"])
+    if f["store_max"] < f["comfort"]:
+        if "store_max" in changed:
+            f["comfort"] = f["store_max"]
+            f["day_min"] = min(f["day_min"], f["comfort"])
+        else:
+            f["store_max"] = f["comfort"]
+    if f["lowest_setpoint"] > f["comfort"]:
+        if "lowest_setpoint" in changed:
+            f["comfort"] = f["lowest_setpoint"]
+            f["store_max"] = max(f["store_max"], f["comfort"])
+        else:
+            f["lowest_setpoint"] = f["comfort"]
+    return {**f, "day_from": int(c["day_from"]), "day_to": int(c["day_to"])}

@@ -704,12 +704,30 @@
       "description": "Abwesenheit beenden: die Komfortstunden zählen wieder.",
       "fields": {}
     },
-    "set_comfort": {
-      "name": "Komforttemperatur einstellen",
-      "description": "Roosts Komforttemperatur für die Tagesstunden (Roosts eigene Einstellung, nicht das Thermostat).",
+    "set_settings": {
+      "name": "Temperaturen und Komfortstunden einstellen",
+      "description": "Roosts eigene Einstellungen (nicht das Thermostat), wie unter Konfigurieren → Komfort; die geänderte gewinnt, die anderen folgen.",
       "fields": {
-        "temperature": {
-          "name": "Temperatur"
+        "comfort": {
+          "name": "Komfort (tagsüber)"
+        },
+        "day_min": {
+          "name": "Minimum tagsüber"
+        },
+        "night_min": {
+          "name": "Minimum nachts"
+        },
+        "store_max": {
+          "name": "Wärme speichern bis"
+        },
+        "lowest_setpoint": {
+          "name": "Niedrigster Sollwert"
+        },
+        "day_from": {
+          "name": "Komfortstunden ab"
+        },
+        "day_to": {
+          "name": "Komfortstunden bis"
         }
       }
     },

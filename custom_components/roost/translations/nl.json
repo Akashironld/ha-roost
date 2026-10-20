@@ -704,12 +704,30 @@
       "description": "Afwezig beëindigen: de comforturen tellen weer.",
       "fields": {}
     },
-    "set_comfort": {
-      "name": "Comforttemperatuur instellen",
-      "description": "Roosts comforttemperatuur voor de daguren (Roosts eigen instelling, niet de thermostaat).",
+    "set_settings": {
+      "name": "Temperaturen en comforturen instellen",
+      "description": "Roosts eigen instellingen (niet de thermostaat), zoals bij Configureren → Comfort; de gewijzigde wint, de andere volgen.",
       "fields": {
-        "temperature": {
-          "name": "Temperatuur"
+        "comfort": {
+          "name": "Comfort (overdag)"
+        },
+        "day_min": {
+          "name": "Minimum overdag"
+        },
+        "night_min": {
+          "name": "Minimum 's nachts"
+        },
+        "store_max": {
+          "name": "Warmte opslaan tot"
+        },
+        "lowest_setpoint": {
+          "name": "Laagste setpoint"
+        },
+        "day_from": {
+          "name": "Comforturen vanaf"
+        },
+        "day_to": {
+          "name": "Comforturen tot"
         }
       }
     },

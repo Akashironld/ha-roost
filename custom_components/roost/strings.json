@@ -704,12 +704,30 @@
       "description": "End away: the comfort hours count again.",
       "fields": {}
     },
-    "set_comfort": {
-      "name": "Set comfort temperature",
-      "description": "Roost's comfort temperature for the day hours (Roost's own setting, not the thermostat).",
+    "set_settings": {
+      "name": "Set temperatures and comfort hours",
+      "description": "Roost's own settings (not the thermostat), as in Configure → Comfort; the one changed wins, the others follow it.",
       "fields": {
-        "temperature": {
-          "name": "Temperature"
+        "comfort": {
+          "name": "Comfort (day)"
+        },
+        "day_min": {
+          "name": "Minimum by day"
+        },
+        "night_min": {
+          "name": "Minimum at night"
+        },
+        "store_max": {
+          "name": "Store heat up to"
+        },
+        "lowest_setpoint": {
+          "name": "Lowest setpoint"
+        },
+        "day_from": {
+          "name": "Comfort hours from"
+        },
+        "day_to": {
+          "name": "Comfort hours until"
         }
       }
     },

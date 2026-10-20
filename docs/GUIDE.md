@@ -218,12 +218,16 @@ Click **Submit**. Roost is set up — in shadow mode — and starts importing an
   own solar, battery, grid — hot water not counted.
 - **Mode**: tap the **ACTIVE / SHADOW / OFF** label to switch; *Active* asks for a second tap. Switching from *Active*
   to *Shadow* or *Off* (or removing Roost) sets the thermostat back to your comfort temperature. The menu also has
-  *Pause 2 h*, *Resume now* while paused, *Away* (1 day / 3 days / 1 week, or *Home again*) and your comfort
-  temperature with − / +.
+  *Pause 2 h*, *Resume now* while paused, *Away* (1 day / 3 days / 1 week, or *Home again*) and **⚙ Settings**: every
+  temperature and the comfort hours with − / + (comfort, minimum by day and at night, comfort hours, lowest setpoint,
+  store heat up to). They are Roost's own settings — the same as *Configure → Comfort*, which shows them too — and the
+  one you change wins: the others follow it (comfort never below the day minimum, for example).
 - **Curve** (the switch in the header): the heating curve advice in
   one view — the flow at 0 °C outside, the heat loss and the outdoor temperature from which the heat pump cycles; a
-  graph of the flow temperature against the outdoor temperature with the advice (orange), the curve now (when Weheat
-  gives it), what the house needs (blue, dashed), what the heat pump made (dots) and the zone where it cycles; then the
+  graph of the flow temperature against the outdoor temperature, on scale with lines at the five points of the app:
+  the advice (orange; dashed where it is calculated — colder than any hour measured — and in the zone where the heat
+  pump cycles), the curve now (when Weheat gives it), what the house needs (blue, dashed, up to that zone) and every
+  hour the heat pump ran the whole hour as a dot (under OpenTherm or on its curve, as the legend says); then the
   five points with what the house needs and what was measured (and whether under OpenTherm or the curve), and the
   notes — see [Heating curve advice](#heating-curve-advice).
 - **Thermostat tile**: tap it for the thermostat's own controls (Home Assistant's dialog); Roost then pauses as after
@@ -235,7 +239,7 @@ Click **Submit**. Roost is set up — in shadow mode — and starts importing an
 
 ### Look back
 
-The switch **Ahead / Table / Curve / Look back** in the card's header shows what happened instead of what is planned — in the same
+The switch **Overview / Table / Curve / Look back** in the card's header shows what happened instead of what is planned — in the same
 place, so the card does not grow. Choose **24 h**, **48 h** or **7 d**:
 
 - **Four numbers**: what heating cost (and the saving against the equally comfortable steady thermostat), how well the
@@ -469,7 +473,7 @@ Switched off by default (enable them on the device page under *+ disabled entiti
 | `roost.resume` | — | End a pause and plan again |
 | `roost.away` | `until` or `days`, `minimum` (default 16) | Nobody home: only the minimum, no comfort hours; warm again in time |
 | `roost.home` | — | End away |
-| `roost.set_comfort` | `temperature` | Roost's comfort temperature (its own setting, not the thermostat); also with − / + in the card's mode menu |
+| `roost.set_settings` | any of `comfort`, `day_min`, `night_min`, `store_max`, `lowest_setpoint`, `day_from`, `day_to` | Roost's own temperatures and comfort hours (as in *Configure → Comfort*, not the thermostat); the one changed wins, the others follow. Also in the card: mode menu → ⚙ Settings |
 | `roost.import_history` | `days` (default 365) | Read the heat pump's history from Weheat again and learn |
 
 **Example: pause while nobody is home**

@@ -10,7 +10,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from . import RoostConfigEntry, planner
-from .const import CONF_EMITTER, CONF_THERMOSTAT
+from .const import CONF_DAY_FROM, CONF_DAY_TO, CONF_EMITTER, CONF_THERMOSTAT
 from .entity import RoostEntity
 
 
@@ -35,7 +35,8 @@ class SetpointSensor(RoostEntity, SensorEntity):
     _attr_suggested_display_precision = 1
     _attr_icon = "mdi:home-thermometer"
     _unrecorded_attributes = frozenset({"plan", "start", "comfort", "day_min", "night_min", "store_max", "day_hours", "rooms",
-                                         "plan_why", "thermostat_entity"})
+                                         "plan_why", "thermostat_entity", "lowest_setpoint",
+                                         "day_from", "day_to"})
 
     def __init__(self, mgr) -> None:
         super().__init__(mgr, "setpoint")
@@ -59,6 +60,7 @@ class SetpointSensor(RoostEntity, SensorEntity):
                  "away_until": datetime.fromtimestamp(m.mem.away_until, tz=dt_util.UTC).isoformat() if m.is_away() else None,
                  "away_min": m.settings().away_min if m.is_away() else None,
                  "comfort": s.comfort, "day_min": s.day_min, "night_min": s.night_min, "store_max": s.store_max,
+                 "lowest_setpoint": s.sp_min, "day_from": int(m.conf[CONF_DAY_FROM]), "day_to": int(m.conf[CONF_DAY_TO]),
                  "rooms": m.room_status}
         if p:
             attrs["start"] = datetime.fromtimestamp(m.plan_at - m.plan_at % 3600, tz=dt_util.UTC).isoformat() if m.plan_at else None
@@ -392,7 +394,7 @@ class HeatingCurveSensor(RoostEntity, SensorEntity):
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
     _attr_suggested_display_precision = 1
     _attr_icon = "mdi:chart-bell-curve-cumulative"
-    _unrecorded_attributes = frozenset({"points", "current", "extrapolated"})
+    _unrecorded_attributes = frozenset({"points", "current", "extrapolated", "cloud"})
     _attr_entity_registry_visible_default = False     # for the card (Curve view) and automations; hidden in lists
 
     def __init__(self, mgr) -> None:
@@ -413,5 +415,5 @@ class HeatingCurveSensor(RoostEntity, SensorEntity):
                         "days": a.days, "hours": a.hours, "out_min": a.out_min, "out_max": a.out_max,
                         "heat_loss_w_per_k": round(a.ua_kw * 1000), "emitter_w_per_k": round(a.k_kw * 1000), "n": a.n,
                         "margin_kw": a.margin_kw, "base_kw": a.base_kw, "extrapolated": a.extrapolated,
-                        "measured_by": a.measured_by})
+                        "measured_by": a.measured_by, "cloud": a.cloud, "cold_hour": a.cold_hour})
         return out

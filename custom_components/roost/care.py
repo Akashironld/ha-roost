@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from .mgr_common import *  # noqa: F401,F403 - the shared imports and constants
 from .mgr_common import _LOGGER, _f  # noqa: F401
-from .const import AWAY_MIN, CONF_HOUSE_POWER, CONF_NOTIFY, CONF_WEEKLY
-from . import value
+from .const import AWAY_MIN, CONF_HOUSE_POWER, CONF_NOTIFY, CONF_SP_MIN, CONF_WEEKLY
+from . import comfort, value
 from .value import source_split  # noqa: F401 - where the heat pump's power comes from
 
 THERMOSTAT_GONE_MIN = 15        # the thermostat unavailable this long: a notice (and Roost leaves it alone meanwhile)
@@ -30,7 +30,7 @@ TEXTS = {
            "steering_not_ready": "Roost stuurt met het model dat het had: de controle van het huismodel is niet geslaagd. Kijk in de kaart.",
            "learning_failed": "Het huis leren is vannacht mislukt; Roost gaat door met het model dat het had.",
            "login": "Roosts Weheat-login is opnieuw nodig: Instellingen → Apparaten en diensten → Roost.",
-           "weekly": "Afgelopen week: {kwh} kWh stookstroom, kosten {cost}, besparing {saving} tegenover een vaste thermostaat. {below} min onder comfort, {hand} wijzigingen met de hand.{sources}",
+           "weekly": "Afgelopen week: {kwh} kWh stroom voor verwarming, kosten {cost}, besparing {saving} tegenover een vaste thermostaat. {below} min onder comfort, {hand} wijzigingen met de hand.{sources}",
            "sources": " Stroom voor verwarming: {sun} % eigen zon, {bat} % accu, {grid} % net."},
     "de": {"title": "Roost",
            "thermostat_unavailable": "Das Thermostat ist nicht erreichbar. Roost lässt es in Ruhe, bis es zurück ist.",
@@ -155,16 +155,25 @@ class CareMixin:
         await self.async_save()
         await self._async_tick(None, force_plan=True)
 
-    async def async_set_comfort(self, temperature: float) -> None:
-        """The comfort temperature from the card: Roost's own setting (not the thermostat), without a reload."""
-        temperature = round(float(temperature) * 2) / 2
-        opts = {**self.entry.options, CONF_COMFORT: temperature}
-        if float(self.conf.get(CONF_DAY_MIN, 0)) > temperature:
-            opts[CONF_DAY_MIN] = temperature
+    async def async_set_settings(self, **changes) -> None:
+        """Temperatures and comfort hours from the card: Roost's own settings (not the thermostat), without a reload.
+        The setting that was changed wins: the others follow it (comfort never below the day minimum, storing never
+        below comfort, the lowest setpoint never above comfort); comfort hours must end after they start."""
+        keys = {"comfort": CONF_COMFORT, "day_min": CONF_DAY_MIN, "night_min": CONF_NIGHT_MIN, "store_max": CONF_STORE_MAX,
+                "lowest_setpoint": CONF_SP_MIN, "day_from": CONF_DAY_FROM, "day_to": CONF_DAY_TO}
+        c = {k: self.conf.get(v) for k, v in keys.items()}
+        new = {k: v for k, v in changes.items() if k in keys and v is not None}
+        for k, v in new.items():
+            c[k] = int(v) if k in ("day_from", "day_to") else round(float(v) * 2) / 2
+        f = comfort.adjust_settings(c, set(new))
+        if f is None:
+            from homeassistant.exceptions import ServiceValidationError
+            raise ServiceValidationError("The comfort hours must end after they start")
+        opts = {**self.entry.options, **{keys[k]: v for k, v in f.items()}}
         self.hass.config_entries.async_update_entry(self.entry, options=opts)
         from . import _conf_key
-        self.conf_key = _conf_key(self.entry)          # a setting Roost takes as it is: no reload for it
-        self.event("comfort", new=temperature)
+        self.conf_key = _conf_key(self.entry)          # settings Roost takes as they are: no reload for them
+        self.event("settings", **{k: f[k] for k in new})
         await self._async_tick(None, force_plan=True)
 
     # ------------------------------------------------------------ where the heat pump's electricity came from

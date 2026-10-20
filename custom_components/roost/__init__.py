@@ -125,9 +125,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         for m in targets(call):
             await m.async_home()
 
-    async def set_comfort(call: ServiceCall) -> None:
+    async def set_settings(call: ServiceCall) -> None:
         for m in targets(call):
-            await m.async_set_comfort(call.data["temperature"])
+            await m.async_set_settings(**dict(call.data))
 
     async def import_history(call: ServiceCall) -> None:
         for m in targets(call):
@@ -139,8 +139,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         vol.Optional("until"): cv.datetime, vol.Optional("days"): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=60)),
         vol.Optional("minimum"): vol.All(vol.Coerce(float), vol.Range(min=5, max=20))}))
     hass.services.async_register(DOMAIN, "home", home, vol.Schema({}))
-    hass.services.async_register(DOMAIN, "set_comfort", set_comfort,
-                                 vol.Schema({vol.Required("temperature"): vol.All(vol.Coerce(float), vol.Range(min=15, max=25))}))
+    temp = lambda lo, hi: vol.All(vol.Coerce(float), vol.Range(min=lo, max=hi))      # noqa: E731
+    hour = lambda lo, hi: vol.All(vol.Coerce(int), vol.Range(min=lo, max=hi))        # noqa: E731
+    hass.services.async_register(DOMAIN, "set_settings", set_settings, vol.Schema({
+        vol.Optional("comfort"): temp(15, 25), vol.Optional("day_min"): temp(10, 25), vol.Optional("night_min"): temp(5, 25),
+        vol.Optional("store_max"): temp(15, 28), vol.Optional("lowest_setpoint"): temp(5, 25),
+        vol.Optional("day_from"): hour(0, 23), vol.Optional("day_to"): hour(1, 24)}))
     hass.services.async_register(DOMAIN, "import_history", import_history,
                                  vol.Schema({vol.Optional("days", default=365): vol.All(vol.Coerce(int), vol.Range(min=7, max=365))}))
     return True
