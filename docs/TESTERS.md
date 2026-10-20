@@ -36,6 +36,8 @@ unzip it into `custom_components/roost` in your Home Assistant configuration fol
   there and restart. Your settings and what Roost learned stay (Home Assistant keeps them, not that folder).
 - Updating from 0.5.2: Home Assistant shows *Re-authenticate* at Roost once — click it and log in with your Weheat
   account.
+- Updating to 0.6.0: Roost reads the past year of hourly logs from Weheat once more, in the background (about half an
+  hour); the heating curve advice appears after that.
 
 ## What I would like to hear
 
@@ -46,9 +48,10 @@ unzip it into `custom_components/roost` in your Home Assistant configuration fol
   card or in the texts unclear?
 - **Your setup**: thermostat (OpenTherm or on/off), dynamic or fixed price, solar or battery — it helps to know which
   combinations were tested.
+- **The heating curve advice** (*Curve* in the card): does it look right for your house, and what is your curve now?
 
 ## Stopping
 
 Remove the integration (*Settings → Devices & services → Roost → ⋮ → Delete*), then remove Roost in HACS (or delete
-the folder `custom_components/roost`) and restart. If Roost was steering, check that your thermostat is back on your
-usual temperature or schedule.
+the folder `custom_components/roost`) and restart. If Roost was steering it puts the thermostat back on your comfort
+temperature when you remove it; turn your usual schedule back on if you had one.

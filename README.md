@@ -17,7 +17,7 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
 >
 > 🧪 **Testing the beta?** What to expect and what to report: [docs/TESTERS.md](docs/TESTERS.md).
 
-<p align="center"><img src="assets/card-en.png" width="560" alt="The Roost card: the plan for the next 24 hours, the expected room temperature and the tariff per hour"></p>
+<p align="center"><img src="assets/card-overview.png" width="520" alt="The Roost card: the plan for the next 24 hours, the expected room temperature, the tariff per hour and why"></p>
 
 ## What it does
 
@@ -43,12 +43,28 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
 - **Knows when you air the room.** A fast drop of the room temperature (or a window sensor) means a window is open:
   Roost waits instead of heating the outdoors, and does not learn from it.
 - **Respects you.** At most one change an hour, steps aside for two hours when you change the thermostat, never below
-  your minimums or its lowest setting, comfort suggestions instead of changing your settings by itself.
+  your minimums or its lowest setting, comfort suggestions instead of changing your settings by itself. When it stops
+  steering (shadow, off or removed) it puts the thermostat back on your comfort temperature.
+- **Away, pause and settings from the card.** Tap the mode label: off / shadow / active, pause two hours, away for a day,
+  three days or a week (only a minimum, warm again in time), and every temperature and the comfort hours with − / +.
+- **Watches over itself.** A thermostat that cannot be reached or changed, a check that no longer passes while it steers,
+  learning that fails, a Weheat login that is needed again: a notice in Repairs and — only if you choose where they go —
+  a notification on your phone, plus an optional weekly summary.
+- **Shows where the heating electricity came from**: own solar, home battery or grid, per day and per period (hot water
+  not counted).
 - **Its own dashboard card** with the plan, the expected room temperature, the tariff per hour, **why each hour is what
-  it is**, and what it saves — and a **look back**: what was planned beside what happened, how well it predicted, a log
-  of every change and why, and a report to keep.
+  it is**, and what it saves; the plan and the last week as a **table**; and a **look back**: what was planned beside
+  what happened, how well it predicted, a log of every change and why, and a report to keep.
 - **Heating curve advice**: the flow temperatures your house needs, as the five points of the Weheat app, from your heat
-  loss, your floor or radiators and the heat pump's own logs — beside the curve it has now.
+  loss, your floor or radiators and the heat pump's own logs — beside what the heat pump really made, and for another
+  indoor temperature if you like.
+
+## The card
+
+| | |
+|:---:|:---:|
+| <img src="assets/card-overview.png" width="400" alt="Overview"><br>**Overview** — what Roost does now and why, the plan for the next 24 hours with the tariff, and the next change | <img src="assets/card-table.png" width="400" alt="Table"><br>**Table** — the plan per hour with the reason, and the last 7 days: planned and set, room measured and expected, price, heat |
+| <img src="assets/card-curve.png" width="400" alt="Curve"><br>**Curve** — the heating curve your house needs as the five points of the Weheat app, beside every hour the heat pump ran | <img src="assets/card-lookback.png" width="400" alt="Look back"><br>**Look back** — what was planned beside what happened, how well the room was predicted 6 hours ahead, and a log of every change |
 
 ## Quick start
 
@@ -76,7 +92,8 @@ Everything else — every screen, every setting, the card, repairs, troubleshoot
 - An **electricity price**: a sensor with the prices of the coming hours (evcc, Nord Pool, Tibber, ENTSO-e, Frank
   Energie, Zonneplan, … are read automatically) — or, without one, the **built-in day-ahead prices** with your
   supplier's formula — or your fixed contract's rate.
-- Optional: a room sensor, solar and battery sensors, solar forecast, extra room sensors, window sensors.
+- Optional: a room sensor, solar and battery sensors (the house's use is worked out from grid + solar when there is no
+  house power sensor), solar forecast, extra room sensors, window sensors, a notify service for notifications.
 
 Roost speaks English, Dutch, German and French (the setup, the card and the notices).
 
@@ -86,7 +103,7 @@ Roost speaks English, Dutch, German and French (the setup, the card and the noti
 |---|---|
 | OpenTherm thermostat (Lyric T6, Nest, Tado, Remeha, …) | Best: the heat pump's response is learned from the Weheat history, also last winter |
 | On/off thermostat, heat pump on its heating curve when asked | Works: Roost records the setpoint itself and learns the response in a few weeks |
-| Heat pump only on its own heating curve | Roost cannot steer, and says so |
+| Heat pump only on its own heating curve | Roost cannot steer, and says so — its heating curve advice still helps you set that curve |
 
 Floor heating stores the most heat, so Roost can shift the most; with radiators the house itself is the buffer and the
 saving is smaller. A thermostat with its own schedule or learning works against Roost: turn that off (Roost notices it).
@@ -100,8 +117,9 @@ saving is smaller. A thermostat with its own schedule or learning works against 
 ## Privacy
 
 Roost talks to **Open-Meteo** (weather, with your home location), to **Weheat** (read-only, with the Weheat login you make in
-the setup, for the history), with the built-in day-ahead prices to **Energy-Charts** (only the bidding zone) and — only
-if you turn it on — once to **PDOK** (Dutch building register). Nothing else, no account, no telemetry. Details in the [guide](docs/GUIDE.md#15-privacy-and-safety).
+the setup, for the history and the installation's settings), with the built-in day-ahead prices to **Energy-Charts** (only
+the bidding zone) and — only if you turn it on — once to **PDOK** (Dutch building register). Notifications go only to the
+notify service you choose in Home Assistant. Nothing else, no account, no telemetry. Details in the [guide](docs/GUIDE.md#15-privacy-and-safety).
 
 ## How it decides
 
