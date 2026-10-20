@@ -215,11 +215,14 @@ Click **Submit**. Roost is set up — in shadow mode — and starts importing an
   room measured (and expected 6 hours before), price, heat and why, with *by hand* and *window open* marked.
 - **Mode**: tap the **ACTIVE / SHADOW / OFF** label to switch; *Active* asks for a second tap. While Roost is paused
   after a change by hand, the menu also has *Resume now*.
-- **Curve** (the switch in the header, or the *Heating curve advice* line under the plan): the heating curve advice in
+- **Curve** (the switch in the header): the heating curve advice in
   one view — the flow at 0 °C outside, the heat loss and the outdoor temperature from which the heat pump cycles; a
   graph of the flow temperature against the outdoor temperature with the advice (orange), the curve now (when Weheat
   gives it), what the house needs (blue, dashed), what the heat pump made (dots) and the zone where it cycles; then the
-  five points and the notes — see [Heating curve advice](#heating-curve-advice).
+  five points with what the house needs and what was measured (and whether under OpenTherm or the curve), and the
+  notes — see [Heating curve advice](#heating-curve-advice).
+- **Thermostat tile**: tap it for the thermostat's own controls (Home Assistant's dialog); Roost then pauses as after
+  any change by hand.
 - **The Roost icon** (top left) opens Roost in *Settings → Devices & services*.
 - **Footer**: expected saving over the next 24 hours, yesterday and this month, against a steady thermostat; and the
   **plan error 6 h** from the nightly self-check, with *ready to steer* when Roost thinks it is — and then a
@@ -429,7 +432,7 @@ integration page: click it and log in again. Installs from before 0.5.3 get that
 |---|---|
 | `select.roost_mode` | Off / Shadow / Active |
 | `sensor.roost_planned_setpoint` | The thermostat setting Roost wants now. Attributes: reason, decision, the 24-hour plan with the reason per hour (`plan_why`), extra rooms |
-| `sensor.roost_heating_curve_advice` | The advised flow temperature at 0 °C outside. Attributes: the five points (outdoor, advice, made), the curve now and how the heat pump is controlled (when Weheat gives them), the heat loss, the emitter and the outdoor temperature from which it cycles |
+| `sensor.roost_heating_curve_advice` (hidden) | The advised flow temperature at 0 °C outside. Attributes: the five points (outdoor, advice, made), the curve now and how the heat pump is controlled (when Weheat gives them), the heat loss, the emitter and the outdoor temperature from which it cycles |
 | `sensor.roost_expected_saving_next_24_h` | Against the lowest steady thermostat that is as comfortable as the plan |
 | `sensor.roost_saving_yesterday`, `sensor.roost_saving_this_month` | Yesterday replayed with the same model, weather and prices |
 | `sensor.roost_heating_cost_today` | Heat pump electricity for heating × the price of each hour |

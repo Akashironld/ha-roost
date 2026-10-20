@@ -117,7 +117,8 @@
         },
         "data_description": {
           "grid_power": "Alles optional. Mit Solar sieht Roost den echten Solarüberschuss (Einspeisung minus Batterieentladung, höchstens die Solarleistung).",
-          "battery_power": "Nötig, um Solareinspeisung von einer ins Netz verkaufenden Batterie zu unterscheiden."
+          "battery_power": "Nötig, um Solareinspeisung von einer ins Netz verkaufenden Batterie zu unterscheiden.",
+          "house_power": "Optional. Was das ganze Haus verbraucht, um den Verbrauch pro Tagesstunde zu lernen (welche kommenden Stunden Solarüberschuss haben, wie lange der Akku reicht). Leer gelassen berechnet Roost ihn aus Netzleistung + Solarleistung (+ Akkuleistung)."
         }
       },
       "comfort": {
@@ -352,7 +353,8 @@
             },
             "data_description": {
               "has_battery": "Roost bewertet Energie aus der Batterie dann mit dem, was das Nachladen kostet.",
-              "battery_power": "Nötig, um Solareinspeisung von einer ins Netz verkaufenden Batterie zu unterscheiden."
+              "battery_power": "Nötig, um Solareinspeisung von einer ins Netz verkaufenden Batterie zu unterscheiden.",
+              "house_power": "Optional. Was das ganze Haus verbraucht, um den Verbrauch pro Tagesstunde zu lernen (welche kommenden Stunden Solarüberschuss haben, wie lange der Akku reicht). Leer gelassen berechnet Roost ihn aus Netzleistung + Solarleistung (+ Akkuleistung)."
             }
           }
         }

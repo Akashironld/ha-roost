@@ -10,7 +10,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from . import RoostConfigEntry, planner
-from .const import CONF_EMITTER
+from .const import CONF_EMITTER, CONF_THERMOSTAT
 from .entity import RoostEntity
 
 
@@ -35,7 +35,7 @@ class SetpointSensor(RoostEntity, SensorEntity):
     _attr_suggested_display_precision = 1
     _attr_icon = "mdi:home-thermometer"
     _unrecorded_attributes = frozenset({"plan", "start", "comfort", "day_min", "night_min", "store_max", "day_hours", "rooms",
-                                         "plan_why"})
+                                         "plan_why", "thermostat_entity"})
 
     def __init__(self, mgr) -> None:
         super().__init__(mgr, "setpoint")
@@ -54,7 +54,7 @@ class SetpointSensor(RoostEntity, SensorEntity):
         attrs = {"mode": m.mode, "reason": str(m.reason), "reason_code": m.reason.code, "reason_args": m.reason.args,
                  "decision": d.reason if d else None, "decision_code": d.why.code if d else None,
                  "decision_args": d.why.args if d else None, "room": m.room(),
-                 "thermostat": m.thermostat_sp(), "storage_kwh": round(m.storage_e, 1),
+                 "thermostat": m.thermostat_sp(), "thermostat_entity": m.conf.get(CONF_THERMOSTAT), "storage_kwh": round(m.storage_e, 1),
                  "paused_until": datetime.fromtimestamp(m.mem.pause_until, tz=dt_util.UTC).isoformat() if m.mem.pause_until else None,
                  "comfort": s.comfort, "day_min": s.day_min, "night_min": s.night_min, "store_max": s.store_max,
                  "rooms": m.room_status}
@@ -387,6 +387,7 @@ class HeatingCurveSensor(RoostEntity, SensorEntity):
     _attr_suggested_display_precision = 1
     _attr_icon = "mdi:chart-bell-curve-cumulative"
     _unrecorded_attributes = frozenset({"points", "current", "extrapolated"})
+    _attr_entity_registry_visible_default = False     # for the card (Curve view) and automations; hidden in lists
 
     def __init__(self, mgr) -> None:
         super().__init__(mgr, "heating_curve")
@@ -405,5 +406,6 @@ class HeatingCurveSensor(RoostEntity, SensorEntity):
             out.update({"points": a.points, "room": a.room, "cycling_from": a.cycling_from, "reliable": a.reliable,
                         "days": a.days, "hours": a.hours, "out_min": a.out_min, "out_max": a.out_max,
                         "heat_loss_w_per_k": round(a.ua_kw * 1000), "emitter_w_per_k": round(a.k_kw * 1000), "n": a.n,
-                        "margin_kw": a.margin_kw, "base_kw": a.base_kw, "extrapolated": a.extrapolated})
+                        "margin_kw": a.margin_kw, "base_kw": a.base_kw, "extrapolated": a.extrapolated,
+                        "measured_by": a.measured_by})
         return out

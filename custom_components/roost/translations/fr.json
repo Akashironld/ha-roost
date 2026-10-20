@@ -117,7 +117,8 @@
         },
         "data_description": {
           "grid_power": "Tout est facultatif. Avec le solaire, Roost voit le vrai surplus solaire (injection moins décharge de la batterie, au plus la puissance solaire).",
-          "battery_power": "Nécessaire pour distinguer l'injection solaire d'une batterie qui revend au réseau."
+          "battery_power": "Nécessaire pour distinguer l'injection solaire d'une batterie qui revend au réseau.",
+          "house_power": "Facultatif. Ce que consomme toute la maison, pour apprendre sa consommation par heure de la journée (quelles heures à venir ont du surplus solaire, combien de temps tient la batterie). Laissé vide, Roost le calcule à partir de la puissance réseau + solaire (+ batterie)."
         }
       },
       "comfort": {
@@ -352,7 +353,8 @@
             },
             "data_description": {
               "has_battery": "Roost valorise alors l'énergie de la batterie à ce que coûte sa recharge.",
-              "battery_power": "Nécessaire pour distinguer l'injection solaire d'une batterie qui revend au réseau."
+              "battery_power": "Nécessaire pour distinguer l'injection solaire d'une batterie qui revend au réseau.",
+              "house_power": "Facultatif. Ce que consomme toute la maison, pour apprendre sa consommation par heure de la journée (quelles heures à venir ont du surplus solaire, combien de temps tient la batterie). Laissé vide, Roost le calcule à partir de la puissance réseau + solaire (+ batterie)."
             }
           }
         }

@@ -77,6 +77,16 @@ def test_radiators_need_warmer_water_than_a_floor():
     assert rad.n == 1.3 and abs(rad.flow_at(0.0) - floor.flow_at(0.0)) < 1.5
 
 
+def test_measured_under_opentherm_or_the_curve():
+    """The Weheat logs say per hour whether an OpenTherm thermostat asked a water temperature: the measured flows are
+    labelled with what controlled the unit."""
+    rows, flows = _house()
+    steady = {r.ts for r in rows if r.Q >= 0.5}
+    assert curve.advise(rows, flows, "floor", ROOM, opentherm=steady).measured_by == "opentherm"
+    assert curve.advise(rows, flows, "floor", ROOM, opentherm={DAY0 - 3600}).measured_by == "heating_curve"
+    assert curve.advise(rows, flows, "floor", ROOM).measured_by is None          # imported before: not known
+
+
 def test_cycling_limit_is_measured():
     """Share of interrupted heating hours per outdoor degree, as measured on a Blackbird P80: past half from 8 °C."""
     share = {-2: 16, -1: 9, 0: 8, 1: 5, 2: 17, 3: 18, 4: 18, 5: 30, 6: 36, 7: 49, 8: 53, 9: 59, 10: 60, 11: 66, 12: 76}

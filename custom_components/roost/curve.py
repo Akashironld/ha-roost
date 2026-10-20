@@ -56,6 +56,7 @@ class CurveAdvice:
     out_max: float
     reliable: bool
     extrapolated: list[float] = field(default_factory=list)   # points colder than any day measured
+    measured_by: str | None = None    # what controlled the unit in the measured hours: opentherm | heating_curve
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -112,15 +113,24 @@ def signature(rows: list[HourRow]) -> tuple[float, float, float, list[tuple[floa
     return ua, base, se, res
 
 
+def _steady(r: HourRow, f: float | None) -> bool:
+    return f is not None and r.heating_s >= STEADY_S and r.dhw_s <= 60 and r.Q >= 0.5 and f - r.T >= MIN_EXCESS
+
+
 def steady_hours(rows: list[HourRow], flows: dict[int, float]) -> list[tuple[float, float, float, float]]:
     """Hours the unit ran the whole hour on space heating: (outdoor, room, flow, kW)."""
-    out = []
-    for r in rows:
-        f = flows.get(r.ts)
-        if f is None or r.heating_s < STEADY_S or r.dhw_s > 60 or r.Q < 0.5 or f - r.T < MIN_EXCESS:
-            continue
-        out.append((r.T_out, r.T, f, r.Q))
-    return out
+    return [(r.T_out, r.T, flows[r.ts], r.Q) for r in rows if _steady(r, flows.get(r.ts))]
+
+
+def measured_by(rows: list[HourRow], flows: dict[int, float], opentherm: set[int]) -> str | None:
+    """What controlled the unit in the steady hours: an OpenTherm thermostat asking a water temperature (the Weheat
+    logs have it per hour), else the unit's own heating curve. None when the logs do not tell (imported before)."""
+    if not opentherm:
+        return None
+    hours = [r.ts for r in rows if _steady(r, flows.get(r.ts))]
+    if not hours:
+        return None
+    return "opentherm" if sum(1 for t in hours if t in opentherm) * 2 > len(hours) else "heating_curve"
 
 
 def cycling_limit(rows: list[HourRow]) -> float | None:
@@ -158,7 +168,7 @@ def _up(v: float) -> float:
 
 
 def advise(rows: list[HourRow], flows: dict[int, float], emitter: str, room: float, q_min: float = 0.0,
-           xs: tuple[float, ...] = WEHEAT_X) -> CurveAdvice | None:
+           xs: tuple[float, ...] = WEHEAT_X, opentherm: set[int] | None = None) -> CurveAdvice | None:
     """rows: the learning history; flows: {hour ts: mean flow temperature (°C)} from the Weheat logs; emitter: floor,
     radiators or both; room: the comfort temperature; q_min: the unit's lowest steady output (kW, 0: unknown)."""
     sig = signature(rows)
@@ -214,7 +224,13 @@ def advise(rows: list[HourRow], flows: dict[int, float], emitter: str, room: flo
     return CurveAdvice(points=points, room=room, ua_kw=round(ua, 4), base_kw=round(base, 3), margin_kw=round(margin, 3),
                        k_kw=round(k, 4), n=n, cycling_from=None if cycling is None else round(cycling, 1), days=len(res),
                        hours=len(steady), out_min=round(min(out_days), 1), out_max=round(max(out_days), 1),
-                       reliable=reliable, extrapolated=[x for x in xs if x < min(out_days)])
+                       reliable=reliable, extrapolated=[x for x in xs if x < min(out_days)],
+                       measured_by=measured_by(rows, flows, opentherm or set()))
+
+
+def opentherm_from_weheat(hours: dict[int, dict]) -> set[int]:
+    """Hours in which an OpenTherm thermostat asked the unit for a water temperature (Weheat logs, key 'th_water')."""
+    return {t for t, v in hours.items() if v.get("th_water")}
 
 
 def flows_from_weheat(hours: dict[int, dict]) -> dict[int, float]:

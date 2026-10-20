@@ -117,7 +117,8 @@
         },
         "data_description": {
           "grid_power": "Allemaal optioneel. Met zonnepanelen ziet Roost echt zon-overschot (teruglevering min accu-ontladen, hooguit het zonnevermogen).",
-          "battery_power": "Nodig om zonneteruglevering te onderscheiden van een accu die aan het net verkoopt."
+          "battery_power": "Nodig om zonneteruglevering te onderscheiden van een accu die aan het net verkoopt.",
+          "house_power": "Optioneel. Wat het hele huis verbruikt, om het verbruik per uur van de dag te leren (welke komende uren zon over hebben, hoe lang de accu het houdt). Leeg gelaten rekent Roost het uit netvermogen + zonnevermogen (+ accuvermogen)."
         }
       },
       "comfort": {
@@ -352,7 +353,8 @@
             },
             "data_description": {
               "has_battery": "Roost rekent stroom uit de accu dan tegen wat bijvullen kost.",
-              "battery_power": "Nodig om zonneteruglevering te onderscheiden van een accu die aan het net verkoopt."
+              "battery_power": "Nodig om zonneteruglevering te onderscheiden van een accu die aan het net verkoopt.",
+              "house_power": "Optioneel. Wat het hele huis verbruikt, om het verbruik per uur van de dag te leren (welke komende uren zon over hebben, hoe lang de accu het houdt). Leeg gelaten rekent Roost het uit netvermogen + zonnevermogen (+ accuvermogen)."
             }
           }
         }

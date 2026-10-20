@@ -152,6 +152,7 @@ class WeheatMixin:
                 self.weheat_settings = {**got, "at": dt_util.now().isoformat(timespec="seconds")}
         flows = curve.flows_from_weheat(self._weheat_hours)
         adv = await self.hass.async_add_executor_job(curve.advise, rows, flows, self.conf.get(CONF_EMITTER, "floor"),
-                                                     self.settings().comfort, self.pump.q_min or 0.0)
+                                                     self.settings().comfort, self.pump.q_min or 0.0, curve.WEHEAT_X,
+                                                     curve.opentherm_from_weheat(self._weheat_hours))
         if adv is not None:
             self.curve_advice = adv
