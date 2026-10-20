@@ -243,6 +243,18 @@ def test_heating_days_still_replace_a_learned_model_gone_wrong():
     assert model.default_may_replace({r.ts: r for r in rows}, wrong, days[-3:])
 
 
+def test_a_changed_house_model_the_newest_days_no_longer_hold_is_replaced():
+    """A model taken from the newest heating days alone (by the older, looser rule: in autumn those reached back to
+    spring) does not stay on mild test days: the year's model replaces it, and it no longer limits the data."""
+    rows = simulate_house(TRUE, days=25, seed=5, mild_last=5)
+    spring = model.HouseModel(C=15.0, H=0.136, g=2.6, lag=2.25, internal=0.55, source="learned", data_from=DAY0 * 86400)
+    res = model.learn(rows, spring)
+    assert res.adopted and "previous" not in res.scores, (res.reason, res.scores)
+    assert res.model.data_from is None and "no longer hold" in res.reason, res.reason
+    plain = model.HouseModel(C=15.0, H=0.136, g=2.6, lag=2.25, internal=0.55, source="learned")
+    assert "previous" in model.learn(rows, plain).scores          # an ordinary learned model still competes
+
+
 def test_learning_waits_for_the_newest_hours():
     rows = simulate_house(TRUE, days=10)
     newest = max(r.ts for r in rows)

@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.6.0 — plan table, heating curve advice
+
+**For everyone** — see why Roost plans each hour, the plan as a table, and the heating curve your house needs; the electricity and cost of today survive a restart (#2). After updating Roost reads the past year of hourly logs from Weheat once more (about half an hour, in the background).
+
+### Fixes
+- **Today's heating electricity and cost** no longer start at zero after a restart of Home Assistant (#2)
+- **Learning**: the newest heating days count as *the house changed* only when they lie within 60 days and the test days were heated — in autumn the 30 newest heating days reached back to spring and a season was taken for a changed house; a model taken that way is replaced by the year's model
+- **Learning**: the generic starting house no longer replaces a learned model on mild days without heating, and Roost does not learn when the newest hours are missing (just after a start)
+- **Cheap and expensive** in the reasons are judged on the price the planner counts (own solar, the battery's refill cost or the tariff), so a reason no longer calls 46 ct cheap while the battery supplied at 29 ct
+- The look back's 24 h / 48 h / 7 d buttons no longer jump back to the plan
+
+### Improvements
+- **Why each hour** (#1): a line under the plan says why the hour under your finger is what it is; the sensor carries a reason per hour (`plan_why`)
+- **Table**: the plan per hour — hours with the same setting and reason on one line, with setting, room expected, tariff, kWh and why — and the last 7 days per day: planned and set, room measured and expected, price, heat, why, changes by hand and windows open
+- **Heating curve advice** (*Curve* in the card, sensor `heating_curve_advice`): the flow temperatures your house needs as the five points of the Weheat app, from your heat loss, your floor or radiators and the heat pump's own logs; beside them what the house needs without margin and what the heat pump really made (and whether under OpenTherm or its curve), the zone where it cycles, and the curve it has now when Weheat gives it
+- **Card**: tap the mode label to switch Off / Shadow / Active (Active asks twice), pause 2 hours or resume; the Planned tile shows the next change and opens the table; the Thermostat tile opens the thermostat's controls; the Roost icon opens the integration; a warning when Roost steers while its check has not passed
+- **House power is optional**: without it Roost learns the usage per hour from grid power + solar power (+ battery power); the setup explains the field
+- **Weheat history**: the flow and return temperature, thermostat demand, backup heater, gas boiler, compressor limits and errors are kept per hour (for later use without a new import); 13 months are kept; new fields are read from the hourly logs only, so that takes half an hour instead of hours
+- Helper sensors (Weheat import, its progress, energy value, heat pump model, heating curve advice) are hidden in entity lists; the card still uses them
+
+### After updating
+Update in HACS (or install the new `roost.zip`) and restart Home Assistant, then reload the dashboard (Ctrl+F5) for the new card. Roost then reads the past year of hourly logs from Weheat once more (about half an hour); the heating curve advice appears after that.
+
 ## v0.5.6 — window open, German and French
 
 **For everyone** — Roost now recognises airing: it waits instead of heating the outdoors, and does not learn from it.

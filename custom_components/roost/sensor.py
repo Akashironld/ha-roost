@@ -163,6 +163,7 @@ class EnergyTodaySensor(RoostEntity, SensorEntity):
 
 
 class EnergyValueSensor(RoostEntity, SensorEntity):
+    _attr_entity_registry_visible_default = False      # for the card and the diagnostics; hidden in lists
     _attr_icon = "mdi:cash-clock"
     _attr_suggested_display_precision = 3
     _attr_entity_registry_enabled_default = False
@@ -226,6 +227,7 @@ def _building(b: dict | None) -> dict | None:
 
 
 class HeatPumpModelSensor(RoostEntity, SensorEntity):
+    _attr_entity_registry_visible_default = False      # for the card and the diagnostics; hidden in lists
     """COP the model expects at 7 °C outside and 3 kW of heat."""
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -322,6 +324,7 @@ IMPORT_STATES = ["not_yet", "importing", "done", "waiting", "failed", "no_heat_p
 
 
 class ImportSensor(RoostEntity, SensorEntity):
+    _attr_entity_registry_visible_default = False      # for the card and the diagnostics; hidden in lists
     """Status of the Weheat history import (translated states; the details in the attributes)."""
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -356,6 +359,7 @@ class ImportSensor(RoostEntity, SensorEntity):
 
 
 class ImportProgressSensor(RoostEntity, SensorEntity):
+    _attr_entity_registry_visible_default = False      # for the card and the diagnostics; hidden in lists
     """How far the Weheat import is (% of the months; the expected end in the attributes)."""
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC

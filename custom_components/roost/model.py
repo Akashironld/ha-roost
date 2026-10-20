@@ -374,7 +374,12 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
     if len(days) < 7 + TEST_DAYS:
         return LearnResult(previous, False, f"not enough complete days yet ({len(days)}, need {7 + TEST_DAYS})")
     train, test = days[:-TEST_DAYS], days[-TEST_DAYS:]
-    centre = previous.params() if previous.source == "learned" else dict(base)
+    # the house as it is now: only the newest heating days (see below)
+    recent = changed_house_days({r.ts: r for r in rows}, days, train, test)
+    # a model taken from 'the newest heating days' that those days no longer support (taken by the older, looser rule:
+    # a season, not a changed house) does not stay and does not pull the new fit towards itself
+    dropped = previous.source == "learned" and previous.data_from is not None and not recent
+    centre = previous.params() if previous.source == "learned" and not dropped else dict(base)
     wts = recency_weights({r.ts: r for r in rows}, days)
     cache: dict[tuple, dict[int, HourRow]] = {}
 
@@ -404,7 +409,6 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
     ix_new = idx_for(facade, vertical)
     # the house as it is now: only the newest heating days. Wins when the house changed (insulation, new windows) and the
     # model over the whole year mixes the old and the new house; otherwise the model with more data wins the tie
-    recent = changed_house_days({r.ts: r for r in rows}, days, train, test)
     recent_p = fit(ix_new, recent, centre) if len(recent) >= 10 else None
     options = [("new", candidate, ix_new, None)] + ([("recent", recent_p, ix_new, None)] if recent_p else []) + [
                ("previous", previous.params(), idx_for(previous.sun_facade, previous.sun_vertical), previous.profile),
@@ -418,6 +422,8 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
         return LearnResult(previous, False, "no test data")
     if "default" in scores and len(scores) > 1 and not default_may_replace(ix_new, previous, test):
         del scores["default"]
+    if dropped and "previous" in scores and len(scores) > 1:
+        del scores["previous"]
     if "recent" in scores and "new" in scores and scores["recent"][2] > scores["new"][2] * (1 - CHANGED_BY):
         del scores["recent"]          # not clearly better: a season, not a changed house (the year's model knows winter)
     best = min(v[2] for v in scores.values())
@@ -446,7 +452,10 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
                        error_balance=round(err[1], 3), days=len(days), heating_days=heating, source="learned",
                        sun_facade=facade, sun_vertical=vertical, profile=profile,
                        data_from=min(recent) * 86400 if choice == "recent" else None)
-        return LearnResult(m, True, "new model adopted" + (" (from the newest heating days: the house changed)" if choice == "recent" else ""), rounded)
+        why = (" (from the newest heating days: the house changed)" if choice == "recent" else
+               " (the previous one came from the newest heating days only, which no longer hold: a season, not a changed house)"
+               if dropped else "")
+        return LearnResult(m, True, "new model adopted" + why, rounded)
     keep = previous if choice == "previous" else HouseModel(**base)
     keep = HouseModel.from_dict({**keep.as_dict(), "error_t": round(scores[choice][0], 3), "error_balance": round(scores[choice][1], 3)})
     return LearnResult(keep, False, f"{choice} model predicts the last days better: kept", rounded)
