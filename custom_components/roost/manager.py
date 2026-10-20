@@ -596,12 +596,16 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             self.plan_tariff = list(inp.import_price)
             self.plan_guess = guess
             self._remember_prediction(now, p)
-            snap = replan.snapshot(now.timestamp(), int(now.timestamp() // 3600 * 3600), p, hours, inp.import_price, guess, room,
-                                   self.corr_kw, vars(s), self.plan_on_guess)
-            line = replan.compare(self._plan_snap, snap, room)
-            if line:
-                self.plan_changes = replan.prune(self.plan_changes + [line], now.timestamp())
-            self._plan_snap = snap
+            try:
+                snap = replan.snapshot(now.timestamp(), int(now.timestamp() // 3600 * 3600), p, hours, inp.import_price, guess, room,
+                                       self.corr_kw, vars(s), self.plan_on_guess)
+                line = replan.compare(self._plan_snap, snap, room)
+                if line:
+                    self.plan_changes = replan.prune(self.plan_changes + [line], now.timestamp())
+                self._plan_snap = snap
+            except Exception as err:  # noqa: BLE001 - the change log must never stop planning and steering
+                _LOGGER.debug("plan change log: %s", err)
+                self._plan_snap = None
             self.reason = planner.explain(p, hours, room, s, self.pump, self.house, self.conf.get(CONF_EMITTER, "floor") == "floor")
             self._last_reason_code = None
         finally:

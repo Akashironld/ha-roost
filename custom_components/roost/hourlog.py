@@ -95,7 +95,10 @@ class HourLogMixin:
         if p is None or not p.breakdown or self.plan_at is None:
             return None
         base = int(self.plan_at // 3600 * 3600)
-        return {**p.breakdown, "hours": [{**r, "ts": base + r["i"] * 3600} for r in p.breakdown["hours"]]}
+        g = self.plan_guess
+        # price not published yet: an estimate (with plan_on_guess the mean of the known prices, see planner.neutral_prices)
+        return {**p.breakdown, "neutral": self.plan_on_guess,
+                "hours": [{**r, "ts": base + r["i"] * 3600, "guess": bool(g[r["i"]]) if r["i"] < len(g) else False} for r in p.breakdown["hours"]]}
 
     def explain_saving(self, day: str = "yesterday") -> dict:
         """roost.explain_saving: where the saving of a day (replayed at the end of it) or of the next 24 hours (the plan

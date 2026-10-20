@@ -440,17 +440,19 @@ def neutral_prices(hours: list[HourIn], guess: list[bool], window: int = 24) -> 
     thermostat. None when no hour in the first `window` is a guess."""
     if not any(guess[:window]):
         return None
-    known = [h.p_grid for h, g in zip(hours, guess + [True] * len(hours)) if not g]
+    known = [h.p_grid for i, (h, g) in enumerate(zip(hours, guess + [True] * len(hours))) if i == 0 or not g]
     if not known:
         return None
     mean = sum(known) / len(known)
     out = []
     for i, h in enumerate(hours):
-        if i < len(guess) and not guess[i]:
+        if i == 0 or (i < len(guess) and not guess[i]):      # the current hour's price is always known
             out.append(h)
         else:
             own = mean if abs(h.p_own - h.p_grid) < 1e-9 else min(h.p_own, mean)
             out.append(replace(h, p_grid=mean, p_own=own))
+    if all(abs(a.p_grid - b.p_grid) < 1e-9 and abs(a.p_own - b.p_own) < 1e-9 for a, b in zip(hours, out)):
+        return None                     # the guesses already are the mean (a price without forecast): nothing to plan again
     return out
 
 

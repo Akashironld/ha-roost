@@ -122,6 +122,10 @@ def test_guessed_prices_are_set_to_the_mean_of_the_known():
     assert all(h.p_own == 0.05 for h in n)                        # own solar keeps its (lower) export value
     assert planner.neutral_prices(hs, [False] * 24) is None        # nothing guessed: nothing to do
     assert planner.neutral_prices(hs, [False] * 24 + [True] * 12) is None    # only guesses past 24 h
+    n = planner.neutral_prices(hs, [True] * 24)                              # the current hour is never a guess
+    assert n[0].p_grid == 0.20 and all(abs(h.p_grid - 0.20) < 1e-9 for h in n)
+    flat = hours(5, prices=[0.30] * 24)                                      # a price sensor without forecast
+    assert planner.neutral_prices(flat, [False] + [True] * 23) is None
 
 
 def test_a_guessed_expensive_morning_does_not_move_tonight():
