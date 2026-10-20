@@ -586,7 +586,9 @@ class RoostOptionsFlow(OptionsFlow):
     async def _async_saved(self, part: str | None = None) -> ConfigFlowResult:
         """A part was submitted: save it right away (closing the window loses nothing) and go back to the menu."""
         part = part or {"price_fixed": "price", "price_epex": "price"}.get(step := (self.cur_step or {}).get("step_id", ""), step)
-        self.hass.config_entries.async_update_entry(self.config_entry, options=dict(self.opts))
+        # a field left empty is gone: also from what the setup stored, which the options are laid over (#3)
+        data = {k: v for k, v in self.config_entry.data.items() if k in LOGIN_KEYS or k in self.opts}
+        self.hass.config_entries.async_update_entry(self.config_entry, data=data, options=dict(self.opts))
         self._saved = part
         return await self.async_step_init()
 

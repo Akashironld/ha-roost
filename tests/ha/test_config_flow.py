@@ -147,6 +147,24 @@ async def test_options_solar_and_battery_on_one_screen(hass: HomeAssistant, entr
     assert entry.options["pv_power"] == "sensor.pv" and "battery_soc" not in entry.options and "battery_kwh" not in entry.options
 
 
+async def test_options_a_field_left_empty_is_gone(hass: HomeAssistant, entry) -> None:
+    """#3: House power filled in at the setup (the entry's data), left empty in Configure: it is gone, also after a
+    reload; the Weheat login in the data stays."""
+    hass.config_entries.async_update_entry(entry, data={**entry.data, "pv_power": "sensor.pv", "grid_power": "sensor.grid",
+                                                         "battery_soc": "sensor.soc", "house_power": "sensor.house",
+                                                         "token": {"access_token": "x"}})
+    await hass.async_block_till_done()
+    r = await hass.config_entries.options.async_init(entry.entry_id)
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {"next_step_id": "solar"})
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {
+        "solar_section": {"has_solar": True, "pv_power": "sensor.pv", "grid_power": "sensor.grid", "grid_sign": "import_positive"},
+        "battery_section": {"has_battery": True, "battery_soc": "sensor.soc"},
+        "grid_preference": 0.0})
+    assert r["type"] is FlowResultType.MENU
+    conf = {**entry.data, **entry.options}
+    assert "house_power" not in conf and conf["battery_soc"] == "sensor.soc" and entry.data["token"] == {"access_token": "x"}
+
+
 async def test_built_in_day_ahead_prices_screen(hass: HomeAssistant, weheat: str) -> None:
     r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     r = await hass.config_entries.flow.async_configure(r["flow_id"], {"name": "Roost", "heat_pump": weheat, "thermostat": THERMOSTAT,

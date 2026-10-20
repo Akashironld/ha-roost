@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.6.1 — a field left empty stays empty
+
+**For everyone who changes settings** — a sensor left empty in *Configure* (house power, solar, battery, room or window sensors) is now really gone; before, the one chosen in the setup came back (#3).
+
+### Fixes
+- A field left empty in *Configure* no longer falls back to what was chosen in the setup (#3)
+
+### After updating
+Update in HACS (or install the new `roost.zip`) and restart Home Assistant. If you cleared a field before, it is gone now; nothing else to do.
+
 ## v0.6.0 — plan table, heating curve advice
 
 **For everyone** — see why Roost plans each hour, the plan as a table, and the heating curve your house needs; the electricity and cost of today survive a restart (#2). After updating Roost reads the past year of hourly logs from Weheat once more (about half an hour, in the background).
