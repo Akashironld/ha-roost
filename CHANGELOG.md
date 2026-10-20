@@ -22,6 +22,7 @@
 - **Away** (card menu or `roost.away`): only a minimum (default 16 °C), no comfort hours, warm again in time; `roost.home` ends it
 - **Settings from the card**: tap the mode label → ⚙ Settings for every temperature and the comfort hours with − / + (`roost.set_settings`); they are the same settings as *Configure → Comfort*
 - The first view of the card is called **Overview**
+- **Heating curve view**: the five points evenly over the width, every steady hour as a dot, dashed where the line is calculated or in the cycling zone, and an indoor temperature − / + to see the advice for a warmer or cooler house (what if)
 - **Notifications** (off until you choose where they go, *Configure → Notifications*): thermostat unreachable or not changeable, check no longer passing while steering, learning failed, Weheat login needed; optionally a weekly summary on Monday morning
 - **Where the heating electricity came from**: own solar, home battery or grid, per day in the table and over the look back's period (hot water not counted)
 - **Why a day cost more** than a steady thermostat: the table says it per day

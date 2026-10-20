@@ -224,12 +224,14 @@ Click **Submit**. Roost is set up — in shadow mode — and starts importing an
   one you change wins: the others follow it (comfort never below the day minimum, for example).
 - **Curve** (the switch in the header): the heating curve advice in
   one view — the flow at 0 °C outside, the heat loss and the outdoor temperature from which the heat pump cycles; a
-  graph of the flow temperature against the outdoor temperature, on scale with lines at the five points of the app:
+  graph of the flow temperature against the outdoor temperature, with the five points of the app evenly over the width:
   the advice (orange; dashed where it is calculated — colder than any hour measured — and in the zone where the heat
-  pump cycles), the curve now (when Weheat gives it), what the house needs (blue, dashed, up to that zone) and every
+  pump cycles), the curve now (when Weheat gives it), what the house needs (blue, dashed; lighter in that zone, up to
+  where the house needs no heat) and every
   hour the heat pump ran the whole hour as a dot (under OpenTherm or on its curve, as the legend says); then the
   five points with what the house needs and what was measured (and whether under OpenTherm or the curve), and the
-  notes — see [Heating curve advice](#heating-curve-advice).
+  notes (*none* where the house needs no heat at all). **Indoor temperature − / +** shows the advice for another
+  indoor temperature (what if — it changes neither Roost nor the thermostat). See [Heating curve advice](#heating-curve-advice).
 - **Thermostat tile**: tap it for the thermostat's own controls (Home Assistant's dialog); Roost then pauses as after
   any change by hand.
 - **The Roost icon** (top left) opens Roost in *Settings → Devices & services*.

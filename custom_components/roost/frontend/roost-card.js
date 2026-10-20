@@ -132,10 +132,10 @@ const WHY = {
 const WHY_DECIMALS = { sp: 1, room: 1, ct: 0, min: 0 };
 // The heating curve advice (sensor heating_curve): a folded table under the plan.
 const CURVE_T = {
-  en: { lg_cloud_ot: "Measured under OpenTherm: each dot is an hour the heat pump ran the whole hour", lg_cloud_curve: "Measured on its heating curve: each dot is an hour the heat pump ran the whole hour", lg_cloud: "Measured: each dot is an hour the heat pump ran the whole hour", lg_dash: "Dashed: calculated (colder than measured) or in the cycling zone", need: "Needed", meas_ot: "Measured (OT)", meas_curve: "Measured (curve)", n_need: "Needed: the least your house asks for at that outdoor temperature, without margin.", n_meas_ot: "Measured (OT): the flow by the heat pump's own sensor, in hours it ran the whole hour while the OpenTherm thermostat set the water temperature.", n_meas_curve: "Measured (curve): the flow by the heat pump's own sensor, in hours it ran the whole hour on its own heating curve.", title: "Heating curve advice", out: "Outdoor", now: "Now", adv: "Advice", meas: "Measured", cz: "cycling zone", at0: "At 0 \u00b0C outside", loss: "Heat loss", cyc: "Cycles above", flow: "flow temperature", outside: "outdoor", x_axis: "outdoor temperature", y_axis: "flow \u00b0C", lg_adv: "Advice: the heating curve to set in the Weheat app", lg_now: "Now: the curve your heat pump has", lg_need: "Needed: the least your house asks for (without margin)", lg_meas: "Measured: what your heat pump really made", lg_cyc: "Cycling zone: here the heat pump switches on and off anyway", n_for: "For {room} \u00b0C indoors, from {days} heating days and {hours} hours of steady heating.", n_rough: "Still rough: little data yet.", n_cycles: "Above about {t} \u00b0C outside the heat pump switches on and off anyway; the points there (grey) matter little.", n_extra: "{x} \u00b0C is calculated: colder than any day measured (coldest {min} \u00b0C).", n_meas: "Measured: the flow temperature in hours the heat pump ran the whole hour, near that outdoor temperature.", n_thermostat: "Your heat pump follows the thermostat now; the advice applies when it runs on its heating curve.", n_oncurve: "Your heat pump runs on its heating curve.", n_set: "Set the points in the Weheat app (heating curve).", none: "No advice yet: Roost needs about 20 heating days and 30 hours of steady heating with the flow temperature from the Weheat logs." },
-  nl: { lg_cloud_ot: "Gemeten onder OpenTherm: elke stip is een uur waarin de warmtepomp het hele uur draaide", lg_cloud_curve: "Gemeten op de stooklijn: elke stip is een uur waarin de warmtepomp het hele uur draaide", lg_cloud: "Gemeten: elke stip is een uur waarin de warmtepomp het hele uur draaide", lg_dash: "Gestippeld: doorgerekend (kouder dan gemeten) of in de pendelzone", need: "Nodig", meas_ot: "Gemeten (OT)", meas_curve: "Gemeten (stooklijn)", n_need: "Nodig: wat je huis minimaal vraagt bij die buitentemperatuur, zonder marge.", n_meas_ot: "Gemeten (OT): de aanvoer volgens de sensor van de warmtepomp zelf, in uren dat hij het hele uur draaide terwijl de OpenTherm-thermostaat de watertemperatuur bepaalde.", n_meas_curve: "Gemeten (stooklijn): de aanvoer volgens de sensor van de warmtepomp zelf, in uren dat hij het hele uur op zijn eigen stooklijn draaide.", title: "Stooklijnadvies", out: "Buiten", now: "Nu", adv: "Advies", meas: "Gemeten", cz: "pendelzone", at0: "Bij 0 \u00b0C buiten", loss: "Warmteverlies", cyc: "Pendelt boven", flow: "aanvoertemperatuur", outside: "buiten", x_axis: "buitentemperatuur", y_axis: "aanvoer \u00b0C", lg_adv: "Advies: de stooklijn om in te stellen in de Weheat-app", lg_now: "Nu: de stooklijn van je warmtepomp", lg_need: "Nodig: wat je huis minimaal vraagt (zonder marge)", lg_meas: "Gemeten: wat je warmtepomp echt maakte", lg_cyc: "Pendelzone: hier slaat de warmtepomp toch af en aan", n_for: "Voor {room} \u00b0C binnen, uit {days} stookdagen en {hours} uur rustig stoken.", n_rough: "Nog grof: nog weinig data.", n_cycles: "Boven ongeveer {t} \u00b0C buiten slaat de warmtepomp toch af en aan; de punten daar (grijs) maken weinig uit.", n_extra: "{x} \u00b0C is doorgerekend: kouder dan elke gemeten dag (koudste {min} \u00b0C).", n_meas: "Gemeten: de aanvoertemperatuur in uren dat de warmtepomp het hele uur draaide, rond die buitentemperatuur.", n_thermostat: "Je warmtepomp volgt nu de thermostaat; het advies geldt zodra hij op zijn stooklijn draait.", n_oncurve: "Je warmtepomp draait op zijn stooklijn.", n_set: "Stel de punten in in de Weheat-app (stooklijn).", none: "Nog geen advies: Roost heeft ongeveer 20 stookdagen en 30 uur rustig stoken nodig, met de aanvoertemperatuur uit de Weheat-logs." },
-  de: { lg_cloud_ot: "Gemessen unter OpenTherm: jeder Punkt ist eine Stunde, in der die W\u00e4rmepumpe durchlief", lg_cloud_curve: "Gemessen nach der Heizkurve: jeder Punkt ist eine Stunde, in der die W\u00e4rmepumpe durchlief", lg_cloud: "Gemessen: jeder Punkt ist eine Stunde, in der die W\u00e4rmepumpe durchlief", lg_dash: "Gestrichelt: berechnet (k\u00e4lter als gemessen) oder in der Taktzone", need: "N\u00f6tig", meas_ot: "Gemessen (OT)", meas_curve: "Gemessen (Kurve)", n_need: "N\u00f6tig: was dein Haus bei dieser Au\u00dfentemperatur mindestens braucht, ohne Reserve.", n_meas_ot: "Gemessen (OT): der Vorlauf laut dem eigenen F\u00fchler der W\u00e4rmepumpe, in Stunden, in denen sie die ganze Stunde lief, w\u00e4hrend das OpenTherm-Thermostat die Wassertemperatur vorgab.", n_meas_curve: "Gemessen (Kurve): der Vorlauf laut dem eigenen F\u00fchler der W\u00e4rmepumpe, in Stunden, in denen sie die ganze Stunde nach ihrer Heizkurve lief.", title: "Heizkurven-Empfehlung", out: "Au\u00dfen", now: "Jetzt", adv: "Empfehlung", meas: "Gemessen", cz: "Taktzone", at0: "Bei 0 \u00b0C au\u00dfen", loss: "W\u00e4rmeverlust", cyc: "Taktet \u00fcber", flow: "Vorlauftemperatur", outside: "au\u00dfen", x_axis: "Au\u00dfentemperatur", y_axis: "Vorlauf \u00b0C", lg_adv: "Empfehlung: die Heizkurve f\u00fcr die Weheat-App", lg_now: "Jetzt: die Kurve deiner W\u00e4rmepumpe", lg_need: "N\u00f6tig: was dein Haus mindestens braucht (ohne Reserve)", lg_meas: "Gemessen: was deine W\u00e4rmepumpe wirklich lieferte", lg_cyc: "Taktzone: hier taktet die W\u00e4rmepumpe ohnehin", n_for: "F\u00fcr {room} \u00b0C innen, aus {days} Heiztagen und {hours} Stunden ruhigem Heizen.", n_rough: "Noch grob: noch wenige Daten.", n_cycles: "Oberhalb von etwa {t} \u00b0C au\u00dfen taktet die W\u00e4rmepumpe ohnehin; die Punkte dort (grau) sind kaum wichtig.", n_extra: "{x} \u00b0C ist berechnet: k\u00e4lter als jeder gemessene Tag (k\u00e4ltester {min} \u00b0C).", n_meas: "Gemessen: die Vorlauftemperatur in Stunden, in denen die W\u00e4rmepumpe die ganze Stunde lief, bei dieser Au\u00dfentemperatur.", n_thermostat: "Deine W\u00e4rmepumpe folgt jetzt dem Thermostat; die Empfehlung gilt, sobald sie nach ihrer Heizkurve l\u00e4uft.", n_oncurve: "Deine W\u00e4rmepumpe l\u00e4uft nach ihrer Heizkurve.", n_set: "Stelle die Punkte in der Weheat-App ein (Heizkurve).", none: "Noch keine Empfehlung: Roost braucht etwa 20 Heiztage und 30 Stunden ruhiges Heizen mit der Vorlauftemperatur aus den Weheat-Logs." },
-  fr: { lg_cloud_ot: "Mesur\u00e9 sous OpenTherm : chaque point est une heure o\u00f9 la pompe a tourn\u00e9 toute l'heure", lg_cloud_curve: "Mesur\u00e9 sur sa courbe : chaque point est une heure o\u00f9 la pompe a tourn\u00e9 toute l'heure", lg_cloud: "Mesur\u00e9 : chaque point est une heure o\u00f9 la pompe a tourn\u00e9 toute l'heure", lg_dash: "Pointill\u00e9 : calcul\u00e9 (plus froid que mesur\u00e9) ou dans la zone de cycles", need: "N\u00e9cessaire", meas_ot: "Mesur\u00e9 (OT)", meas_curve: "Mesur\u00e9 (courbe)", n_need: "N\u00e9cessaire : le minimum que demande la maison \u00e0 cette temp\u00e9rature ext\u00e9rieure, sans marge.", n_meas_ot: "Mesur\u00e9 (OT) : le d\u00e9part selon la sonde de la pompe elle-m\u00eame, pendant les heures o\u00f9 elle a tourn\u00e9 toute l'heure pendant que le thermostat OpenTherm fixait la temp\u00e9rature de l'eau.", n_meas_curve: "Mesur\u00e9 (courbe) : le d\u00e9part selon la sonde de la pompe elle-m\u00eame, pendant les heures o\u00f9 elle a tourn\u00e9 toute l'heure sur sa propre courbe de chauffe.", title: "Conseil de courbe de chauffe", out: "Ext\u00e9rieur", now: "Actuel", adv: "Conseil", meas: "Mesur\u00e9", cz: "zone de cycles", at0: "\u00c0 0 \u00b0C dehors", loss: "D\u00e9perditions", cyc: "Cycle au-dessus de", flow: "temp\u00e9rature de d\u00e9part", outside: "ext\u00e9rieur", x_axis: "temp\u00e9rature ext\u00e9rieure", y_axis: "d\u00e9part \u00b0C", lg_adv: "Conseil : la courbe \u00e0 r\u00e9gler dans l'app Weheat", lg_now: "Actuel : la courbe de votre pompe \u00e0 chaleur", lg_need: "N\u00e9cessaire : le minimum que demande la maison (sans marge)", lg_meas: "Mesur\u00e9 : ce que la pompe a r\u00e9ellement fourni", lg_cyc: "Zone de cycles : ici la pompe s'allume et s'\u00e9teint de toute fa\u00e7on", n_for: "Pour {room} \u00b0C \u00e0 l'int\u00e9rieur, d'apr\u00e8s {days} jours de chauffe et {hours} heures de chauffe stable.", n_rough: "Encore approximatif : peu de donn\u00e9es.", n_cycles: "Au-dessus d'environ {t} \u00b0C dehors la pompe s'allume et s'\u00e9teint de toute fa\u00e7on ; les points y (en gris) comptent peu.", n_extra: "{x} \u00b0C est calcul\u00e9 : plus froid que tout jour mesur\u00e9 (le plus froid {min} \u00b0C).", n_meas: "Mesur\u00e9 : la temp\u00e9rature de d\u00e9part pendant les heures o\u00f9 la pompe a tourn\u00e9 toute l'heure, autour de cette temp\u00e9rature ext\u00e9rieure.", n_thermostat: "Votre pompe \u00e0 chaleur suit le thermostat ; le conseil vaut quand elle fonctionne sur sa courbe de chauffe.", n_oncurve: "Votre pompe \u00e0 chaleur fonctionne sur sa courbe de chauffe.", n_set: "R\u00e9glez les points dans l'app Weheat (courbe de chauffe).", none: "Pas encore de conseil : Roost a besoin d'environ 20 jours de chauffe et 30 heures de chauffe stable avec la temp\u00e9rature de d\u00e9part des logs Weheat." },
+  en: { none_needed: "none", n_none: "None: at this outdoor temperature your house needs no heat.", wi_label: "Indoor temperature", wi_note: "what if: changes neither Roost nor the thermostat", lg_cloud_ot: "Measured under OpenTherm: each dot is an hour the heat pump ran the whole hour", lg_cloud_curve: "Measured on its heating curve: each dot is an hour the heat pump ran the whole hour", lg_cloud: "Measured: each dot is an hour the heat pump ran the whole hour", lg_dash: "Dashed: calculated (colder than measured) or in the cycling zone", need: "Needed", meas_ot: "Measured (OT)", meas_curve: "Measured (curve)", n_need: "Needed: the least your house asks for at that outdoor temperature, without margin.", n_meas_ot: "Measured (OT): the flow by the heat pump's own sensor, in hours it ran the whole hour while the OpenTherm thermostat set the water temperature.", n_meas_curve: "Measured (curve): the flow by the heat pump's own sensor, in hours it ran the whole hour on its own heating curve.", title: "Heating curve advice", out: "Outdoor", now: "Now", adv: "Advice", meas: "Measured", cz: "cycling zone", at0: "At 0 \u00b0C outside", loss: "Heat loss", cyc: "Cycles above", flow: "flow temperature", outside: "outdoor", x_axis: "outdoor temperature", y_axis: "flow \u00b0C", lg_adv: "Advice: the heating curve to set in the Weheat app", lg_now: "Now: the curve your heat pump has", lg_need: "Needed: the least your house asks for (without margin)", lg_meas: "Measured: what your heat pump really made", lg_cyc: "Cycling zone: here the heat pump switches on and off anyway", n_for: "For {room} \u00b0C indoors, from {days} heating days and {hours} hours of steady heating.", n_rough: "Still rough: little data yet.", n_cycles: "Above about {t} \u00b0C outside the heat pump switches on and off anyway; the points there (grey) matter little.", n_extra: "{x} \u00b0C is calculated: colder than any day measured (coldest {min} \u00b0C).", n_meas: "Measured: the flow temperature in hours the heat pump ran the whole hour, near that outdoor temperature.", n_thermostat: "Your heat pump follows the thermostat now; the advice applies when it runs on its heating curve.", n_oncurve: "Your heat pump runs on its heating curve.", n_set: "Set the points in the Weheat app (heating curve).", none: "No advice yet: Roost needs about 20 heating days and 30 hours of steady heating with the flow temperature from the Weheat logs." },
+  nl: { none_needed: "geen", n_none: "Geen: bij deze buitentemperatuur vraagt je huis geen warmte.", wi_label: "Binnentemperatuur", wi_note: "wat als: verandert Roost en de thermostaat niet", lg_cloud_ot: "Gemeten onder OpenTherm: elke stip is een uur waarin de warmtepomp het hele uur draaide", lg_cloud_curve: "Gemeten op de stooklijn: elke stip is een uur waarin de warmtepomp het hele uur draaide", lg_cloud: "Gemeten: elke stip is een uur waarin de warmtepomp het hele uur draaide", lg_dash: "Gestippeld: doorgerekend (kouder dan gemeten) of in de pendelzone", need: "Nodig", meas_ot: "Gemeten (OT)", meas_curve: "Gemeten (stooklijn)", n_need: "Nodig: wat je huis minimaal vraagt bij die buitentemperatuur, zonder marge.", n_meas_ot: "Gemeten (OT): de aanvoer volgens de sensor van de warmtepomp zelf, in uren dat hij het hele uur draaide terwijl de OpenTherm-thermostaat de watertemperatuur bepaalde.", n_meas_curve: "Gemeten (stooklijn): de aanvoer volgens de sensor van de warmtepomp zelf, in uren dat hij het hele uur op zijn eigen stooklijn draaide.", title: "Stooklijnadvies", out: "Buiten", now: "Nu", adv: "Advies", meas: "Gemeten", cz: "pendelzone", at0: "Bij 0 \u00b0C buiten", loss: "Warmteverlies", cyc: "Pendelt boven", flow: "aanvoertemperatuur", outside: "buiten", x_axis: "buitentemperatuur", y_axis: "aanvoer \u00b0C", lg_adv: "Advies: de stooklijn om in te stellen in de Weheat-app", lg_now: "Nu: de stooklijn van je warmtepomp", lg_need: "Nodig: wat je huis minimaal vraagt (zonder marge)", lg_meas: "Gemeten: wat je warmtepomp echt maakte", lg_cyc: "Pendelzone: hier slaat de warmtepomp toch af en aan", n_for: "Voor {room} \u00b0C binnen, uit {days} stookdagen en {hours} uur rustig stoken.", n_rough: "Nog grof: nog weinig data.", n_cycles: "Boven ongeveer {t} \u00b0C buiten slaat de warmtepomp toch af en aan; de punten daar (grijs) maken weinig uit.", n_extra: "{x} \u00b0C is doorgerekend: kouder dan elke gemeten dag (koudste {min} \u00b0C).", n_meas: "Gemeten: de aanvoertemperatuur in uren dat de warmtepomp het hele uur draaide, rond die buitentemperatuur.", n_thermostat: "Je warmtepomp volgt nu de thermostaat; het advies geldt zodra hij op zijn stooklijn draait.", n_oncurve: "Je warmtepomp draait op zijn stooklijn.", n_set: "Stel de punten in in de Weheat-app (stooklijn).", none: "Nog geen advies: Roost heeft ongeveer 20 stookdagen en 30 uur rustig stoken nodig, met de aanvoertemperatuur uit de Weheat-logs." },
+  de: { none_needed: "keine", n_none: "Keine: bei dieser Au\u00dfentemperatur braucht dein Haus keine W\u00e4rme.", wi_label: "Innentemperatur", wi_note: "Was w\u00e4re wenn: \u00e4ndert weder Roost noch das Thermostat", lg_cloud_ot: "Gemessen unter OpenTherm: jeder Punkt ist eine Stunde, in der die W\u00e4rmepumpe durchlief", lg_cloud_curve: "Gemessen nach der Heizkurve: jeder Punkt ist eine Stunde, in der die W\u00e4rmepumpe durchlief", lg_cloud: "Gemessen: jeder Punkt ist eine Stunde, in der die W\u00e4rmepumpe durchlief", lg_dash: "Gestrichelt: berechnet (k\u00e4lter als gemessen) oder in der Taktzone", need: "N\u00f6tig", meas_ot: "Gemessen (OT)", meas_curve: "Gemessen (Kurve)", n_need: "N\u00f6tig: was dein Haus bei dieser Au\u00dfentemperatur mindestens braucht, ohne Reserve.", n_meas_ot: "Gemessen (OT): der Vorlauf laut dem eigenen F\u00fchler der W\u00e4rmepumpe, in Stunden, in denen sie die ganze Stunde lief, w\u00e4hrend das OpenTherm-Thermostat die Wassertemperatur vorgab.", n_meas_curve: "Gemessen (Kurve): der Vorlauf laut dem eigenen F\u00fchler der W\u00e4rmepumpe, in Stunden, in denen sie die ganze Stunde nach ihrer Heizkurve lief.", title: "Heizkurven-Empfehlung", out: "Au\u00dfen", now: "Jetzt", adv: "Empfehlung", meas: "Gemessen", cz: "Taktzone", at0: "Bei 0 \u00b0C au\u00dfen", loss: "W\u00e4rmeverlust", cyc: "Taktet \u00fcber", flow: "Vorlauftemperatur", outside: "au\u00dfen", x_axis: "Au\u00dfentemperatur", y_axis: "Vorlauf \u00b0C", lg_adv: "Empfehlung: die Heizkurve f\u00fcr die Weheat-App", lg_now: "Jetzt: die Kurve deiner W\u00e4rmepumpe", lg_need: "N\u00f6tig: was dein Haus mindestens braucht (ohne Reserve)", lg_meas: "Gemessen: was deine W\u00e4rmepumpe wirklich lieferte", lg_cyc: "Taktzone: hier taktet die W\u00e4rmepumpe ohnehin", n_for: "F\u00fcr {room} \u00b0C innen, aus {days} Heiztagen und {hours} Stunden ruhigem Heizen.", n_rough: "Noch grob: noch wenige Daten.", n_cycles: "Oberhalb von etwa {t} \u00b0C au\u00dfen taktet die W\u00e4rmepumpe ohnehin; die Punkte dort (grau) sind kaum wichtig.", n_extra: "{x} \u00b0C ist berechnet: k\u00e4lter als jeder gemessene Tag (k\u00e4ltester {min} \u00b0C).", n_meas: "Gemessen: die Vorlauftemperatur in Stunden, in denen die W\u00e4rmepumpe die ganze Stunde lief, bei dieser Au\u00dfentemperatur.", n_thermostat: "Deine W\u00e4rmepumpe folgt jetzt dem Thermostat; die Empfehlung gilt, sobald sie nach ihrer Heizkurve l\u00e4uft.", n_oncurve: "Deine W\u00e4rmepumpe l\u00e4uft nach ihrer Heizkurve.", n_set: "Stelle die Punkte in der Weheat-App ein (Heizkurve).", none: "Noch keine Empfehlung: Roost braucht etwa 20 Heiztage und 30 Stunden ruhiges Heizen mit der Vorlauftemperatur aus den Weheat-Logs." },
+  fr: { none_needed: "aucune", n_none: "Aucune : \u00e0 cette temp\u00e9rature ext\u00e9rieure, votre maison n'a pas besoin de chaleur.", wi_label: "Temp\u00e9rature int\u00e9rieure", wi_note: "et si : ne change ni Roost ni le thermostat", lg_cloud_ot: "Mesur\u00e9 sous OpenTherm : chaque point est une heure o\u00f9 la pompe a tourn\u00e9 toute l'heure", lg_cloud_curve: "Mesur\u00e9 sur sa courbe : chaque point est une heure o\u00f9 la pompe a tourn\u00e9 toute l'heure", lg_cloud: "Mesur\u00e9 : chaque point est une heure o\u00f9 la pompe a tourn\u00e9 toute l'heure", lg_dash: "Pointill\u00e9 : calcul\u00e9 (plus froid que mesur\u00e9) ou dans la zone de cycles", need: "N\u00e9cessaire", meas_ot: "Mesur\u00e9 (OT)", meas_curve: "Mesur\u00e9 (courbe)", n_need: "N\u00e9cessaire : le minimum que demande la maison \u00e0 cette temp\u00e9rature ext\u00e9rieure, sans marge.", n_meas_ot: "Mesur\u00e9 (OT) : le d\u00e9part selon la sonde de la pompe elle-m\u00eame, pendant les heures o\u00f9 elle a tourn\u00e9 toute l'heure pendant que le thermostat OpenTherm fixait la temp\u00e9rature de l'eau.", n_meas_curve: "Mesur\u00e9 (courbe) : le d\u00e9part selon la sonde de la pompe elle-m\u00eame, pendant les heures o\u00f9 elle a tourn\u00e9 toute l'heure sur sa propre courbe de chauffe.", title: "Conseil de courbe de chauffe", out: "Ext\u00e9rieur", now: "Actuel", adv: "Conseil", meas: "Mesur\u00e9", cz: "zone de cycles", at0: "\u00c0 0 \u00b0C dehors", loss: "D\u00e9perditions", cyc: "Cycle au-dessus de", flow: "temp\u00e9rature de d\u00e9part", outside: "ext\u00e9rieur", x_axis: "temp\u00e9rature ext\u00e9rieure", y_axis: "d\u00e9part \u00b0C", lg_adv: "Conseil : la courbe \u00e0 r\u00e9gler dans l'app Weheat", lg_now: "Actuel : la courbe de votre pompe \u00e0 chaleur", lg_need: "N\u00e9cessaire : le minimum que demande la maison (sans marge)", lg_meas: "Mesur\u00e9 : ce que la pompe a r\u00e9ellement fourni", lg_cyc: "Zone de cycles : ici la pompe s'allume et s'\u00e9teint de toute fa\u00e7on", n_for: "Pour {room} \u00b0C \u00e0 l'int\u00e9rieur, d'apr\u00e8s {days} jours de chauffe et {hours} heures de chauffe stable.", n_rough: "Encore approximatif : peu de donn\u00e9es.", n_cycles: "Au-dessus d'environ {t} \u00b0C dehors la pompe s'allume et s'\u00e9teint de toute fa\u00e7on ; les points y (en gris) comptent peu.", n_extra: "{x} \u00b0C est calcul\u00e9 : plus froid que tout jour mesur\u00e9 (le plus froid {min} \u00b0C).", n_meas: "Mesur\u00e9 : la temp\u00e9rature de d\u00e9part pendant les heures o\u00f9 la pompe a tourn\u00e9 toute l'heure, autour de cette temp\u00e9rature ext\u00e9rieure.", n_thermostat: "Votre pompe \u00e0 chaleur suit le thermostat ; le conseil vaut quand elle fonctionne sur sa courbe de chauffe.", n_oncurve: "Votre pompe \u00e0 chaleur fonctionne sur sa courbe de chauffe.", n_set: "R\u00e9glez les points dans l'app Weheat (courbe de chauffe).", none: "Pas encore de conseil : Roost a besoin d'environ 20 jours de chauffe et 30 heures de chauffe stable avec la temp\u00e9rature de d\u00e9part des logs Weheat." },
 };
 
 // Parts of the card that can be hidden with show_<part>: false. "compact: true" hides the chart and the saving and
@@ -340,26 +340,68 @@ class RoostCard extends HTMLElement {
 
   // The curve view: three numbers, the curve in a graph (advice, the curve now, what the house needs, what the unit
   // made, the zone where it cycles), the five points and the notes
+  // The advice for another indoor temperature ("what if"): the same steps as Roost's curve.py, on its learned numbers
+  _curveFor(a, room) {
+    const ua = nn(a.ua_kw, (a.heat_loss_w_per_k || 0) / 1000), k = nn(a.k_kw, (a.emitter_w_per_k || 0) / 1000), n = a.n || 1.1;
+    const base = nn(a.base_kw, 0), margin = nn(a.margin_kw, 0);
+    if (!(ua > 0 && k > 0)) return a;
+    const up = (v) => Math.ceil(v * 2 - 1e-9) / 2;
+    const flow = (t) => { const q = ua * (room - t) + base + margin; return q > 0 ? room + Math.pow(q / k, 1 / n) : null; };
+    const top = room + (base + margin) / ua;
+    let prev = null;
+    const points = a.points.map((p) => {
+      const x = p[0];
+      let y;
+      if (!prev) { const f0 = flow(x); y = f0 !== null && x < top ? up(f0) : up(room); }
+      else if (prev[0] >= top) y = up(room);
+      else {
+        const x0 = prev[0], y0 = prev[1], end = Math.min(x, top), steps = Math.max(2, Math.floor((end - x0) * 4));
+        let yy = null;
+        for (let i = 1; i <= steps; i++) {
+          const t = x0 + (end - x0) * i / steps, f = flow(t);
+          if (f === null) continue;
+          const ny = y0 + (f - y0) * (x - x0) / (t - x0);
+          yy = yy === null ? ny : Math.max(yy, ny);
+        }
+        y = yy !== null ? up(Math.max(room, Math.min(yy, y0))) : up(room);
+      }
+      prev = [x, y];
+      return [x, y, p[2]];
+    });
+    return Object.assign({}, a, { room, points });
+  }
+
   _curveView() {
-    const s = this._sib("heating_curve"), a = s && s.attributes;
-    if (!a || !a.points || !a.points.length) return `<div class="cview"><div class="na">${this._ct("none")}</div></div>`;
+    const s = this._sib("heating_curve"), a0 = s && s.attributes;
+    if (!a0 || !a0.points || !a0.points.length) return `<div class="cview"><div class="na">${this._ct("none")}</div></div>`;
+    const room = this._curveRoom !== undefined ? this._curveRoom : nn(a0.room, 20);
+    const a = Math.abs(room - nn(a0.room, 20)) < 0.01 ? a0 : this._curveFor(a0, room);
     const tile = (label, v, unit, sub) => `<div class="tile htile"><div class="tl">${label}</div><div class="tv">${v}<span>${unit}</span></div><div class="ts">${sub}</div></div>`;
-    const at0 = parseFloat(s.state), cyc = a.cycling_from;
+    const pts = a.points.filter((p) => p[1] !== null && p[1] !== undefined);
+    let at0 = parseFloat(s.state);
+    if (a !== a0 && pts.length > 1) {        // 0 degrees on the line between the points around it
+      const i = pts.findIndex((p) => p[0] >= 0);
+      at0 = i > 0 ? pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * (0 - pts[i - 1][0]) / (pts[i][0] - pts[i - 1][0]) : pts[0][1];
+    }
+    const cyc = a.cycling_from;
     return `<div class="cview"><div class="tiles">` +
       tile(this._ct("at0"), isNaN(at0) ? "\u2014" : this._num(at0, 1), DEG, this._ct("flow")) +
       tile(this._ct("loss"), a.heat_loss_w_per_k !== undefined ? this._num(a.heat_loss_w_per_k, 0) : "\u2014", "W/K", `${a.days} d \u00b7 ${a.hours} h`) +
       tile(this._ct("cyc"), cyc !== null && cyc !== undefined ? this._num(cyc, 0) : "\u2014", DEG, this._ct("outside")) +
-      `</div>${this._curveChart(a)}${this._curveTable(a)}</div>`;
+      `</div><div class="mrow wirow"><b>${this._ct("wi_label")}</b><span><button class="mini" data-room="-0.5">\u2212</button>` +
+      `<b class="sv">${this._num(room, 1)}${DEG}</b><button class="mini" data-room="0.5">+</button></span><small>${this._ct("wi_note")}</small></div>` +
+      `${this._curveChart(a)}${this._curveTable(a)}</div>`;
   }
 
   // Flow temperature against outdoor temperature: the advice (orange, its five points with their values), the curve
   // the heat pump has now (grey, when Weheat gives it), what the house needs without margin (blue, dashed), what the
   // heat pump really made (white dots with their values), the cycling zone (shaded)
   _curveChart(a) {
-    const VW = 440, VH = 230, L = 34, R = 12, TOP = 22, B = 34, X0 = -20, X1 = 25;
+    const VW = 440, VH = 230, L = 34, R = 14, TOP = 22, B = 34;
+    const xs = a.points.map((p) => p[0]).sort((p, q) => p - q), X0 = xs[0], X1 = xs[xs.length - 1];
     const pts = a.points.filter((p) => p[1] !== null && p[1] !== undefined);
     const cloud = (a.cloud || []).filter((c) => c[0] >= X0 && c[0] <= X1);
-    const room = nn(a.room, 20), ua = (a.heat_loss_w_per_k || 0) / 1000, k = (a.emitter_w_per_k || 0) / 1000, n = a.n || 1.1;
+    const room = nn(a.room, 20), ua = nn(a.ua_kw, (a.heat_loss_w_per_k || 0) / 1000), k = nn(a.k_kw, (a.emitter_w_per_k || 0) / 1000), n = a.n || 1.1;
     const base = nn(a.base_kw, 0), cyc = a.cycling_from !== null && a.cycling_from !== undefined ? a.cycling_from : X1;
     const cold = a.cold_hour !== null && a.cold_hour !== undefined ? Math.max(X0, a.cold_hour) : X0;
     const need = (t) => { const q = ua * (room - t) + base; return q > 0 && k > 0 ? room + Math.pow(q / k, 1 / n) : null; };
@@ -368,11 +410,19 @@ class RoostCard extends HTMLElement {
       for (let i = 1; i < pts.length; i++) if (t <= pts[i][0]) return pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * (t - pts[i - 1][0]) / (pts[i][0] - pts[i - 1][0]);
       return pts[pts.length - 1][1];
     };
-    const needPts = [];
-    for (let t = X0; t <= Math.min(cyc, X1) + 1e-9; t += 0.5) { const v = need(t); if (v !== null) needPts.push([t, v]); }
+    const needPts = [];        // what the house needs, up to where it needs no heat at all
+    for (let t = X0; t <= X1 + 1e-9; t += 0.25) { const v = need(t); if (v === null) break; needPts.push([t, v]); }
     const ys = [room].concat(pts.map((p) => p[1]), cloud.map((c) => c[1]), needPts.map((p) => p[1]));
     const lo = Math.floor((Math.min.apply(null, ys) - 2) / 5) * 5, hi = Math.ceil((Math.max.apply(null, ys) + 3) / 5) * 5;
-    const x = (t) => L + (t - X0) / (X1 - X0) * (VW - L - R), y = (v) => TOP + (hi - v) / (hi - lo) * (VH - TOP - B);
+    // the five points of the app evenly over the width; straight between them (each stretch on its own scale)
+    const x = (t) => {
+      if (t <= X0) return L;
+      let i = 0;
+      while (i < xs.length - 2 && t > xs[i + 1]) i++;
+      const f = Math.min(1, (t - xs[i]) / (xs[i + 1] - xs[i]));
+      return L + (i + f) / (xs.length - 1) * (VW - L - R);
+    };
+    const y = (v) => TOP + (hi - v) / (hi - lo) * (VH - TOP - B);
     const path = (list) => list.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)} ${y(p[1]).toFixed(1)}`).join(" ");
     let g = "";
     if (cyc < X1) {
@@ -387,7 +437,9 @@ class RoostCard extends HTMLElement {
     g += `<text x="${((L + VW - R) / 2).toFixed(1)}" y="${VH - 3}" text-anchor="middle" class="axis">${this._ct("x_axis")} \u2192</text>` +
       `<text x="${L}" y="${TOP - 10}" class="axis">${this._ct("y_axis")}</text>`;
     cloud.forEach((c) => { g += `<circle cx="${x(c[0]).toFixed(1)}" cy="${y(c[1]).toFixed(1)}" r="1.7" class="ccloud"/>`; });
-    if (needPts.length > 1) g += `<path d="${path(needPts)}" class="cneed"/>`;
+    const needIn = needPts.filter((p) => p[0] <= cyc + 1e-9), needOut = needPts.filter((p) => p[0] >= cyc - 0.25);
+    if (needIn.length > 1) g += `<path d="${path(needIn)}" class="cneed"/>`;
+    if (needOut.length > 1 && cyc < X1) g += `<path d="${path(needOut)}" class="cneed soft"/>`;
     if (pts.length > 1) {           // solid where it rests on measurements, dashed where calculated or in the cycling zone
       const seg = (t0, t1) => { const xs = [t0].concat(pts.map((p) => p[0]).filter((t) => t > t0 && t < t1), [t1]); return path(xs.map((t) => [t, adv(t)])); };
       const end = Math.min(X1, Math.max(cold, cyc));
@@ -413,7 +465,7 @@ class RoostCard extends HTMLElement {
     const hasCur = Object.keys(cur).length > 0, hasMeas = a.points.some((p) => p[2] !== null && p[2] !== undefined);
     const cyc = a.cycling_from;
     const c = (v) => (v === null || v === undefined ? "\u2014" : this._num(v, 1));
-    const room = nn(a.room, 20), ua = (a.heat_loss_w_per_k || 0) / 1000, k = (a.emitter_w_per_k || 0) / 1000, n = a.n || 1.1;
+    const room = nn(a.room, 20), ua = nn(a.ua_kw, (a.heat_loss_w_per_k || 0) / 1000), k = nn(a.k_kw, (a.emitter_w_per_k || 0) / 1000), n = a.n || 1.1;
     const need = (t) => { const q = ua * (room - t) + nn(a.base_kw, 0); return q > 0 && k > 0 ? room + Math.pow(q / k, 1 / n) : null; };
     const hasNeed = k > 0 && ua > 0;
     const mk = a.measured_by === "opentherm" ? "meas_ot" : (a.measured_by === "heating_curve" ? "meas_curve" : "meas");
@@ -421,7 +473,8 @@ class RoostCard extends HTMLElement {
     a.points.forEach((p) => {
       const inCz = cyc !== null && cyc !== undefined && p[0] > cyc;
       rows += `<tr${inCz ? ' class="cz"' : ""}><td>${this._num(p[0], 0)}\u00b0</td>${hasCur ? `<td>${c(cur[p[0]])}</td>` : ""}` +
-        `<td><b>${c(p[1])}</b></td>${hasNeed ? `<td>${c(need(p[0]))}</td>` : ""}${hasMeas ? `<td>${c(p[2])}</td>` : ""}</tr>`;
+        `<td><b>${c(p[1])}</b></td>${hasNeed ? `<td>${need(p[0]) === null ? `<i>${this._ct("none_needed")}</i>` : c(need(p[0]))}</td>` : ""}` +
+        `${hasMeas ? `<td>${c(p[2])}</td>` : ""}</tr>`;
     });
     const notes = [this._ct("n_for", { room: this._num(a.room, 1), days: a.days, hours: a.hours })];
     if (a.control === "heating_curve") notes.push(this._ct("n_oncurve"));
@@ -430,6 +483,7 @@ class RoostCard extends HTMLElement {
     if (cyc !== null && cyc !== undefined) notes.push(this._ct("n_cycles", { t: this._num(cyc, 0) }));
     (a.extrapolated || []).forEach((x) => notes.push(this._ct("n_extra", { x: this._num(x, 0), min: this._num(a.out_min, 1) })));
     if (hasNeed) notes.push(this._ct("n_need"));
+    if (hasNeed && a.points.some((p) => need(p[0]) === null)) notes.push(this._ct("n_none"));
     if (hasMeas) notes.push(this._ct(mk === "meas" ? "n_meas" : "n_" + mk));
     notes.push(this._ct("n_set"));
     return `<div class="curve"><table><tr><th>${this._ct("out")}</th>${hasCur ? `<th>${this._ct("now")}</th>` : ""}<th>${this._ct("adv")}</th>` +
@@ -570,6 +624,14 @@ class RoostCard extends HTMLElement {
     }));
     const tp = root.querySelector(".tile.plan");
     if (tp && this._histOn()) tp.addEventListener("click", (ev) => { ev.stopPropagation(); this._view = "table"; this._render(); });
+    root.querySelectorAll(".mini[data-room]").forEach((b) => b.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const st = this._sib("heating_curve"), base = st && parseFloat(st.attributes.room);
+      const cur = this._curveRoom !== undefined ? this._curveRoom : base;
+      if (isNaN(cur)) return;
+      this._curveRoom = Math.min(24, Math.max(16, cur + parseFloat(b.dataset.room)));
+      this._render();
+    }));
     if (this._view === "curve" && this._histOn()) return;
     if (this._view === "table" && this._histOn()) {
       root.querySelectorAll("details.tday").forEach((d) => d.addEventListener("toggle", () => {
@@ -1108,7 +1170,7 @@ class RoostCard extends HTMLElement {
       .curve small { font-size: 10.5px; color: var(--secondary-text-color); }
       ul.cnote { margin: 6px 0 0; padding-left: 16px; }
       .cnow { fill: none; stroke: var(--secondary-text-color); stroke-width: 1.5; stroke-dasharray: 5 3; }
-      .cneed { fill: none; stroke: var(--info-color, #378add); stroke-width: 1.5; stroke-dasharray: 4 3; }
+      .cneed { fill: none; stroke: var(--info-color, #378add); stroke-width: 1.5; stroke-dasharray: 4 3; } .cneed.soft { opacity: .45; }
       .cmade { fill: var(--primary-text-color); opacity: .85; }
       .l.cnowl { background: var(--secondary-text-color); } .l.cneedl { background: none; border-top: 2px dashed var(--info-color, #378add); height: 0; }
       .l.cmadel { background: var(--primary-text-color); border-radius: 50%; width: 7px; height: 7px; }

@@ -415,5 +415,6 @@ class HeatingCurveSensor(RoostEntity, SensorEntity):
                         "days": a.days, "hours": a.hours, "out_min": a.out_min, "out_max": a.out_max,
                         "heat_loss_w_per_k": round(a.ua_kw * 1000), "emitter_w_per_k": round(a.k_kw * 1000), "n": a.n,
                         "margin_kw": a.margin_kw, "base_kw": a.base_kw, "extrapolated": a.extrapolated,
-                        "measured_by": a.measured_by, "cloud": a.cloud, "cold_hour": a.cold_hour})
+                        "measured_by": a.measured_by, "cloud": a.cloud, "cold_hour": a.cold_hour,
+                        "ua_kw": a.ua_kw, "k_kw": a.k_kw})
         return out
