@@ -58,6 +58,9 @@ class HealthMixin:
     def _issue_ready(self) -> None:
         """Tell the user once the self-check says Roost can steer (only while in shadow mode; the user decides)."""
         rmse = self.check.get("rmse_6h")
+        if self.mode == "active" and getattr(self, "_ready_seen", None) is True and not self.ready:
+            self._notify_user("steering_not_ready")     # steering on, and the check no longer passes
+        self._ready_seen = self.ready
         self._issue("ready_for_active", self.mode == "shadow" and self.ready, fixable=True,
                     placeholders={"rmse": f"{rmse:.2f}" if rmse is not None else "?",
                                   "hours": str(self.check.get("heating_hours", 0)), "days": str(self.check.get("days", 0))})

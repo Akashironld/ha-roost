@@ -19,6 +19,12 @@
 - **House power is optional**: without it Roost learns the usage per hour from grid power + solar power (+ battery power); the setup explains the field
 - **Weheat history**: the flow and return temperature, thermostat demand, backup heater, gas boiler, compressor limits and errors are kept per hour (for later use without a new import); 13 months are kept; new fields are read from the hourly logs only, so that takes half an hour instead of hours
 - Helper sensors (Weheat import, its progress, energy value, heat pump model, heating curve advice) are hidden in entity lists; the card still uses them
+- **Away** (card menu or `roost.away`): only a minimum (default 16 °C), no comfort hours, warm again in time; `roost.home` ends it
+- **Comfort from the card**: − / + in the mode menu (`roost.set_comfort`), no trip to the settings
+- **Notifications** (off until you choose where they go, *Configure → Notifications*): thermostat unreachable or not changeable, check no longer passing while steering, learning failed, Weheat login needed; optionally a weekly summary on Monday morning
+- **Where the heating electricity came from**: own solar, home battery or grid, per day in the table and over the look back's period (hot water not counted)
+- **Why a day cost more** than a steady thermostat: the table says it per day
+- When Roost stops steering (Shadow, Off or removed) the thermostat goes back to your comfort temperature; an unreachable thermostat is left alone and a repair notice says so, as do repeated failures to change it
 
 ### After updating
 Update in HACS (or install the new `roost.zip`) and restart Home Assistant, then reload the dashboard (Ctrl+F5) for the new card. Roost then reads the past year of hourly logs from Weheat once more (about half an hour); the heating curve advice appears after that.

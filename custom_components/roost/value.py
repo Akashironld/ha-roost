@@ -196,6 +196,17 @@ def house_use(grid_kw: float, pv_kw: float | None, battery_kw: float | None, imp
     return max(0.0, imp + (pv_kw or 0.0) + (battery_kw or 0.0))
 
 
+def source_split(hp_kw: float, house_kw: float, pv_kw: float, battery_kw: float) -> tuple[float, float, float]:
+    """Where the heat pump's power comes from now (kW from own solar, the battery, the grid), in the same mix as the
+    whole house: solar first, then the battery discharging, the rest from the grid."""
+    if hp_kw <= 0:
+        return 0.0, 0.0, 0.0
+    house = max(house_kw, hp_kw)
+    sun = min(max(0.0, pv_kw), house)
+    bat = min(max(0.0, battery_kw), house - sun)
+    return hp_kw * sun / house, hp_kw * bat / house, hp_kw * (house - sun - bat) / house
+
+
 def solar_export_now(grid_kw: float | None, battery_kw: float | None, pv_kw: float | None, import_positive: bool = True) -> float:
     """Solar going to the grid right now (kW): export minus battery discharge, at most the PV power."""
     if grid_kw is None:

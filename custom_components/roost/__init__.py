@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import time
 import traceback
 from collections import deque
 from datetime import datetime
@@ -15,13 +16,15 @@ from homeassistant.components import websocket_api
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
+from homeassistant.const import Platform, UnitOfTemperature
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv, entity_registry as er, issue_registry as ir
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
+from homeassistant.util import dt as dt_util
 
-from .const import CARD_URL, DOMAIN
+from .const import CARD_URL, CONF_COMFORT, CONF_THERMOSTAT, DEFAULTS, DOMAIN, STORAGE_VERSION
 from .manager import RoostManager
 
 _LOGGER = logging.getLogger(__name__)
@@ -110,12 +113,34 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         for m in targets(call):
             await m.async_resume()
 
+    async def away(call: ServiceCall) -> None:
+        if call.data.get("until") is not None:
+            until = dt_util.as_utc(call.data["until"]).timestamp()
+        else:
+            until = time.time() + float(call.data.get("days", 1.0)) * 86400
+        for m in targets(call):
+            await m.async_away(until, call.data.get("minimum"))
+
+    async def home(call: ServiceCall) -> None:
+        for m in targets(call):
+            await m.async_home()
+
+    async def set_comfort(call: ServiceCall) -> None:
+        for m in targets(call):
+            await m.async_set_comfort(call.data["temperature"])
+
     async def import_history(call: ServiceCall) -> None:
         for m in targets(call):
             m.spawn(m.async_import(int(call.data["days"])), "weheat import")
 
     hass.services.async_register(DOMAIN, "pause", pause, vol.Schema({vol.Optional("hours", default=2): vol.All(vol.Coerce(float), vol.Range(min=0.25, max=72))}))
     hass.services.async_register(DOMAIN, "resume", resume, vol.Schema({}))
+    hass.services.async_register(DOMAIN, "away", away, vol.Schema({
+        vol.Optional("until"): cv.datetime, vol.Optional("days"): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=60)),
+        vol.Optional("minimum"): vol.All(vol.Coerce(float), vol.Range(min=5, max=20))}))
+    hass.services.async_register(DOMAIN, "home", home, vol.Schema({}))
+    hass.services.async_register(DOMAIN, "set_comfort", set_comfort,
+                                 vol.Schema({vol.Required("temperature"): vol.All(vol.Coerce(float), vol.Range(min=15, max=25))}))
     hass.services.async_register(DOMAIN, "import_history", import_history,
                                  vol.Schema({vol.Optional("days", default=365): vol.All(vol.Coerce(int), vol.Range(min=7, max=365))}))
     return True
@@ -178,7 +203,20 @@ async def async_unload_entry(hass: HomeAssistant, entry: RoostConfigEntry) -> bo
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: RoostConfigEntry) -> None:
-    """Removed by the user: take its repair notices with it, and the dashboard resource with the last one."""
+    """Removed by the user: the thermostat back on comfort when Roost was steering, its repair notices go, and the
+    dashboard resource with the last one."""
+    try:
+        data = await Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}").async_load() or {}
+        conf = {**DEFAULTS, **entry.data, **entry.options}
+        st = hass.states.get(conf.get(CONF_THERMOSTAT, ""))
+        if data.get("mode") == "active" and st is not None and st.state not in ("unavailable", "unknown"):
+            t = float(conf[CONF_COMFORT])
+            if hass.config.units.temperature_unit == UnitOfTemperature.FAHRENHEIT:
+                t = round(t * 9 / 5 + 32)
+            await hass.services.async_call("climate", "set_temperature", {"entity_id": conf[CONF_THERMOSTAT], "temperature": t},
+                                           blocking=True)
+    except Exception:  # noqa: BLE001 - removing goes on
+        _LOGGER.warning("Roost could not set the thermostat back to comfort on removal", exc_info=True)
     if not [e for e in hass.config_entries.async_entries(DOMAIN) if e.entry_id != entry.entry_id]:
         if (res := _resources(hass)) is not None:
             try:

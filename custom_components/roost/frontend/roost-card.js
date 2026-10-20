@@ -15,7 +15,7 @@ const T = {
         noplan: "no plan yet", heating: "heat pump heating", e_entity: "Sensor", e_title: "Title", e_language: "Language",
         e_time_format: "Time format", e_auto: "Like Home Assistant", e_show_tiles: "Tiles", e_show_chart: "24-hour plan",
         e_show_footer: "Saving", e_show_curve: "Heating curve advice", e_compact: "Compact (e.g. a wall tablet)", e_history: "Look back (button)", e_view: "Opens in",
-        v_plan: "Ahead (plan)", v_history: "Look back", tab_curve: "Curve", v_curve: "Heating curve advice", go_integration: "Open Roost in Settings", tab_table: "Table", t_time: "Time", t_why: "Why", t_back7: "Last 7 days", t_today: "Today", t_exp: "exp.", t_set: "Setting", t_room: "Room", mo_off: "Off", mo_shadow: "Shadow", mo_active: "Active", mh_off: "Roost does nothing", mh_shadow: "Roost plans, the thermostat is left alone", mh_active: "Roost sets the thermostat", mo_resume: "Resume now", mo_sure: "Sure? Tap again", v_table: "Table", next_at: "at {t} \u2192 {sp}", mo_pause: "Pause 2 h", mh_pause: "Roost leaves the thermostat alone for 2 hours", warn_notready: "Roost steers with the model it had: the check of the house model has not passed (yet).",
+        v_plan: "Ahead (plan)", v_history: "Look back", tab_curve: "Curve", v_curve: "Heating curve advice", go_integration: "Open Roost in Settings", tab_table: "Table", t_time: "Time", t_why: "Why", t_back7: "Last 7 days", t_today: "Today", t_exp: "exp.", t_set: "Setting", t_room: "Room", mo_off: "Off", mo_shadow: "Shadow", mo_active: "Active", mh_off: "Roost does nothing", mh_shadow: "Roost plans, the thermostat is left alone", mh_active: "Roost sets the thermostat", mo_resume: "Resume now", mo_sure: "Sure? Tap again", v_table: "Table", mo_away: "Away", away_1: "1 day", away_3: "3 days", away_7: "1 week", mh_away: "only the minimum ({min} \u00b0C), warm again on time", mo_home: "Home again", mh_home: "the comfort hours count again", st_away: "AWAY", comfort_lbl: "Comfort", src_title: "Heating electricity", src_sun: "solar", src_bat: "battery", src_grid: "grid", t_loss_store: "{h} h stored that were not needed: the room went up to {max} \u00b0C", t_loss_other: "more heating than a steady thermostat", next_at: "at {t} \u2192 {sp}", mo_pause: "Pause 2 h", mh_pause: "Roost leaves the thermostat alone for 2 hours", warn_notready: "Roost steers with the model it had: the check of the house model has not passed (yet).",
         ahead: "Ahead", back: "Look back", h_cost: "Cost", h_saving: "saving", h_pred: "Forecast 6 h", h_largest: "largest",
         h_below: "Below comfort", h_lowest: "lowest", h_changes: "Changes", h_byhand: "by hand", h_byroost: "Roost",
         h_log: "Log", h_report: "Report", h_loading: "Loading the last days\u2026",
@@ -32,7 +32,7 @@ const T = {
         noplan: "nog geen plan", heating: "warmtepomp stookt", e_entity: "Sensor", e_title: "Titel", e_language: "Taal",
         e_time_format: "Tijdnotatie", e_auto: "Zoals Home Assistant", e_show_tiles: "Tegels", e_show_chart: "24-uursplan",
         e_show_footer: "Besparing", e_show_curve: "Stooklijnadvies", e_compact: "Compact (bijv. een wandtablet)", e_history: "Terugblik (knop)", e_view: "Opent in",
-        v_plan: "Vooruit (plan)", v_history: "Terugblik", tab_curve: "Stooklijn", v_curve: "Stooklijnadvies", go_integration: "Roost openen in Instellingen", tab_table: "Tabel", t_time: "Tijd", t_why: "Waarom", t_back7: "Afgelopen 7 dagen", t_today: "Vandaag", t_exp: "verw.", t_set: "Setpoint", t_room: "Kamer", mo_off: "Uit", mo_shadow: "Meekijken", mo_active: "Actief", mh_off: "Roost doet niets", mh_shadow: "Roost plant, de thermostaat blijft met rust", mh_active: "Roost zet de thermostaat", mo_resume: "Nu hervatten", mo_sure: "Zeker? Tik nogmaals", v_table: "Tabel", next_at: "om {t} \u2192 {sp}", mo_pause: "2 uur pauze", mh_pause: "Roost laat de thermostaat 2 uur met rust", warn_notready: "Roost stuurt met het model dat het had: de controle van het huismodel is (nog) niet geslaagd.",
+        v_plan: "Vooruit (plan)", v_history: "Terugblik", tab_curve: "Stooklijn", v_curve: "Stooklijnadvies", go_integration: "Roost openen in Instellingen", tab_table: "Tabel", t_time: "Tijd", t_why: "Waarom", t_back7: "Afgelopen 7 dagen", t_today: "Vandaag", t_exp: "verw.", t_set: "Setpoint", t_room: "Kamer", mo_off: "Uit", mo_shadow: "Meekijken", mo_active: "Actief", mh_off: "Roost doet niets", mh_shadow: "Roost plant, de thermostaat blijft met rust", mh_active: "Roost zet de thermostaat", mo_resume: "Nu hervatten", mo_sure: "Zeker? Tik nogmaals", v_table: "Tabel", mo_away: "Afwezig", away_1: "1 dag", away_3: "3 dagen", away_7: "1 week", mh_away: "alleen het minimum ({min} \u00b0C), op tijd weer warm", mo_home: "Weer thuis", mh_home: "de comforturen tellen weer", st_away: "AFWEZIG", comfort_lbl: "Comfort", src_title: "Stroom voor verwarming", src_sun: "zon", src_bat: "accu", src_grid: "net", t_loss_store: "{h} u voorgeladen die niet nodig waren: de kamer liep op tot {max} \u00b0C", t_loss_other: "meer gestookt dan een vaste thermostaat", next_at: "om {t} \u2192 {sp}", mo_pause: "2 uur pauze", mh_pause: "Roost laat de thermostaat 2 uur met rust", warn_notready: "Roost stuurt met het model dat het had: de controle van het huismodel is (nog) niet geslaagd.",
         ahead: "Vooruit", back: "Terugblik", h_cost: "Kosten", h_saving: "besparing", h_pred: "Voorspelling 6 u", h_largest: "grootst",
         h_below: "Onder comfort", h_lowest: "laagst", h_changes: "Wijzigingen", h_byhand: "met de hand", h_byroost: "Roost",
         h_log: "Logboek", h_report: "Rapport", h_loading: "De laatste dagen laden\u2026",
@@ -49,7 +49,7 @@ const T = {
         noplan: "noch kein Plan", heating: "W\u00e4rmepumpe heizt", e_entity: "Sensor", e_title: "Titel", e_language: "Sprache",
         e_time_format: "Zeitformat", e_auto: "Wie Home Assistant", e_show_tiles: "Kacheln", e_show_chart: "24-Stunden-Plan",
         e_show_footer: "Ersparnis", e_show_curve: "Heizkurven-Empfehlung", e_compact: "Kompakt (z. B. ein Wandtablet)", e_history: "R\u00fcckblick (Schalter)", e_view: "\u00d6ffnet in",
-        v_plan: "Voraus (Plan)", v_history: "R\u00fcckblick", tab_curve: "Kurve", v_curve: "Heizkurven-Empfehlung", go_integration: "Roost in den Einstellungen \u00f6ffnen", tab_table: "Tabelle", t_time: "Zeit", t_why: "Warum", t_back7: "Letzte 7 Tage", t_today: "Heute", t_exp: "erw.", t_set: "Sollwert", t_room: "Raum", mo_off: "Aus", mo_shadow: "Mitschauen", mo_active: "Aktiv", mh_off: "Roost tut nichts", mh_shadow: "Roost plant, das Thermostat bleibt unber\u00fchrt", mh_active: "Roost stellt das Thermostat", mo_resume: "Jetzt fortsetzen", mo_sure: "Sicher? Nochmals tippen", v_table: "Tabelle", next_at: "um {t} \u2192 {sp}", mo_pause: "2 Std. Pause", mh_pause: "Roost l\u00e4sst das Thermostat 2 Stunden in Ruhe", warn_notready: "Roost steuert mit dem bisherigen Modell: die Pr\u00fcfung des Hausmodells ist (noch) nicht bestanden.",
+        v_plan: "Voraus (Plan)", v_history: "R\u00fcckblick", tab_curve: "Kurve", v_curve: "Heizkurven-Empfehlung", go_integration: "Roost in den Einstellungen \u00f6ffnen", tab_table: "Tabelle", t_time: "Zeit", t_why: "Warum", t_back7: "Letzte 7 Tage", t_today: "Heute", t_exp: "erw.", t_set: "Sollwert", t_room: "Raum", mo_off: "Aus", mo_shadow: "Mitschauen", mo_active: "Aktiv", mh_off: "Roost tut nichts", mh_shadow: "Roost plant, das Thermostat bleibt unber\u00fchrt", mh_active: "Roost stellt das Thermostat", mo_resume: "Jetzt fortsetzen", mo_sure: "Sicher? Nochmals tippen", v_table: "Tabelle", mo_away: "Abwesend", away_1: "1 Tag", away_3: "3 Tage", away_7: "1 Woche", mh_away: "nur das Minimum ({min} \u00b0C), rechtzeitig wieder warm", mo_home: "Wieder zu Hause", mh_home: "die Komfortstunden z\u00e4hlen wieder", st_away: "ABWESEND", comfort_lbl: "Komfort", src_title: "Heizstrom", src_sun: "Sonne", src_bat: "Akku", src_grid: "Netz", t_loss_store: "{h} h vorgeladen, die nicht n\u00f6tig waren: der Raum stieg auf {max} \u00b0C", t_loss_other: "mehr geheizt als ein festes Thermostat", next_at: "um {t} \u2192 {sp}", mo_pause: "2 Std. Pause", mh_pause: "Roost l\u00e4sst das Thermostat 2 Stunden in Ruhe", warn_notready: "Roost steuert mit dem bisherigen Modell: die Pr\u00fcfung des Hausmodells ist (noch) nicht bestanden.",
         ahead: "Voraus", back: "R\u00fcckblick", h_cost: "Kosten", h_saving: "Ersparnis", h_pred: "Vorhersage 6 h", h_largest: "gr\u00f6\u00dfte",
         h_below: "Unter Komfort", h_lowest: "niedrigste", h_changes: "\u00c4nderungen", h_byhand: "von Hand", h_byroost: "Roost",
         h_log: "Protokoll", h_report: "Bericht", h_loading: "Die letzten Tage werden geladen\u2026",
@@ -66,7 +66,7 @@ const T = {
         noplan: "pas encore de plan", heating: "la pompe chauffe", e_entity: "Capteur", e_title: "Titre", e_language: "Langue",
         e_time_format: "Format de l'heure", e_auto: "Comme Home Assistant", e_show_tiles: "Tuiles", e_show_chart: "Plan sur 24 heures",
         e_show_footer: "\u00c9conomie", e_show_curve: "Conseil de courbe de chauffe", e_compact: "Compact (p. ex. une tablette murale)", e_history: "R\u00e9trospective (bouton)", e_view: "S'ouvre sur",
-        v_plan: "\u00c0 venir (plan)", v_history: "R\u00e9trospective", tab_curve: "Courbe", v_curve: "Conseil de courbe", go_integration: "Ouvrir Roost dans les param\u00e8tres", tab_table: "Tableau", t_time: "Heure", t_why: "Pourquoi", t_back7: "7 derniers jours", t_today: "Aujourd'hui", t_exp: "pr\u00e9vu", t_set: "Consigne", t_room: "Pi\u00e8ce", mo_off: "Arr\u00eat", mo_shadow: "Observation", mo_active: "Actif", mh_off: "Roost ne fait rien", mh_shadow: "Roost planifie, le thermostat n'est pas touch\u00e9", mh_active: "Roost r\u00e8gle le thermostat", mo_resume: "Reprendre maintenant", mo_sure: "S\u00fbr ? Touchez encore", v_table: "Tableau", next_at: "\u00e0 {t} \u2192 {sp}", mo_pause: "Pause 2 h", mh_pause: "Roost laisse le thermostat tranquille 2 heures", warn_notready: "Roost pilote avec le mod\u00e8le qu'il avait : la v\u00e9rification du mod\u00e8le de la maison n'est pas (encore) r\u00e9ussie.",
+        v_plan: "\u00c0 venir (plan)", v_history: "R\u00e9trospective", tab_curve: "Courbe", v_curve: "Conseil de courbe", go_integration: "Ouvrir Roost dans les param\u00e8tres", tab_table: "Tableau", t_time: "Heure", t_why: "Pourquoi", t_back7: "7 derniers jours", t_today: "Aujourd'hui", t_exp: "pr\u00e9vu", t_set: "Consigne", t_room: "Pi\u00e8ce", mo_off: "Arr\u00eat", mo_shadow: "Observation", mo_active: "Actif", mh_off: "Roost ne fait rien", mh_shadow: "Roost planifie, le thermostat n'est pas touch\u00e9", mh_active: "Roost r\u00e8gle le thermostat", mo_resume: "Reprendre maintenant", mo_sure: "S\u00fbr ? Touchez encore", v_table: "Tableau", mo_away: "Absent", away_1: "1 jour", away_3: "3 jours", away_7: "1 semaine", mh_away: "seulement le minimum ({min} \u00b0C), de nouveau chaud \u00e0 temps", mo_home: "De retour", mh_home: "les heures de confort comptent de nouveau", st_away: "ABSENT", comfort_lbl: "Confort", src_title: "\u00c9lectricit\u00e9 de chauffage", src_sun: "solaire", src_bat: "batterie", src_grid: "r\u00e9seau", t_loss_store: "{h} h stock\u00e9es inutiles : la pi\u00e8ce est mont\u00e9e \u00e0 {max} \u00b0C", t_loss_other: "plus de chauffe qu'un thermostat fixe", next_at: "\u00e0 {t} \u2192 {sp}", mo_pause: "Pause 2 h", mh_pause: "Roost laisse le thermostat tranquille 2 heures", warn_notready: "Roost pilote avec le mod\u00e8le qu'il avait : la v\u00e9rification du mod\u00e8le de la maison n'est pas (encore) r\u00e9ussie.",
         ahead: "\u00c0 venir", back: "R\u00e9trospective", h_cost: "Co\u00fbt", h_saving: "\u00e9conomie", h_pred: "Pr\u00e9vision 6 h", h_largest: "max.",
         h_below: "Sous le confort", h_lowest: "minimum", h_changes: "Changements", h_byhand: "\u00e0 la main", h_byroost: "Roost",
         h_log: "Journal", h_report: "Rapport", h_loading: "Chargement des derniers jours\u2026",
@@ -254,7 +254,8 @@ class RoostCard extends HTMLElement {
     const mode = a.mode || "shadow";
     const paused = a.paused_until && new Date(a.paused_until) > new Date();
     const canMode = !!this._siblings().mode;
-    const pill = `<span class="pill ${paused ? "warn" : mode}${canMode ? " modebtn" : ""}">${this._t(paused ? "paused" : mode)}` +
+    const away = a.away_until && new Date(a.away_until) > new Date();
+    const pill = `<span class="pill ${paused ? "warn" : (away ? "warn" : mode)}${canMode ? " modebtn" : ""}">${this._t(paused ? "paused" : (away ? "st_away" : mode))}` +
       `${canMode ? ' <ha-icon icon="mdi:menu-down"></ha-icon>' : ""}</span>`;
     const title = this._config.title || this._t("title");
     const reason = this._why(a.reason_code, a.reason_args, a.reason) || this._t("noplan");
@@ -279,7 +280,7 @@ class RoostCard extends HTMLElement {
       <div class="ht"><div class="tt">${title}</div><div class="sub">${reason}</div></div>${seg}${pill}</div>`;
     const ready = this._sib("ready");
     if (mode === "active" && ready && ready.state === "off") html += `<div class="warnline"><ha-icon icon="mdi:alert-outline"></ha-icon>${this._t("warn_notready")}</div>`;
-    if (this._modeOpen && canMode) html += this._modeMenu(mode, paused);
+    if (this._modeOpen && canMode) html += this._modeMenu(mode, paused, away, a);
     if (hist && this._view === "curve") {
       html += this._curveView();
       this._clickable = true;
@@ -520,6 +521,7 @@ class RoostCard extends HTMLElement {
       if (m === "active" && this._armed !== "active") { this._armed = "active"; b.querySelector("small").textContent = this._t("mo_sure"); return; }
       if (m === "resume") this._hass.callService("roost", "resume", {});
       else if (m === "pause") this._hass.callService("roost", "pause", { hours: 2 });
+      else if (m === "home") this._hass.callService("roost", "home", {});
       else this._hass.callService("select", "select_option", { entity_id: this._siblings().mode, option: m });
       this._modeOpen = false; this._armed = null; this._render();
     }));
@@ -537,6 +539,20 @@ class RoostCard extends HTMLElement {
       e.detail = { entityId: st && st.attributes.thermostat_entity };
       this.dispatchEvent(e);
     });
+    root.querySelectorAll(".mini[data-away]").forEach((b) => b.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      this._hass.callService("roost", "away", { days: parseFloat(b.dataset.away) });
+      this._modeOpen = false; this._render();
+    }));
+    root.querySelectorAll(".mini[data-cf]").forEach((b) => b.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const st = this._hass.states[this._config.entity], cur = st && parseFloat(st.attributes.comfort);
+      if (isNaN(cur)) return;
+      const v = Math.min(25, Math.max(15, cur + parseFloat(b.dataset.cf)));
+      const lbl = b.parentNode.querySelector(".cfv");
+      if (lbl) lbl.textContent = `${this._num(v, 1)}${DEG}`;
+      this._hass.callService("roost", "set_comfort", { temperature: v });
+    }));
     const tp = root.querySelector(".tile.plan");
     if (tp && this._histOn()) tp.addEventListener("click", (ev) => { ev.stopPropagation(); this._view = "table"; this._render(); });
     if (this._view === "curve" && this._histOn()) return;
@@ -614,11 +630,16 @@ class RoostCard extends HTMLElement {
   }
 
   // ---------------------------------------------------------------- mode menu (tap the mode label)
-  _modeMenu(mode, paused) {
+  _modeMenu(mode, paused, away, a) {
     const opt = (m) => `<button class="mopt${m === mode ? " on" : ""}" data-m="${m}"><b>${this._t("mo_" + m)}</b>` +
       `<small>${this._armed === m ? this._t("mo_sure") : this._t("mh_" + m)}</small></button>`;
     return `<div class="mmenu">${paused ? `<button class="mopt" data-m="resume"><b>${this._t("mo_resume")}</b><small>&nbsp;</small></button>` : ""}` +
-      `${opt("off")}${opt("shadow")}${opt("active")}${mode === "active" && !paused ? opt("pause") : ""}</div>`;
+      `${opt("off")}${opt("shadow")}${opt("active")}${mode === "active" && !paused ? opt("pause") : ""}` +
+      (mode === "active" ? (away ? `<button class="mopt" data-m="home"><b>${this._t("mo_home")}</b><small>${this._t("mh_home")}</small></button>`
+        : `<div class="mrow"><b>${this._t("mo_away")}</b><span>${[1, 3, 7].map((d) => `<button class="mini" data-away="${d}">${this._t("away_" + d)}</button>`).join("")}</span>` +
+          `<small>${this._t("mh_away").replace("{min}", this._num(16, 0))}</small></div>`) : "") +
+      (a && a.comfort !== undefined ? `<div class="mrow"><b>${this._t("comfort_lbl")}</b><span><button class="mini" data-cf="-0.5">\u2212</button>` +
+        `<b class="cfv">${this._num(a.comfort, 1)}${DEG}</b><button class="mini" data-cf="0.5">+</button></span></div>` : "") + `</div>`;
   }
 
   // ---------------------------------------------------------------- table: the plan ahead and the last 7 days per hour
@@ -635,6 +656,17 @@ class RoostCard extends HTMLElement {
   _range2(a, b, d) {    // "20,7" or "20,7\u2192 20,3"
     return a === null || a === undefined ? "\u2014" : (b === null || b === undefined || Math.abs(a - b) < 0.05 ? this._num(a, d) : `${this._num(a, d)}\u2192${this._num(b, d)}`);
   }
+  // Where the heat pump's electricity came from (own solar, battery, grid), over the given hours of the log
+  _srcLine(hours) {
+    const sum = (k) => hours.reduce((t, h) => t + (h[k] || 0), 0);
+    const sun = sum("e_sun"), bat = sum("e_bat"), grid = sum("e_grid"), tot = sun + bat + grid;
+    if (tot < 0.05) return "";
+    const pc = (v) => `${this._num(100 * v / tot, 0)}%`;
+    return `<div class="srcl"><span class="sbar"><i class="ss" style="width:${100 * sun / tot}%"></i><i class="sb" style="width:${100 * bat / tot}%"></i>` +
+      `<i class="sg" style="width:${100 * grid / tot}%"></i></span>${this._t("src_title")} ${this._num(tot, 1)} kWh: ` +
+      `<b class="ss">${this._t("src_sun")} ${pc(sun)}</b> \u00b7 <b class="sb">${this._t("src_bat")} ${pc(bat)}</b> \u00b7 <b class="sg">${this._t("src_grid")} ${pc(grid)}</b></div>`;
+  }
+
   _tableBody(a) {
     return `<div class="ptable">${this._tableAhead(a)}${this._tableBack()}</div>`;
   }
@@ -679,6 +711,12 @@ class RoostCard extends HTMLElement {
       const label = day === today ? this._t("t_today") : new Date(day + "T12:00:00").toLocaleDateString(this._locale(), { weekday: "short", day: "numeric", month: "short" });
       const sum = ds ? ` <span>${this._money(ds.cost)}${ds.saving !== undefined && ds.saving !== null ? ` \u00b7 ${this._t("h_saving")} ${this._money(ds.saving)}` : ""}` +
         `${ds.pred_mae !== null && ds.pred_mae !== undefined ? ` \u00b7 ${this._t("h_pred")} \u00b1${this._num(ds.pred_mae, 1)}` : ""}</span>` : "";
+      let loss = "";
+      if (ds && ds.saving !== undefined && ds.saving !== null && ds.saving < -0.05) {      // why a day cost more than a steady thermostat
+        const stored = hs.filter((h) => String(h.reason || "").startsWith("store_")).length;
+        const top = Math.max.apply(null, hs.map((h) => h.T));
+        loss = `<div class="tloss">${stored ? this._t("t_loss_store").replace("{h}", stored).replace("{max}", this._num(top, 1)) : this._t("t_loss_other")}</div>`;
+      }
       const runs = this._runs(hs, (x, y) => x.sp_t === y.sp_t && x.sp_plan === y.sp_plan && x.reason === y.reason && !hand.has(y.ts) && !!x.window === !!y.window);
       let rows = "";
       runs.forEach((r) => {
@@ -692,7 +730,7 @@ class RoostCard extends HTMLElement {
           `<span class="pr">${this._num(price, 0)} ct</span><span>${heat >= 0.05 ? this._num(heat, 1) : "\u2013"}</span>` +
           `<div class="tw">${f.reason ? this._why(f.reason, f.args || {}, "") : ""}${marks}</div></div>`;
       });
-      html += `<details class="tday" data-day="${day}"${open ? " open" : ""}><summary><b>${label}</b>${sum}</summary>` +
+      html += `<details class="tday" data-day="${day}"${open ? " open" : ""}><summary><b>${label}</b>${sum}</summary>${loss}${this._srcLine(hs)}` +
         `<div class="tr th"><span>${this._t("t_time")}</span><span>${this._t("t_set")}</span><span>${this._t("t_room")}</span>` +
         `<span>${this._t("price")}</span><span>kWh</span></div>${rows}</details>`;
     });
@@ -724,7 +762,7 @@ class RoostCard extends HTMLElement {
     if (!this._hist) return `<div class="na">${this._histErr || this._t("h_loading")}</div>`;
     const s = this._histSlice();
     if (!s.hours.length) return this._rangeBar() + `<div class="na">${this._t("h_nodata")}</div>`;
-    return this._rangeBar() + this._histTiles(s) + this._histChart(s) + this._histLog(s);
+    return this._rangeBar() + this._histTiles(s) + this._srcLine(s.hours) + this._histChart(s) + this._histLog(s);
   }
 
   _rangeBar() {
@@ -1009,6 +1047,16 @@ class RoostCard extends HTMLElement {
       .mopt.on { border-color: var(--rc-sp); } .mopt b { display: block; font-size: 13px; }
       .mopt small { color: var(--secondary-text-color); font-size: 11px; }
       .tile.plan, .tile.therm { cursor: pointer; }
+      .mrow { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; border: 1px solid var(--divider-color);
+        border-radius: 10px; padding: 6px 9px; font-size: 13px; } .mrow > span { display: inline-flex; gap: 6px; align-items: center; }
+      .mrow small { flex: 1 1 100%; color: var(--secondary-text-color); font-size: 11px; }
+      .mini { border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); border-radius: 8px; padding: 3px 9px;
+        font: inherit; font-size: 12px; cursor: pointer; } .cfv { min-width: 4em; text-align: center; }
+      .srcl { font-size: 12px; color: var(--secondary-text-color); margin: 4px 0 8px; }
+      .sbar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-bottom: 4px; background: var(--divider-color); }
+      .sbar i { display: block; height: 100%; } i.ss { background: #f5b301; } i.sb { background: #22a06b; } i.sg { background: #8a8f98; }
+      .srcl b.ss { color: #d99a00; font-weight: 500; } .srcl b.sb { color: #22a06b; font-weight: 500; } .srcl b.sg { font-weight: 500; }
+      .tloss { font-size: 12px; color: var(--warning-color, #f59e0b); margin: 0 0 4px; }
       .warnline { display: flex; gap: 6px; align-items: flex-start; font-size: 12px; margin: -4px 0 10px; padding: 6px 9px; border-radius: 8px;
         color: var(--warning-color, #f59e0b); background: color-mix(in srgb, var(--warning-color, #f59e0b) 12%, transparent); }
       .warnline ha-icon { --mdc-icon-size: 16px; flex: none; } .head .ico { cursor: pointer; }

@@ -28,6 +28,7 @@ from .const import (
     WEHEAT, CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND,
     CONF_EMITTER, CONF_HAS_BATTERY, CONF_HAS_SOLAR, CONF_PRICE_MODE, CONF_SP_MIN, CONF_USE_BAG, CONF_WEHEAT_AUTH, CONF_AUTH_FROM, EMITTERS, PRICE_MODES,
     CONF_EPEX_ZONE, CONF_WINDOW_SENSORS, CONF_IMPORT_MULT, CONF_IMPORT_ADD, CONF_EXPORT_FORMULA, CONF_EXPORT_MULT, CONF_EXPORT_ADD,
+    CONF_NOTIFY, CONF_WEEKLY,
 )
 from . import check, comfort, detect, epex
 from .weheat_api import API_URL, heat_pump_id, weheat_implementation
@@ -329,7 +330,7 @@ ETA_TEXT = {
            "importing": "Weheat import: {done} of {total} months, done around {time}.",
            "basis_week": "the last week",
            "saved": "✅ Saved: {part}", "parts": {"mode": "Mode", "house": "The house", "price": "Electricity price",
-                                                "solar": "Solar and home battery", "comfort": "Comfort"},
+                                                "solar": "Solar and home battery", "comfort": "Comfort", "notify": "Notifications"},
            "basis_winter": "the last {weeks} heating weeks of the past year, because the last week had too little heating — {passed} of {weeks} good on their own (needs {need}), and the medians below must be within the limits",
            "today": "today", "tomorrow": "tomorrow"},
     "nl": {"ready": "nu.", "lever": "nog niet: het setpoint stuurt de warmtepomp niet (zie de reparatiemelding).",
@@ -341,7 +342,7 @@ ETA_TEXT = {
            "importing": "Weheat-import: {done} van {total} maanden, klaar rond {time}.",
            "basis_week": "de afgelopen week",
            "saved": "✅ Opgeslagen: {part}", "parts": {"mode": "Modus", "house": "Huis en thermostaat", "price": "Stroomprijs",
-                                                    "solar": "Zon en thuisaccu", "comfort": "Comfort"},
+                                                    "solar": "Zon en thuisaccu", "comfort": "Comfort", "notify": "Meldingen"},
            "basis_winter": "de laatste {weeks} stookweken van het afgelopen jaar, omdat de afgelopen week te weinig stookte — {passed} van {weeks} los goed (nodig: {need}), en de medianen hieronder moeten binnen de grenzen liggen",
            "today": "vandaag", "tomorrow": "morgen"},
     "de": {"ready": "jetzt.", "lever": "noch nicht: der Sollwert bewegt die Wärmepumpe nicht (siehe die Reparaturmeldung).",
@@ -353,7 +354,7 @@ ETA_TEXT = {
            "importing": "Weheat-Import: {done} von {total} Monaten, fertig gegen {time}.",
            "basis_week": "der letzten Woche",
            "saved": "✅ Gespeichert: {part}", "parts": {"mode": "Modus", "house": "Haus und Thermostat", "price": "Strompreis",
-                                                    "solar": "Solar und Heimspeicher", "comfort": "Komfort"},
+                                                    "solar": "Solar und Heimspeicher", "comfort": "Komfort", "notify": "Benachrichtigungen"},
            "basis_winter": "den letzten {weeks} Heizwochen des vergangenen Jahres, weil die letzte Woche zu wenig geheizt hat — {passed} von {weeks} einzeln gut (nötig: {need}), und die Mediane unten müssen innerhalb der Grenzen liegen",
            "today": "heute", "tomorrow": "morgen"},
     "fr": {"ready": "maintenant.", "lever": "pas encore : la consigne ne fait pas varier la pompe à chaleur (voir la notification de réparation).",
@@ -365,7 +366,7 @@ ETA_TEXT = {
            "importing": "Import Weheat : {done} sur {total} mois, terminé vers {time}.",
            "basis_week": "la dernière semaine",
            "saved": "✅ Enregistré : {part}", "parts": {"mode": "Mode", "house": "La maison et le thermostat", "price": "Prix de l'électricité",
-                                                     "solar": "Solaire et batterie domestique", "comfort": "Confort"},
+                                                     "solar": "Solaire et batterie domestique", "comfort": "Confort", "notify": "Notifications"},
            "basis_winter": "les {weeks} dernières semaines de chauffe de l'année passée, car la dernière semaine a trop peu chauffé — {passed} sur {weeks} bonnes à elles seules (requis : {need}), et les médianes ci-dessous doivent être dans les limites",
            "today": "aujourd'hui", "tomorrow": "demain"},
 }
@@ -593,7 +594,7 @@ class RoostOptionsFlow(OptionsFlow):
         rooms = sum(1 for s in self.config_entry.subentries.values() if s.subentry_type == "room")
         t = _texts(self.hass)
         saved = t["saved"].format(part=t["parts"].get(self._saved, self._saved)) + "\n\n" if self._saved else ""
-        return self.async_show_menu(step_id="init", menu_options=["mode", "house", "price", "solar", "comfort", "done"],
+        return self.async_show_menu(step_id="init", menu_options=["mode", "house", "price", "solar", "comfort", "notify", "done"],
                                     description_placeholders={**_summary(self.hass, self.opts, rooms), "saved": saved})
 
     async def async_step_done(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -680,6 +681,18 @@ class RoostOptionsFlow(OptionsFlow):
                      **({CONF_GRID_PREFERENCE: values[CONF_GRID_PREFERENCE]} if CONF_GRID_PREFERENCE in values else {})}
         return self.async_show_form(step_id="solar", data_schema=self.add_suggested_values_to_schema(
             solar_options_schema(solar, battery), suggested))
+
+    async def async_step_notify(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Notifications: off until the user picks where they go (a notify entity, or a notify service such as
+        notify.mobile_app_phone); the weekly summary on top of that."""
+        schema = vol.Schema({vol.Optional(CONF_NOTIFY, default=""): selector.TextSelector(),
+                             vol.Required(CONF_WEEKLY, default=False): selector.BooleanSelector()})
+        if user_input is not None:
+            self.opts[CONF_NOTIFY] = str(user_input.get(CONF_NOTIFY) or "").strip()
+            self.opts[CONF_WEEKLY] = bool(user_input.get(CONF_WEEKLY))
+            return await self._async_saved()
+        return self.async_show_form(step_id="notify", data_schema=self.add_suggested_values_to_schema(
+            schema, {CONF_NOTIFY: self.opts.get(CONF_NOTIFY, ""), CONF_WEEKLY: bool(self.opts.get(CONF_WEEKLY))}))
 
     async def async_step_comfort(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}

@@ -233,5 +233,27 @@ def test_every_hour_has_its_reason():
     assert why[11].code == "warm_enough" and why[11].args["room"] == 20.1          # the room expected at its start
 
 
+def test_away_keeps_only_the_minimum_and_is_warm_again_on_time():
+    """Away for the whole horizon: far less heat, never below the away minimum. Back after 20 hours (07:00): the room is
+    at the day minimum again by then (a slow house is kept warm rather than reheated in an expensive morning)."""
+    import dataclasses
+    s = planner.Settings(comfort=20.5, day_min=20.0, night_min=19.0, away_min=16.0, sp_min=15.0)
+    home = hours(-3)
+    p_home = planner.plan(HOUSE, PUMP, s, home, t_now=20.6, e_now=1.0, sp_now=20.5)
+    p_away = planner.plan(HOUSE, PUMP, s, [dataclasses.replace(h, away=True) for h in home], t_now=20.6, e_now=1.0, sp_now=20.5)
+    assert sum(h.kwh for h in p_away.hours) < 0.2 * sum(h.kwh for h in p_home.hours)
+    assert min(h.t_end for h in p_away.hours) >= 16.0 - 0.3
+    p_back = planner.plan(HOUSE, PUMP, s, [dataclasses.replace(h, away=i < 20) for i, h in enumerate(home)], t_now=20.6, e_now=1.0, sp_now=20.5)
+    assert p_back.hours[22].t_end >= 19.8, [round(h.t_end, 1) for h in p_back.hours]
+
+
+def test_heat_pump_power_by_source():
+    """In the same mix as the house: solar first, then the battery, the rest from the grid."""
+    sun, bat, grid = value.source_split(hp_kw=2.0, house_kw=2.5, pv_kw=1.0, battery_kw=0.5)
+    assert (round(sun, 3), round(bat, 3), round(grid, 3)) == (0.8, 0.4, 0.8)
+    assert value.source_split(2.0, 2.5, 4.0, 0.0) == (2.0, 0.0, 0.0)             # plenty of solar: all solar
+    assert value.source_split(0.0, 0.5, 1.0, 0.0) == (0.0, 0.0, 0.0)
+
+
 if __name__ == "__main__":
     run_all(dict(globals()))

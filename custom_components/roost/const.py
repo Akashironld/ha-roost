@@ -57,6 +57,9 @@ CONF_SP_MIN = "lowest_setpoint"        # Roost never sets the thermostat lower (
 CONF_MAX_ABOVE = "max_above_room"
 CONF_MIN_INTERVAL = "min_interval"
 CONF_PAUSE_HOURS = "pause_hours"
+CONF_NOTIFY = "notify_target"           # optional: where Roost sends a notification (off when empty)
+CONF_WEEKLY = "weekly_report"           # a summary every Monday morning (needs CONF_NOTIFY)
+AWAY_MIN = 16.0                         # the default minimum while away
 CONF_BASELINE_NIGHT = "baseline_night"  # 0 = no night setback in the comparison
 CONF_GRID_PREFERENCE = "grid_preference"
 

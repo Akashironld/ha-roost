@@ -7,13 +7,14 @@ from __future__ import annotations
 from .mgr_common import *  # noqa: F401,F403 - the shared imports and constants
 from .mgr_common import _LOGGER, _f, _i, _iso_ts  # noqa: F401
 from . import curve
+from .care import CareMixin
 from .health import HealthMixin
 from .hourlog import HourLogMixin
 from .prices import PricesMixin
 from .weheat_sync import WeheatMixin
 
 
-class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
+class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixin):
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.hass = hass
         self.entry = entry
@@ -54,6 +55,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
         self.weheat_settings: dict = {}             # the unit's own settings from Weheat (control method, curve)
         self.cost_today = 0.0
         self.kwh_today = 0.0
+        self._care_init()
         self._cost_day: str | None = None
         self._last_elec: float | None = None
         self._last_tick: float | None = None
@@ -111,7 +113,8 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
         return planner.Settings(comfort=float(c[CONF_COMFORT]), day_min=float(c[CONF_DAY_MIN]), night_min=float(c[CONF_NIGHT_MIN]),
                                 store_max=max(float(c[CONF_STORE_MAX]), float(c[CONF_COMFORT])), max_above_room=float(c[CONF_MAX_ABOVE]),
                                 sp_min=float(c.get(CONF_SP_MIN, c[CONF_NIGHT_MIN])),
-                                baseline_night=night if night > 0 else None)
+                                baseline_night=night if night > 0 else None,
+                                away_min=float(self.mem.away_min) if self.mem.away_min is not None else AWAY_MIN)
 
     def control_settings(self) -> control.ControlSettings:
         c = self.conf
@@ -167,6 +170,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
         self._weather_hist = {int(k): tuple(v) for k, v in (hist.get("weather") or {}).items()}
         self._unsubs.append(async_track_time_interval(self.hass, self._async_tick, timedelta(seconds=TICK_SECONDS)))
         self._unsubs.append(async_track_time_change(self.hass, self._async_nightly, hour=LEARN_HOUR, minute=LEARN_MINUTE, second=0))
+        self._unsubs.append(async_track_time_change(self.hass, self._async_weekly, hour=8, minute=0, second=0))
         self._unsubs.append(async_track_state_change_event(self.hass, [self.conf[CONF_THERMOSTAT]], self._on_thermostat))
         self._stop_unsub = self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, self._on_ha_stop)
         self.spawn(self._async_first_run(), "first run", background=False)
@@ -284,7 +288,10 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
     async def async_set_mode(self, mode: str) -> None:
         if mode != self.mode:
             self.event("mode", old=self.mode, new=mode)
+        was_active = self.mode == "active"
         self.mode = mode
+        if was_active and mode != "active":
+            await self._async_back_to_comfort(f"mode {mode}")
         self.mem.virtual_sp = None
         self._issue_ready()
         await self.async_save()
@@ -477,6 +484,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
             self._watch_window(t)
             self._track_storage(t)
             self._track_hour(t)
+            self._watch_thermostat(t)
             self._count_cost(now)
             self._log_hour(now)
             self._check_health(t)
@@ -538,7 +546,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
             rad = self.sun_on_house(base + i * 3600, wx)
             out.append(planner.HourIn(t_out=wx[0], wind=wx[2] if wx[2] is not None else 3.5, rad=rad,
                                       p_grid=p.p_grid, p_own=p.p_own, own_kw=p.own_kw, day=self.is_day(loc), hour=loc.hour, dhw=dhw,
-                                      extra_kw=check.extra_at(self.corr_kw, self.corr_sun, rad, i)))
+                                      extra_kw=check.extra_at(self.corr_kw, self.corr_sun, rad, i), away=self.is_away(base + i * 3600)))
         return out
 
     async def _async_plan(self, now: datetime) -> None:
@@ -583,7 +591,12 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
         if self.mode == "off" or self.plan is None or self.plan.first is None:
             self.decision = control.Decision(None, Reason("off") if self.mode == "off" else self.reason, self.thermostat_sp())
             return
-        d = control.decide(t, self.plan.first.sp, self.thermostat_sp(), self.room(), float(self.conf[CONF_DAY_MIN]) if self.plan_hours and self.plan_hours[0].day else float(self.conf[CONF_NIGHT_MIN]),
+        if self.mode == "active" and not self.thermostat_reachable():
+            self.decision = control.Decision(None, Reason("no_plan"), None)     # unreachable: leave it alone (a notice follows)
+            return
+        hard = (self.settings().away_min if self.is_away(t) else float(self.conf[CONF_DAY_MIN]) if self.plan_hours and self.plan_hours[0].day
+                else float(self.conf[CONF_NIGHT_MIN]))
+        d = control.decide(t, self.plan.first.sp, self.thermostat_sp(), self.room(), hard,
                            self.mem, self.control_settings(), self.mode == "active")
         self.decision = d
         if d.setpoint is not None and self.mode == "active":
@@ -596,9 +609,11 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
                                                     blocking=True, context=ctx)
                 self.event("set", old=before, new=d.setpoint, why=d.why.code, reason=self.reason.code, args=dict(self.reason.args),
                            room=self.room())
+                self._set_result(True)
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning("Roost could not set the thermostat: %s", err)
                 self.event("set_failed", new=d.setpoint, error=str(err)[:200])
+                self._set_result(False, str(err))
         if d.setpoint is not None:
             await self.async_save()
 
@@ -634,15 +649,18 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
                         e["q"] = round(self._heat_acc, 2)
                         e["e"] = round(self._elec_acc, 3)
                         e["cost"] = round(self._cost_acc, 4)
+                        self._sources_close(e)
                 a = self._sp_acc
                 if a[1] >= 1800:                      # at least half the hour seen
                     self.sp_hist[self._acc_hour] = [round(a[0] / a[1], 2), round(a[2] / a[3], 2) if a[3] >= 1800 else None]
             self._acc_hour, self._dhw_acc, self._heat_acc = hour, 0.0, 0.0
             self._elec_acc = self._cost_acc = 0.0
             self._sp_acc = [0.0, 0.0, 0.0, 0.0]
+            self._sources_reset()
         if self._last_tick is None:
             return
         dt = min(600.0, max(0.0, t - self._last_tick))
+        self._sources_tick(dt)
         sp, reading = self.thermostat_sp(), self.thermostat_reading()
         if sp is not None:
             self._sp_acc[0] += sp * dt
@@ -762,6 +780,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
         except Exception as err:  # noqa: BLE001
             _LOGGER.exception("Roost learning failed")
             self._issue("learning_failed", True)
+            self._notify_user("learning_failed")
             self.event("error", where="learning", error=repr(err)[:200], trace=traceback.format_exc(limit=4)[-800:])
         finally:
             self._learning = False

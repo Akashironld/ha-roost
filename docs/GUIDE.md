@@ -212,9 +212,14 @@ Click **Submit**. Roost is set up — in shadow mode — and starts importing an
   Predbat-style — hours with the same setting and reason on one line (time, setting with ↑/↓ where it changes, room
   expected, tariff coloured cheap/dear, kWh) with the reason under it; below it the last 7 days per day (today open, the
   other days folded with their cost, saving and how well the room was predicted): what was planned → what was set, the
-  room measured (and expected 6 hours before), price, heat and why, with *by hand* and *window open* marked.
-- **Mode**: tap the **ACTIVE / SHADOW / OFF** label to switch; *Active* asks for a second tap. While Roost is paused
-  after a change by hand, the menu also has *Resume now*.
+  room measured (and expected 6 hours before), price, heat and why, with *by hand* and *window open* marked. A day that
+  cost more than a steady thermostat says why (e.g. *4 h stored that were not needed: the room went up to 21.7 °C*).
+  With solar or a home battery each day (and the look back's period) shows where the heating electricity came from:
+  own solar, battery, grid — hot water not counted.
+- **Mode**: tap the **ACTIVE / SHADOW / OFF** label to switch; *Active* asks for a second tap. Switching from *Active*
+  to *Shadow* or *Off* (or removing Roost) sets the thermostat back to your comfort temperature. The menu also has
+  *Pause 2 h*, *Resume now* while paused, *Away* (1 day / 3 days / 1 week, or *Home again*) and your comfort
+  temperature with − / +.
 - **Curve** (the switch in the header): the heating curve advice in
   one view — the flow at 0 °C outside, the heat loss and the outdoor temperature from which the heat pump cycles; a
   graph of the flow temperature against the outdoor temperature with the advice (orange), the curve now (when Weheat
@@ -354,8 +359,11 @@ Back to shadow or off: `select.roost_mode` → *Shadow* / *Off*. In *Off* Roost 
 - **Comfort suggestions.** When you keep making the same change by hand (warmer in the evening, earlier in the
   morning) on three different days within two weeks, a notice in Repairs suggests a setting. One click to accept, or
   ignore it. Roost never changes your settings by itself.
-- **Going away?** Call `roost.pause` with a number of hours (or set the mode to *Off*) and lower the thermostat
-  yourself; `roost.resume` to come back.
+- **Going away?** Tap the mode label in the card → *Away: 1 day / 3 days / 1 week* (or call `roost.away` with
+  `until` or `days`, and `minimum`, default 16 °C). Roost then keeps only that minimum — no comfort hours — and plans
+  the house warm again in time for when you are back (*Home again* ends it early, or `roost.home`). It pays most for a
+  few days away: a slow, well-insulated house is often kept warm through a single day rather than reheated. Roost
+  never sets the thermostat below its lowest setpoint: lower that too if the house may get colder than it.
 - **Holidays and visitors** need nothing: the correction from the last hours notices a warmer or colder house within
   hours.
 - **Airing** needs nothing either. When the room falls fast — 0.5 °C within 15 minutes, which no house does by
@@ -409,6 +417,7 @@ window loses nothing that was submitted.
 | Electricity price | Dynamic or fixed, price sensors (a fixed rate on the next screen) |
 | Solar and home battery | One screen: a block for solar panels and the grid meter, one for the home battery, each with its tick and sensors |
 | Comfort | Comfort hours and temperatures, and under *Advanced* the regulation and the weather |
+| Notifications | Off until you fill in where they go: a notify entity or service (e.g. `notify.mobile_app_my_phone`). Roost then tells you when the thermostat cannot be reached or changed, when its check no longer passes while it steers, when learning fails or the Weheat login is needed (each at most every 12 hours); and, when ticked, a summary every Monday morning (heating, cost, saving, comfort, and where the heating electricity came from) |
 
 Extra rooms are on the integration page (*Add room*, and ⋮ → *Reconfigure* per room).
 
@@ -458,6 +467,9 @@ Switched off by default (enable them on the device page under *+ disabled entiti
 |---|---|---|
 | `roost.pause` | `hours` (default 2) | Leave the thermostat alone for a while |
 | `roost.resume` | — | End a pause and plan again |
+| `roost.away` | `until` or `days`, `minimum` (default 16) | Nobody home: only the minimum, no comfort hours; warm again in time |
+| `roost.home` | — | End away |
+| `roost.set_comfort` | `temperature` | Roost's comfort temperature (its own setting, not the thermostat); also with − / + in the card's mode menu |
 | `roost.import_history` | `days` (default 365) | Read the heat pump's history from Weheat again and learn |
 
 **Example: pause while nobody is home**
@@ -507,6 +519,8 @@ automation:
 | Weheat heat pump not found | The Weheat sensors are not available | Check the Weheat integration |
 | *Room* stays too cold | An extra room stayed below its minimum on several days | Check its radiator valve; raise *Setpoint at most this above the room* |
 | Comfort suggestion | A setting learned from your changes by hand | Submit to accept, or ignore |
+| The thermostat cannot be reached | The thermostat has been unavailable for 15 minutes or more while Roost steers; Roost leaves it alone meanwhile | Check the thermostat and its integration; the notice goes when it is back |
+| The thermostat cannot be changed | Changing the thermostat failed three times in a row | Check the thermostat's integration (the error is in the notice) |
 | Learning failed | The nightly learning hit an error; the previous model stays | Usually passes by itself; if it stays, report it (section [14](#14-reporting-a-problem)) |
 
 ---

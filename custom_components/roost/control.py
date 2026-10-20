@@ -26,6 +26,8 @@ class ControlMemory:
     last_sp: float | None = None
     pause_until: float | None = None
     virtual_sp: float | None = None         # shadow mode: what the thermostat would have now
+    away_until: float | None = None         # nobody home until then: the away minimum, no comfort hours
+    away_min: float | None = None
 
     def as_dict(self) -> dict:
         return asdict(self)

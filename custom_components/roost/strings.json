@@ -200,6 +200,7 @@
           "price": "Electricity price",
           "solar": "Solar and home battery",
           "comfort": "Comfort",
+          "notify": "Notifications",
           "done": "Done"
         }
       },
@@ -357,6 +358,18 @@
               "house_power": "Optional. What the whole house uses, to learn its usage per hour of the day (which coming hours have solar to spare, how long the battery lasts). Left empty, Roost works it out from grid power + solar power (+ battery power)."
             }
           }
+        }
+      },
+      "notify": {
+        "title": "Notifications",
+        "description": "Off until you choose where they go. Roost then tells you when the thermostat cannot be reached or changed, when its check no longer passes while it steers, when learning fails or the Weheat login is needed — at most every 12 hours each.",
+        "data": {
+          "notify_target": "Send notifications to",
+          "weekly_report": "Weekly summary (Monday morning)"
+        },
+        "data_description": {
+          "notify_target": "A notify entity or service, e.g. notify.mobile_app_my_phone. Leave empty: no notifications.",
+          "weekly_report": "Heating, cost, saving, comfort and where the heat pump's electricity came from, last week."
         }
       }
     },
@@ -577,6 +590,14 @@
       "title": "{name}: {room} stays too cold",
       "description": "On several of the last days {room} stayed for hours below its minimum of {minimum} °C ({hours}). The water may be too lukewarm for its radiators, or the radiator valve is set low. Check the valve; if it is open, allow warmer water: raise 'Setpoint at most this above the room' in the comfort settings."
     },
+    "thermostat_unavailable": {
+      "title": "{name}: the thermostat cannot be reached",
+      "description": "The thermostat has been unavailable for a while. Roost leaves it alone until it is back and then plans again. Check the thermostat or its integration."
+    },
+    "set_failed": {
+      "title": "{name}: the thermostat cannot be changed",
+      "description": "Roost tried to change the thermostat several times in a row and it failed: {error}. Check the thermostat's integration; Roost keeps trying at its usual pace."
+    },
     "learning_failed": {
       "title": "{name}: learning failed",
       "description": "Roost could not learn from the history this time. It keeps using the previous model. The log has the details."
@@ -662,6 +683,35 @@
       "name": "Resume",
       "description": "End a pause and plan again.",
       "fields": {}
+    },
+    "away": {
+      "name": "Away",
+      "description": "Nobody home until a moment: only the away minimum counts, no comfort hours; Roost is warm again when you are back.",
+      "fields": {
+        "until": {
+          "name": "Until"
+        },
+        "days": {
+          "name": "Days (instead of until)"
+        },
+        "minimum": {
+          "name": "Minimum while away"
+        }
+      }
+    },
+    "home": {
+      "name": "Home again",
+      "description": "End away: the comfort hours count again.",
+      "fields": {}
+    },
+    "set_comfort": {
+      "name": "Set comfort temperature",
+      "description": "Roost's comfort temperature for the day hours (Roost's own setting, not the thermostat).",
+      "fields": {
+        "temperature": {
+          "name": "Temperature"
+        }
+      }
     },
     "import_history": {
       "name": "Import history from Weheat",

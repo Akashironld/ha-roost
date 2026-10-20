@@ -200,6 +200,7 @@
           "price": "Stroomprijs",
           "solar": "Zon en thuisaccu",
           "comfort": "Comfort",
+          "notify": "Meldingen",
           "done": "Klaar"
         }
       },
@@ -357,6 +358,18 @@
               "house_power": "Optioneel. Wat het hele huis verbruikt, om het verbruik per uur van de dag te leren (welke komende uren zon over hebben, hoe lang de accu het houdt). Leeg gelaten rekent Roost het uit netvermogen + zonnevermogen (+ accuvermogen)."
             }
           }
+        }
+      },
+      "notify": {
+        "title": "Meldingen",
+        "description": "Uit tot je kiest waar ze heen gaan. Roost meldt dan als de thermostaat niet bereikbaar is of niet te wijzigen, als de controle niet meer slaagt terwijl hij stuurt, als leren mislukt of de Weheat-login nodig is — per soort hooguit eens per 12 uur.",
+        "data": {
+          "notify_target": "Meldingen sturen naar",
+          "weekly_report": "Weekoverzicht (maandagochtend)"
+        },
+        "data_description": {
+          "notify_target": "Een meldingsentiteit of -dienst, bijv. notify.mobile_app_mijn_telefoon. Leeg laten: geen meldingen.",
+          "weekly_report": "Stookstroom, kosten, besparing, comfort en waar de stroom van de warmtepomp vandaan kwam, de afgelopen week."
         }
       }
     },
@@ -577,6 +590,14 @@
       "title": "{name}: {room} blijft te koud",
       "description": "Op meerdere van de laatste dagen bleef {room} urenlang onder het minimum van {minimum} °C ({hours}). Mogelijk is het water te lauw voor de radiatoren daar, of staat de radiatorknop laag. Controleer de knop; staat die open, sta dan warmer water toe: verhoog 'Setpoint hoogstens zoveel boven de kamer' bij de comfortinstellingen."
     },
+    "thermostat_unavailable": {
+      "title": "{name}: de thermostaat is niet bereikbaar",
+      "description": "De thermostaat is al een tijd niet beschikbaar. Roost laat hem met rust tot hij terug is en plant dan opnieuw. Controleer de thermostaat of zijn integratie."
+    },
+    "set_failed": {
+      "title": "{name}: de thermostaat kan niet worden gewijzigd",
+      "description": "Roost probeerde de thermostaat een paar keer achter elkaar te wijzigen en dat mislukte: {error}. Controleer de integratie van de thermostaat; Roost blijft het in zijn gewone tempo proberen."
+    },
     "learning_failed": {
       "title": "{name}: leren mislukt",
       "description": "Roost kon deze keer niet leren uit de historie. Het vorige model blijft in gebruik. Details staan in het logboek."
@@ -662,6 +683,35 @@
       "name": "Hervatten",
       "description": "Een pauze beëindigen en opnieuw plannen.",
       "fields": {}
+    },
+    "away": {
+      "name": "Afwezig",
+      "description": "Niemand thuis tot een moment: alleen het afwezig-minimum telt, geen comforturen; Roost is weer warm als je terug bent.",
+      "fields": {
+        "until": {
+          "name": "Tot"
+        },
+        "days": {
+          "name": "Dagen (in plaats van tot)"
+        },
+        "minimum": {
+          "name": "Minimum tijdens afwezigheid"
+        }
+      }
+    },
+    "home": {
+      "name": "Weer thuis",
+      "description": "Afwezig beëindigen: de comforturen tellen weer.",
+      "fields": {}
+    },
+    "set_comfort": {
+      "name": "Comforttemperatuur instellen",
+      "description": "Roosts comforttemperatuur voor de daguren (Roosts eigen instelling, niet de thermostaat).",
+      "fields": {
+        "temperature": {
+          "name": "Temperatuur"
+        }
+      }
     },
     "import_history": {
       "name": "Historie importeren uit Weheat",

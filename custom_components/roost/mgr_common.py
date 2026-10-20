@@ -35,6 +35,7 @@ from .const import (
     CONF_EXPORT_MULT, CONF_EXPORT_ADD,
     LEARN_HOUR, LEARN_MINUTE, PLAN_MINUTES, STORAGE_VERSION, TICK_SECONDS, WEATHER_MINUTES, WEHEAT, WEHEAT_IMPORT_DAYS,
 )
+from .const import AWAY_MIN
 from .reasons import Reason
 from .weheat_api import WeheatLoginNeeded, WeheatUnavailable, async_fetch_history, async_fetch_months, heat_pump_id
 

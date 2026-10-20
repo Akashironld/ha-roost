@@ -27,6 +27,7 @@ class WeheatMixin:
     def _ask_login(self, why: str) -> None:
         """No Weheat login, or Weheat refused it: Home Assistant shows 'Reconfigure / re-authenticate' for Roost."""
         self.event("login_needed", why=why[:200])
+        self._notify_user("login")
         self.entry.async_start_reauth(self.hass)
 
     def _merge_weheat(self, rows: dict[int, dict]) -> None:

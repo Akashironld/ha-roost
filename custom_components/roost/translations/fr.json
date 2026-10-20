@@ -200,6 +200,7 @@
           "price": "Prix de l'électricité",
           "solar": "Solaire et batterie domestique",
           "comfort": "Confort",
+          "notify": "Notifications",
           "done": "Terminé"
         }
       },
@@ -357,6 +358,18 @@
               "house_power": "Facultatif. Ce que consomme toute la maison, pour apprendre sa consommation par heure de la journée (quelles heures à venir ont du surplus solaire, combien de temps tient la batterie). Laissé vide, Roost le calcule à partir de la puissance réseau + solaire (+ batterie)."
             }
           }
+        }
+      },
+      "notify": {
+        "title": "Notifications",
+        "description": "Désactivées tant que vous ne choisissez pas leur destination. Roost signale alors quand le thermostat est injoignable ou non modifiable, quand sa vérification n'est plus réussie pendant qu'il pilote, quand l'apprentissage échoue ou que la connexion Weheat est nécessaire — au plus toutes les 12 heures par type.",
+        "data": {
+          "notify_target": "Envoyer les notifications à",
+          "weekly_report": "Résumé hebdomadaire (lundi matin)"
+        },
+        "data_description": {
+          "notify_target": "Une entité ou un service de notification, p. ex. notify.mobile_app_mon_telephone. Laisser vide : pas de notifications.",
+          "weekly_report": "Électricité de chauffage, coût, économie, confort et origine de l'électricité de la pompe, la semaine dernière."
         }
       }
     },
@@ -577,6 +590,14 @@
       "title": "{name} : {room} reste trop froid",
       "description": "Plusieurs des derniers jours, {room} est resté des heures sous son minimum de {minimum} °C ({hours}). L'eau est peut-être trop tiède pour ses radiateurs, ou la vanne est réglée bas. Vérifiez la vanne ; si elle est ouverte, autorisez une eau plus chaude : augmentez « Consigne au plus de ceci au-dessus de la pièce » dans les réglages de confort."
     },
+    "thermostat_unavailable": {
+      "title": "{name} : le thermostat est injoignable",
+      "description": "Le thermostat est indisponible depuis un moment. Roost le laisse tranquille jusqu'à son retour, puis replanifie. Vérifiez le thermostat ou son intégration."
+    },
+    "set_failed": {
+      "title": "{name} : impossible de modifier le thermostat",
+      "description": "Roost a essayé plusieurs fois de suite de modifier le thermostat, sans succès : {error}. Vérifiez l'intégration du thermostat ; Roost continue d'essayer à son rythme habituel."
+    },
     "learning_failed": {
       "title": "{name} : l'apprentissage a échoué",
       "description": "Roost n'a pas pu apprendre de l'historique cette fois. Il garde le modèle précédent. Le journal a les détails."
@@ -662,6 +683,35 @@
       "name": "Reprendre",
       "description": "Terminer une pause et planifier à nouveau.",
       "fields": {}
+    },
+    "away": {
+      "name": "Absent",
+      "description": "Personne à la maison jusqu'à un moment : seul le minimum d'absence compte, pas d'heures de confort ; Roost est de nouveau chaud à votre retour.",
+      "fields": {
+        "until": {
+          "name": "Jusqu'à"
+        },
+        "days": {
+          "name": "Jours (au lieu de jusqu'à)"
+        },
+        "minimum": {
+          "name": "Minimum pendant l'absence"
+        }
+      }
+    },
+    "home": {
+      "name": "De retour",
+      "description": "Terminer l'absence : les heures de confort comptent de nouveau.",
+      "fields": {}
+    },
+    "set_comfort": {
+      "name": "Régler la température de confort",
+      "description": "La température de confort de Roost pour les heures de jour (réglage de Roost, pas le thermostat).",
+      "fields": {
+        "temperature": {
+          "name": "Température"
+        }
+      }
     },
     "import_history": {
       "name": "Importer l'historique de Weheat",

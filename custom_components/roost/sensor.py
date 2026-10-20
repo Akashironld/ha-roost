@@ -56,6 +56,8 @@ class SetpointSensor(RoostEntity, SensorEntity):
                  "decision_args": d.why.args if d else None, "room": m.room(),
                  "thermostat": m.thermostat_sp(), "thermostat_entity": m.conf.get(CONF_THERMOSTAT), "storage_kwh": round(m.storage_e, 1),
                  "paused_until": datetime.fromtimestamp(m.mem.pause_until, tz=dt_util.UTC).isoformat() if m.mem.pause_until else None,
+                 "away_until": datetime.fromtimestamp(m.mem.away_until, tz=dt_util.UTC).isoformat() if m.is_away() else None,
+                 "away_min": m.settings().away_min if m.is_away() else None,
                  "comfort": s.comfort, "day_min": s.day_min, "night_min": s.night_min, "store_max": s.store_max,
                  "rooms": m.room_status}
         if p:

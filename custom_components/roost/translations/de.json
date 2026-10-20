@@ -200,6 +200,7 @@
           "price": "Strompreis",
           "solar": "Solar und Heimspeicher",
           "comfort": "Komfort",
+          "notify": "Benachrichtigungen",
           "done": "Fertig"
         }
       },
@@ -357,6 +358,18 @@
               "house_power": "Optional. Was das ganze Haus verbraucht, um den Verbrauch pro Tagesstunde zu lernen (welche kommenden Stunden Solarüberschuss haben, wie lange der Akku reicht). Leer gelassen berechnet Roost ihn aus Netzleistung + Solarleistung (+ Akkuleistung)."
             }
           }
+        }
+      },
+      "notify": {
+        "title": "Benachrichtigungen",
+        "description": "Aus, bis du wählst, wohin sie gehen. Roost meldet dann, wenn das Thermostat nicht erreichbar oder nicht änderbar ist, wenn seine Prüfung beim Steuern nicht mehr besteht, wenn das Lernen fehlschlägt oder die Weheat-Anmeldung nötig ist — je Art höchstens alle 12 Stunden.",
+        "data": {
+          "notify_target": "Benachrichtigungen senden an",
+          "weekly_report": "Wochenübersicht (Montagmorgen)"
+        },
+        "data_description": {
+          "notify_target": "Eine Benachrichtigungsentität oder ein Dienst, z. B. notify.mobile_app_mein_handy. Leer lassen: keine Benachrichtigungen.",
+          "weekly_report": "Heizstrom, Kosten, Ersparnis, Komfort und woher der Strom der Wärmepumpe kam, letzte Woche."
         }
       }
     },
@@ -577,6 +590,14 @@
       "title": "{name}: {room} bleibt zu kalt",
       "description": "An mehreren der letzten Tage blieb {room} stundenlang unter seinem Minimum von {minimum} °C ({hours}). Das Wasser ist vielleicht zu lauwarm für seine Heizkörper, oder das Heizkörperventil steht niedrig. Prüfe das Ventil; ist es offen, erlaube wärmeres Wasser: Erhöhe „Sollwert höchstens so viel über dem Raum“ in den Komforteinstellungen."
     },
+    "thermostat_unavailable": {
+      "title": "{name}: Das Thermostat ist nicht erreichbar",
+      "description": "Das Thermostat ist seit einer Weile nicht verfügbar. Roost lässt es in Ruhe, bis es zurück ist, und plant dann neu. Prüfe das Thermostat oder seine Integration."
+    },
+    "set_failed": {
+      "title": "{name}: Das Thermostat lässt sich nicht ändern",
+      "description": "Roost hat mehrmals nacheinander versucht, das Thermostat zu ändern, ohne Erfolg: {error}. Prüfe die Integration des Thermostats; Roost versucht es in seinem üblichen Takt weiter."
+    },
     "learning_failed": {
       "title": "{name}: Lernen fehlgeschlagen",
       "description": "Roost konnte diesmal nicht aus dem Verlauf lernen. Es nutzt weiter das vorige Modell. Das Protokoll enthält die Details."
@@ -662,6 +683,35 @@
       "name": "Fortsetzen",
       "description": "Eine Pause beenden und neu planen.",
       "fields": {}
+    },
+    "away": {
+      "name": "Abwesend",
+      "description": "Niemand zu Hause bis zu einem Zeitpunkt: nur das Abwesenheitsminimum zählt, keine Komfortstunden; Roost ist wieder warm, wenn du zurück bist.",
+      "fields": {
+        "until": {
+          "name": "Bis"
+        },
+        "days": {
+          "name": "Tage (statt bis)"
+        },
+        "minimum": {
+          "name": "Minimum während der Abwesenheit"
+        }
+      }
+    },
+    "home": {
+      "name": "Wieder zu Hause",
+      "description": "Abwesenheit beenden: die Komfortstunden zählen wieder.",
+      "fields": {}
+    },
+    "set_comfort": {
+      "name": "Komforttemperatur einstellen",
+      "description": "Roosts Komforttemperatur für die Tagesstunden (Roosts eigene Einstellung, nicht das Thermostat).",
+      "fields": {
+        "temperature": {
+          "name": "Temperatur"
+        }
+      }
     },
     "import_history": {
       "name": "Verlauf von Weheat importieren",

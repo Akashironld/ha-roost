@@ -37,6 +37,7 @@ class HourIn:
     hour: int = -1             # local hour (internal gains per hour of the day; -1: not known)
     dhw: float = 0.0           # share of the hour the unit makes hot water (no space heating then)
     extra_kw: float = 0.0      # correction from the last hours: heat the model missed (+) or had too much (−)
+    away: bool = False         # nobody home: only the away minimum counts, no comfort hours
 
 
 @dataclass
@@ -44,6 +45,7 @@ class Settings:
     comfort: float = 20.5          # wanted in the day hours (soft)
     day_min: float = 20.0          # never below in the day hours (hard)
     night_min: float = 19.0        # never below at night (hard)
+    away_min: float = 16.0         # never below while away (hard); no comfort hours then
     store_max: float = 22.5        # how warm the house may get while storing heat
     warm_from: float = 23.0        # mild penalty above this
     max_above_room: float = 1.0    # setpoint at most this above the room (lukewarm water)
@@ -120,7 +122,7 @@ class Simulator:
         sun = m.g * h.rad
         cost = kwh = heat = pen = 0.0
         own = h.own_kw * 0.25
-        hard = s.day_min if h.day else s.night_min
+        hard = s.away_min if h.away else (s.day_min if h.day else s.night_min)
         lagged = w0 is not None and self.aq < 1.0
         w = w0 or 0.0
         internal = m.internal_at(h.hour)
@@ -144,7 +146,7 @@ class Simulator:
                 heat += w * 0.25
             if T < hard:
                 pen += (hard - T) * 0.25 * s.penalty_hard
-            if h.day and T < s.comfort:
+            if h.day and not h.away and T < s.comfort:
                 pen += (s.comfort - T) * 0.25 * s.penalty_soft
             if T > s.warm_from:
                 pen += (T - s.warm_from) * 0.25 * s.penalty_warm
@@ -157,7 +159,7 @@ class Simulator:
 def baseline_sp(s: Settings, hp: HeatPumpModel, house: HouseModel, h: HourIn) -> float:
     """The steady thermostat to compare with: the setpoint that holds the room (not the thermostat's own reading) at
     the comfort temperature (or the night setting) in this hour's weather, from the unit's learned response."""
-    room = s.comfort if (h.day or s.baseline_night is None) else s.baseline_night
+    room = s.away_min if h.away else (s.comfort if (h.day or s.baseline_night is None) else s.baseline_night)
     k = hp.k if hp.k is not None else house.C
     loss = house.loss(h.wind) * (room - h.t_out) - house.g * h.rad - house.internal_at(h.hour)
     return room + hp.th_diff - hp.offset + (1 - hp.a) * max(0.0, loss) / max(0.1, k)
@@ -165,7 +167,7 @@ def baseline_sp(s: Settings, hp: HeatPumpModel, house: HouseModel, h: HourIn) ->
 
 def _deficit(T: float, h: HourIn, s: Settings) -> float:
     """Comfort shortfall at the end of an hour (°C), counted in the comfort hours only."""
-    return max(0.0, s.comfort - T) if h.day else 0.0
+    return max(0.0, s.comfort - T) if h.day and not h.away else 0.0
 
 
 def comparable_steady(sim: Simulator, hours: list[HourIn], T0: float, E0: float, w0: float | None, house: HouseModel,
