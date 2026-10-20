@@ -66,6 +66,9 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
 | <img src="assets/card-overview.png" width="400" alt="Overview"><br>**Overview** — what Roost does now and why, the plan for the next 24 hours with the tariff, and the next change | <img src="assets/card-table.png" width="400" alt="Table"><br>**Table** — the plan per hour with the reason, and the last 7 days: planned and set, room measured and expected, price, heat |
 | <img src="assets/card-curve.png" width="400" alt="Curve"><br>**Curve** — the heating curve your house needs as the five points of the Weheat app, beside every hour the heat pump ran | <img src="assets/card-lookback.png" width="400" alt="Look back"><br>**Look back** — what was planned beside what happened, how well the room was predicted 6 hours ahead, and a log of every change |
 
+<sub>Overview, table and look back: Roost's own planner and control on two simulated winter days with dynamic prices
+(an example, not a promise); the curve: a real house.</sub>
+
 ## Quick start
 
 1. **HACS**: click the button below (or HACS → ⋮ → *Custom repositories* → add this repository as an
