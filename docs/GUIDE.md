@@ -162,7 +162,7 @@ Then only the fields for what you ticked (all optional; found entities are fille
 | Solar forecast today / tomorrow | To plan heating on your own solar (Solcast, Predbat, Forecast.Solar, …) |
 | Grid power + its sign | To tell real solar export from a battery that sells to the grid |
 | Battery state of charge, battery power, capacity, max power, reserve | So energy from the battery is valued at what refilling it costs, and solar that fills the battery anyway is treated as free |
-| House power | For the usage profile of your house (with a battery) |
+| House power | What your whole house uses, to learn its usage per hour of the day: with solar it tells which coming hours have a surplus. Shown with a battery; leave it empty and Roost works it out from grid power + solar power (+ battery power) |
 | Preference for own energy | Extra cents per kWh from the grid, to prefer your own solar a bit more. 0 is fine |
 
 ### Screen 5 — Comfort
@@ -206,13 +206,28 @@ Click **Submit**. Roost is set up — in shadow mode — and starts importing an
 - **Next 24 hours**: the planned thermostat setting (orange), the expected room temperature (white), the tariff per
   hour (bars, faded where the price is not known yet), and the comfort hours (green band). **Slide over the graph** to
   read each hour; when the planner counts another price than the tariff (a battery's refill cost, own solar) it says so.
+  The line under the graph says **why** that hour is what it is (e.g. *18:00 · expensive hour (47 ct): living off the
+  heat in the floor*, or *warm enough (21.2 °C): no heat needed*), from the room temperature the plan expects then.
+- **Table** (the switch in the header, or tap the **Planned** tile): the plan per hour,
+  Predbat-style — hours with the same setting and reason on one line (time, setting with ↑/↓ where it changes, room
+  expected, tariff coloured cheap/dear, kWh) with the reason under it; below it the last 7 days per day (today open, the
+  other days folded with their cost, saving and how well the room was predicted): what was planned → what was set, the
+  room measured (and expected 6 hours before), price, heat and why, with *by hand* and *window open* marked.
+- **Mode**: tap the **ACTIVE / SHADOW / OFF** label to switch; *Active* asks for a second tap. While Roost is paused
+  after a change by hand, the menu also has *Resume now*.
+- **Curve** (the switch in the header, or the *Heating curve advice* line under the plan): the heating curve advice in
+  one view — the flow at 0 °C outside, the heat loss and the outdoor temperature from which the heat pump cycles; a
+  graph of the flow temperature against the outdoor temperature with the advice (orange), the curve now (when Weheat
+  gives it), what the house needs (blue, dashed), what the heat pump made (dots) and the zone where it cycles; then the
+  five points and the notes — see [Heating curve advice](#heating-curve-advice).
+- **The Roost icon** (top left) opens Roost in *Settings → Devices & services*.
 - **Footer**: expected saving over the next 24 hours, yesterday and this month, against a steady thermostat; and the
   **plan error 6 h** from the nightly self-check, with *ready to steer* when Roost thinks it is — and then a
   **Let Roost steer** button (click twice).
 
 ### Look back
 
-The switch **Ahead / Look back** in the card's header shows what happened instead of what is planned — in the same
+The switch **Ahead / Table / Curve / Look back** in the card's header shows what happened instead of what is planned — in the same
 place, so the card does not grow. Choose **24 h**, **48 h** or **7 d**:
 
 - **Four numbers**: what heating cost (and the saving against the equally comfortable steady thermostat), how well the
@@ -231,7 +246,8 @@ place, so the card does not grow. Choose **24 h**, **48 h** or **7 d**:
 Roost keeps a week of hours and 60 days of day numbers for this; the history starts when you install 0.5.5.
 
 Options (also in the visual editor): `compact: true` (header and tiles only, for a wall tablet), `show_tiles`,
-`show_chart`, `show_footer`, `view: history` (open in the look back — e.g. a second card on an analysis page),
+`show_chart`, `show_curve`, `show_footer`, `view: table`, `view: curve` or `view: history` (open in the table, the curve or the look back — e.g. a
+second card on an analysis page),
 `history: false` (no look back switch), `language` (`en`, `nl`, `de`, `fr`), `time_format` (`24`, `12`), `title`.
 
 ```yaml
@@ -241,6 +257,32 @@ compact: true
 ```
 
 ---
+
+### Heating curve advice
+
+For a heat pump that runs on its **heating curve** (the thermostat only switches it on and off), the curve decides
+how warm the water is: too warm costs efficiency, too cool leaves the house cold. Roost works out the curve your house
+needs from the heat pump's own logs, every night:
+
+1. **What the house needs**: per whole day the heat for space heating against the difference between room and
+   outdoor temperature (a straight line: the heat loss). The cold days (5 °C or colder) above the line set a margin,
+   so the curve covers the need on three cold days out of four (on a raw day the heat pump simply runs longer) (mild days spread far more — sun, people, cooking — and
+   would make the curve needlessly warm).
+2. **What your floor or radiators give off** at a given water temperature (the EN 442 relation, with the curvature of
+   your kind of emitter from the setup), scaled from the hours the heat pump ran the whole hour on heating.
+3. **The five points** of the Weheat app (−20, 9, 15, 20 and 25 °C outside), each just high enough that the straight
+   line between them stays on or above what the house needs, for your comfort temperature.
+
+The card shows per point the advice, the curve the heat pump has **now** (when Weheat gives Roost the installation's
+settings) and the flow it **made** at that outdoor temperature. Above the outdoor temperature where the heat pump
+mostly switches on and off anyway (measured from its logs), there is no advice: *leave* those points. The −20 °C point
+is calculated beyond the coldest day measured. Set the points in the Weheat app.
+
+With an OpenTherm thermostat (the usual way with Roost) the heat pump follows the thermostat, not the curve; the card
+says so, and the advice applies when you switch the heat pump to its heating curve. The advice needs about 20 heating
+days and 30 hours of steady heating with the flow temperature in the Weheat logs; after the update that brings it,
+Roost reads the hourly logs of the past year again once to get it (in the background, about half an hour: the energy
+per hour it has already). Roost keeps the Weheat hours and the past weather for 13 months.
 
 ## 6. The first days: shadow mode
 
@@ -386,7 +428,8 @@ integration page: click it and log in again. Installs from before 0.5.3 get that
 | Entity | What |
 |---|---|
 | `select.roost_mode` | Off / Shadow / Active |
-| `sensor.roost_planned_setpoint` | The thermostat setting Roost wants now. Attributes: reason, decision, the 24-hour plan, extra rooms |
+| `sensor.roost_planned_setpoint` | The thermostat setting Roost wants now. Attributes: reason, decision, the 24-hour plan with the reason per hour (`plan_why`), extra rooms |
+| `sensor.roost_heating_curve_advice` | The advised flow temperature at 0 °C outside. Attributes: the five points (outdoor, advice, made), the curve now and how the heat pump is controlled (when Weheat gives them), the heat loss, the emitter and the outdoor temperature from which it cycles |
 | `sensor.roost_expected_saving_next_24_h` | Against the lowest steady thermostat that is as comfortable as the plan |
 | `sensor.roost_saving_yesterday`, `sensor.roost_saving_this_month` | Yesterday replayed with the same model, weather and prices |
 | `sensor.roost_heating_cost_today` | Heat pump electricity for heating × the price of each hour |
@@ -502,7 +545,7 @@ automation:
 |---|---|---|
 | Open-Meteo | Your home location (latitude/longitude) | Every 30 minutes for the forecast; once in a while for past weather |
 | Energy-Charts (api.energy-charts.info), only with the built-in day-ahead prices | Your bidding zone (e.g. NL) | Once an hour |
-| Weheat (auth.weheat.nl, api.weheat.nl) | Your Weheat login (made on Weheat's own page, refreshed by Home Assistant's OAuth helper); read-only requests, within Weheat's limits for developers | The history import (a month per request, at most a year back), and once a night for the last hours |
+| Weheat (auth.weheat.nl, api.weheat.nl) | Your Weheat login (made on Weheat's own page, refreshed by Home Assistant's OAuth helper); read-only requests, within Weheat's limits for developers | The history import (a month per request, at most a year back), and once a night for the last hours and the installation's settings (control method, heating curve) |
 | PDOK (Kadaster), only if you turned it on | Your home location, once | Building register lookup |
 
 Roost never sees your Weheat password (you type it on Weheat's page), never writes to the heat pump, has no account

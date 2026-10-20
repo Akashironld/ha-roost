@@ -43,6 +43,7 @@ CORR_SUN_MAX = 8.0         # m²: extra sun at most
 CORR_SUN_FADE = 24.0       # hours: half-life of the sun part (the nightly learning takes over what lasts)
 # when ready
 ETA_MONTH_S = 1800         # one month of history from Weheat: its energy logs may be read once every half hour
+ETA_MONTH_LOGS_S = 150     # hourly logs alone: once every two minutes
 ETA_LEARN_S = 900          # learning and the self-check after the import
 
 
@@ -193,14 +194,15 @@ def readiness(chk: dict, following: bool | None, lever: bool = True, winter: dic
     return not missing, missing
 
 
-def import_done_at(imp: dict, now: float) -> float:
-    """When a running import is expected to finish: a month per half hour after the last month that came in."""
+def import_done_at(imp: dict, now: float, logs_only: bool = False) -> float:
+    """When a running import is expected to finish: a month per half hour after the last month that came in (per two
+    minutes when only the hourly logs are read)."""
     left = max(0, imp.get("months", 0) - imp.get("months_done", 0))
     try:
         since = datetime.fromisoformat(imp["at"]).timestamp() if imp.get("at") else now
     except (TypeError, ValueError):
         since = now
-    return max(now, since + left * ETA_MONTH_S)
+    return max(now, since + left * (ETA_MONTH_LOGS_S if logs_only else ETA_MONTH_S))
 
 
 def eta(missing: list[str], chk: dict, imp: dict, now: float, next_check: float) -> tuple[str, float | None]:

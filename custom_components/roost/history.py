@@ -58,6 +58,45 @@ def _outdoor(v: Any) -> float | None:
     return x if x is not None and -45.0 < x < 50.0 and x != -1.0 else None
 
 
+# Kept per hour for later use, only when not zero or empty (most hours are zero): Roost's key -> the API's field
+EXTRA_LOGS = {
+    "th_on_s": "thermostatStateOn",                 # seconds the thermostat asked for heat
+    "th_water": "tThermostatSetpointAverage",       # water temperature an OpenTherm thermostat asked for
+    "heater_s": "controlBridgeStatusElectricHeater",    # seconds the backup electric heater was on
+    "boiler_s": "controlBridgeStatusGasBoiler",     # seconds a gas boiler ran (hybrid)
+    "boiler_flow": "otBoilerFeedTemperatureAverage",
+    "rpm_max": "rpmMax",
+    "lim_silent_s": "rpmLimiterSilentHours",        # seconds the compressor was held back, and why
+    "lim_power_s": "rpmLimiterPowerLimit",
+    "lim_water_s": "rpmLimiterWaterOut",
+    "lim_house_s": "rpmLimiterHouseIn",
+    "lim_envelope_s": "rpmLimiterEnvelope",
+    "err_s": "dtcError",                            # seconds in error, on the fallback curve, compressor blocked
+    "fallback_curve_s": "dtcUseHeatingCurve",
+    "comp_off_s": "dtcCompressorOff",
+    "cooling_s": "heatPumpStateCooling",
+    "ch_flow": "centralHeatingFlowAverage",         # water flow rate (l/min)
+    "house_ret": "tWaterHouseInAverage",            # water back from the house (buffer, indoor unit)
+}
+EXTRA_ENERGY = {"standby_e": "totalEInStandby", "dhw_q": "totalEOutDhw"}
+
+
+def _extras(x: dict, fields: dict[str, str]) -> dict:
+    out = {}
+    for key, api in fields.items():
+        v = _f(x.get(api))
+        if v:
+            out[key] = round(v, 2)
+    return out
+
+
+def merge_hours(have: dict[int, dict], new: dict[int, dict]) -> None:
+    """Add hours from Weheat to the ones kept, field by field: reading the hourly logs alone (to add new fields) must
+    keep the energy an hour already has."""
+    for t, v in new.items():
+        have.setdefault(t, {}).update(v)
+
+
 def weheat_hours(logs: list[dict], energy: list[dict]) -> dict[int, dict]:
     """Weheat hourly logs + energy logs -> {hour ts: {...}} (keys as in the API, camelCase)."""
     out: dict[int, dict] = {}
@@ -73,6 +112,12 @@ def weheat_hours(logs: list[dict], energy: list[dict]) -> dict[int, dict]:
             "heating_s": (_f(x.get("heatPumpStateHeating")) or 0.0) + (_f(x.get("heatPumpStateHeatingDefrost")) or 0.0),
             "dhw_s": sum(_f(x.get(k)) or 0.0 for k in ("heatPumpStateDhw", "heatPumpStateLegionella", "heatPumpStateDhwDefrost")),
             "manual_s": _f(x.get("heatPumpStateManualControl")) or 0.0,
+            # the water the unit sends to the house and gets back (for the heating curve advice)
+            "flow": _temp(x.get("tWaterOutAverage")),
+            "ret": _temp(x.get("tWaterInAverage")),
+            # kept for later use (modulation, cycling), so that needs no new import
+            "rpm": _f(x.get("rpmAverage")), "rpm_min": _f(x.get("rpmMin")),
+            **_extras(x, EXTRA_LOGS),
         })
     for x in energy or []:
         t = _ts(x.get("timeBucket"))
@@ -82,7 +127,8 @@ def weheat_hours(logs: list[dict], energy: list[dict]) -> dict[int, dict]:
         q = (_f(x.get("totalEOutHeating")) or 0.0) + (_f(x.get("totalEOutHeatingDefrost")) or 0.0)
         e = (_f(x.get("totalEInHeating")) or 0.0) + (_f(x.get("totalEInHeatingDefrost")) or 0.0)
         out.setdefault(t, {}).update({"q": max(0.0, q), "e": max(0.0, e),
-                                      "dhw_e": (_f(x.get("totalEInDhw")) or 0.0) + (_f(x.get("totalEInDhwDefrost")) or 0.0)})
+                                      "dhw_e": (_f(x.get("totalEInDhw")) or 0.0) + (_f(x.get("totalEInDhwDefrost")) or 0.0),
+                                      **_extras(x, EXTRA_ENERGY)})
     return out
 
 

@@ -393,23 +393,26 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
 
 
 def explain(p: Plan, hours: list[HourIn], room: float, s: Settings, hp: HeatPumpModel | None = None,
-            house: HouseModel | None = None, floor: bool = True) -> Reason:
-    """One line on why the first hour is what it is: the setpoint against the one that would just hold the comfort
+            house: HouseModel | None = None, floor: bool = True, i: int = 0) -> Reason:
+    """One line on why hour i (0: now) is what it is: the setpoint against the one that would just hold the comfort
     temperature (the thermostat may read differently from the room sensor, and the unit may heat towards another
-    temperature than the setpoint)."""
-    if not p.hours:
+    temperature than the setpoint). room: the room at the start of hour i. Cheap and dear are judged on the price the
+    planner counts (own solar, the battery's refill cost or the tariff) against the twelve hours around it."""
+    if len(p.hours) <= i or len(hours) <= i:
         return Reason("no_plan")
-    sp = p.first.sp
-    hold = baseline_sp(Settings(comfort=s.comfort), hp, house, hours[0]) if hp and house else s.comfort
+    ph, h = p.hours[i], hours[i]
+    sp = ph.sp
+    hold = baseline_sp(Settings(comfort=s.comfort), hp, house, h) if hp and house else s.comfort
     th = hp.th_diff if hp else 0.0
-    prices = [h.p_grid for h in hours[:12]]
-    now = hours[0].p_grid
-    cheap = now <= sorted(prices)[len(prices) // 3]
-    dear = now >= sorted(prices)[(2 * len(prices)) // 3]
-    if p.first.heat < 0.1 and sp <= room + th:
+    j = max(0, min(i, len(p.hours) - 12))
+    prices = sorted(x.price for x in p.hours[j:j + 12])
+    now = ph.price
+    cheap = now <= prices[len(prices) // 3]
+    dear = now >= prices[(2 * len(prices)) // 3]
+    if ph.heat < 0.1 and sp <= room + th:
         # no heat this hour: the room is warmer than the setpoint (sun, a warm day), whatever the price — not storing
         return Reason("warm_enough", {"room": round(room, 1)})
-    if hours[0].own_kw >= 0.5 and sp > hold + 0.25:
+    if h.own_kw >= 0.5 and sp > hold + 0.25:
         return Reason("store_solar" if floor else "store_solar_house", {"sp": sp})
     if sp > hold + 0.25 and cheap:
         return Reason("store_cheap" if floor else "store_cheap_house", {"ct": round(now * 100, 1)})
@@ -418,6 +421,13 @@ def explain(p: Plan, hours: list[HourIn], room: float, s: Settings, hp: HeatPump
     if sp <= room + th - 0.5:
         return Reason("warm_enough", {"room": round(room, 1)})
     return Reason("holding", {"sp": sp})
+
+
+def explain_hours(p: Plan, hours: list[HourIn], room: float, s: Settings, hp: HeatPumpModel | None = None,
+                  house: HouseModel | None = None, floor: bool = True) -> list[Reason]:
+    """Why each hour of the plan is what it is, each from the room the plan expects at its start."""
+    rooms = [room] + [x.t_end for x in p.hours[:-1]]
+    return [explain(p, hours, rooms[i], s, hp, house, floor, i) for i in range(min(len(p.hours), len(hours)))]
 
 
 def replay_day(house: HouseModel, hp: HeatPumpModel, s: Settings, entries: list[dict]) -> tuple[float, float] | None:

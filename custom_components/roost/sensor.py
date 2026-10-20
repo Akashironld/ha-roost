@@ -9,7 +9,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
-from . import RoostConfigEntry
+from . import RoostConfigEntry, planner
+from .const import CONF_EMITTER
 from .entity import RoostEntity
 
 
@@ -17,7 +18,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: RoostConfigEntry, async_
     m = entry.runtime_data
     async_add_entities([SetpointSensor(m), SavingNext24hSensor(m), SavingYesterdaySensor(m), SavingMonthSensor(m),
                         CostTodaySensor(m), EnergyTodaySensor(m), EnergyValueSensor(m), HouseModelSensor(m), HeatPumpModelSensor(m),
-                        ImportSensor(m), ImportProgressSensor(m), PlanAccuracySensor(m), RoomExpectedSensor(m), HeatPlannedSensor(m)])
+                        ImportSensor(m), ImportProgressSensor(m), PlanAccuracySensor(m), RoomExpectedSensor(m), HeatPlannedSensor(m),
+                        HeatingCurveSensor(m)])
 
 
 def _cur(hass) -> str:
@@ -32,7 +34,8 @@ class SetpointSensor(RoostEntity, SensorEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 1
     _attr_icon = "mdi:home-thermometer"
-    _unrecorded_attributes = frozenset({"plan", "start", "comfort", "day_min", "night_min", "store_max", "day_hours", "rooms"})
+    _unrecorded_attributes = frozenset({"plan", "start", "comfort", "day_min", "night_min", "store_max", "day_hours", "rooms",
+                                         "plan_why"})
 
     def __init__(self, mgr) -> None:
         super().__init__(mgr, "setpoint")
@@ -64,6 +67,11 @@ class SetpointSensor(RoostEntity, SensorEntity):
                               round(tar[i] * 100, 1) if i < len(tar) else None, 1 if i < len(gss) and gss[i] else 0]
                              for i, h in enumerate(p.hours)]
             attrs["day_hours"] = [1 if h.day else 0 for h in m.plan_hours[:len(p.hours)]]
+            # why each hour is what it is (code + values, worded by the card), from the room the plan expects then
+            room = m.room()
+            if room is not None:
+                why = planner.explain_hours(p, m.plan_hours, room, s, m.pump, m.house, m.conf.get(CONF_EMITTER, "floor") == "floor")
+                attrs["plan_why"] = [[r.code, r.args] for r in why]
             attrs["cost_24h"] = round(p.cost, 2)
             attrs["steady_cost_24h"] = round(p.baseline_cost, 2)
             attrs["kwh_24h"] = round(p.kwh, 1)
@@ -368,3 +376,34 @@ class ImportProgressSensor(RoostEntity, SensorEntity):
     def extra_state_attributes(self):
         done, total, end = self.mgr.import_progress()
         return {"months_done": done, "months": total, "expected_done": end.isoformat(timespec="minutes") if end else None}
+
+
+class HeatingCurveSensor(RoostEntity, SensorEntity):
+    """The heating curve the house needs (issue #1 follow-up): the flow temperature at 0 °C outside as the state, the
+    five points of the Weheat app beside the curve the unit has now (when Weheat gives it) as attributes."""
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_suggested_display_precision = 1
+    _attr_icon = "mdi:chart-bell-curve-cumulative"
+    _unrecorded_attributes = frozenset({"points", "current", "extrapolated"})
+
+    def __init__(self, mgr) -> None:
+        super().__init__(mgr, "heating_curve")
+
+    @property
+    def native_value(self):
+        a = self.mgr.curve_advice
+        v = a.flow_at(0.0) if a else None
+        return round(v, 1) if v is not None else None
+
+    @property
+    def extra_state_attributes(self):
+        a, w = self.mgr.curve_advice, self.mgr.weheat_settings or {}
+        out = {"control": w.get("control"), "current": w.get("curve"), "settings_at": w.get("at")}
+        if a:
+            out.update({"points": a.points, "room": a.room, "cycling_from": a.cycling_from, "reliable": a.reliable,
+                        "days": a.days, "hours": a.hours, "out_min": a.out_min, "out_max": a.out_max,
+                        "heat_loss_w_per_k": round(a.ua_kw * 1000), "emitter_w_per_k": round(a.k_kw * 1000), "n": a.n,
+                        "margin_kw": a.margin_kw, "base_kw": a.base_kw, "extrapolated": a.extrapolated})
+        return out

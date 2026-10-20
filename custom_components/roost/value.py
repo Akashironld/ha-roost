@@ -29,7 +29,7 @@ class EnergyInputs:
     import_price: list[float]                     # per hour, currency/kWh (hour 0 = now)
     export_price: list[float] | None = None       # None: same as import (net metering)
     pv_kwh: list[float] | None = None             # expected solar per hour
-    load_kwh: list[float] | None = None           # expected house use per hour without the air conditioners
+    load_kwh: list[float] | None = None           # expected house use per hour without the heat pump
     surplus_now_kw: float = 0.0                   # measured, sustained export right now
     battery_soc: float | None = None              # %
     battery_kwh: float | None = None              # usable capacity
@@ -187,6 +187,13 @@ def planner_prices(inp: EnergyInputs, ev: EnergyValue) -> list[HourPrices]:
         grid = ev.value[h] if ev.source[h] in (SOURCE_BATTERY, SOURCE_GRID, SOURCE_PREDBAT) else inp.import_price[h] + inp.grid_preference
         out.append(HourPrices(grid, exp[h], own, ev.source[h]))
     return out
+
+
+def house_use(grid_kw: float, pv_kw: float | None, battery_kw: float | None, import_positive: bool = True) -> float:
+    """What the house uses (kW, the heat pump included) from the grid meter, solar and battery (+ discharging): for
+    the usage profile when there is no sensor for the house itself."""
+    imp = grid_kw if import_positive else -grid_kw
+    return max(0.0, imp + (pv_kw or 0.0) + (battery_kw or 0.0))
 
 
 def solar_export_now(grid_kw: float | None, battery_kw: float | None, pv_kw: float | None, import_positive: bool = True) -> float:

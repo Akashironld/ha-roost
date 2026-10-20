@@ -130,6 +130,15 @@ def test_battery_selling_is_not_solar():
     assert abs(value.solar_export_now(grid_kw=2.0, battery_kw=None, pv_kw=None, import_positive=False) - 2.0) < 1e-9
 
 
+def test_house_use_from_grid_and_solar():
+    assert abs(value.house_use(grid_kw=0.5, pv_kw=2.0, battery_kw=None) - 2.5) < 1e-9          # buying and making
+    assert abs(value.house_use(grid_kw=-1.5, pv_kw=2.0, battery_kw=None) - 0.5) < 1e-9         # exporting the rest
+    assert abs(value.house_use(grid_kw=-1.0, pv_kw=3.0, battery_kw=-1.5) - 0.5) < 1e-9         # the battery charges
+    assert abs(value.house_use(grid_kw=0.0, pv_kw=0.0, battery_kw=0.8) - 0.8) < 1e-9           # the battery supplies
+    assert abs(value.house_use(grid_kw=1.5, pv_kw=2.0, battery_kw=None, import_positive=False) - 0.5) < 1e-9
+    assert value.house_use(grid_kw=-3.0, pv_kw=1.0, battery_kw=None) == 0.0                     # never below zero
+
+
 def test_planner_prices_split():
     inp = value.EnergyInputs(import_price=[0.30] * 4, export_price=[0.05] * 4, pv_kwh=[0, 3, 0, 0], load_kwh=[0.4] * 4)
     ev = value.compute(inp)
@@ -206,6 +215,23 @@ def test_a_warm_room_is_not_storing():
     assert r.code == "warm_enough" and r.args["room"] == 24.3, r
     p = planner.Plan([planner.HourPlan(21.0, 20.9, 0.6, 2.4, 0.1, 0.34)], 0, 0, 0, 0, 0, None)
     assert planner.explain(p, hours, 20.4, s).code == "store_solar"          # heat going in: it is storing
+
+def test_every_hour_has_its_reason():
+    """Issue #1: a reason per hour of the plan, each from the room expected at its start; cheap and dear on the price
+    the planner counts (18-10: 'charging at 45.7 ct' while the battery supplied at 29 ct)."""
+    s = planner.Settings(comfort=20.0)
+    hours = [planner.HourIn(t_out=8.0, wind=3.5, rad=0.0, p_grid=0.457 if i == 0 else 0.33, p_own=0.29 if i == 0 else 0.33)
+             for i in range(12)]
+    hp = [planner.HourPlan(21.0, 20.2, 0.5, 2.0, 0.15, 0.29)] + [planner.HourPlan(20.0, 20.1, 0.2, 0.8, 0.07, 0.33)] * 10 + \
+         [planner.HourPlan(19.0, 21.4, 0.0, 0.0, 0.0, 0.33)]
+    p = planner.Plan(hp, 0, 0, 0, 0, 0, None)
+    why = planner.explain_hours(p, hours, 20.4, s)
+    assert len(why) == 12
+    assert why[0].code == "store_cheap" and why[0].args["ct"] == 29.0, why[0]      # the price it counted, not the tariff
+    assert why[0] == planner.explain(p, hours, 20.4, s)                           # hour 0 is the reason shown on top
+    assert why[1].code == "holding"
+    assert why[11].code == "warm_enough" and why[11].args["room"] == 20.1          # the room expected at its start
+
 
 if __name__ == "__main__":
     run_all(dict(globals()))

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from .mgr_common import *  # noqa: F401,F403 - the shared imports and constants
 from .mgr_common import _LOGGER, _f, _i, _iso_ts  # noqa: F401
+from . import curve
 from .health import HealthMixin
 from .hourlog import HourLogMixin
 from .prices import PricesMixin
@@ -47,6 +48,8 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
         self.day_stats: dict[str, dict] = {}        # date -> the day in numbers (look back, day report)
         self.pred: dict[int, dict] = {}             # hour start -> room predicted for it 6 h and 1 h ahead
         self.window = window.WindowWatch()          # airing: Roost waits and does not learn from those hours
+        self.curve_advice = None                    # curve.CurveAdvice: the heating curve the house needs
+        self.weheat_settings: dict = {}             # the unit's own settings from Weheat (control method, curve)
         self.cost_today = 0.0
         self.kwh_today = 0.0
         self._cost_day: str | None = None
@@ -140,6 +143,9 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
         self.window.hours = set(int(h) for h in (data.get("window_hours") or []))
         self.pv_k = data.get("pv_k")
         self.load_profile = data.get("load_profile")
+        today = data.get("today") or {}
+        if today.get("day"):                # another day: the first tick closes it and starts today at zero
+            self._cost_day, self.cost_today, self.kwh_today = today["day"], float(today.get("cost") or 0.0), float(today.get("kwh") or 0.0)
         self.price_seen = {e: {int(k): v for k, v in d.items()} for e, d in (data.get("price_seen") or {}).items()}
         self.check = data.get("check") or {}
         self.changes = data.get("changes") or []
@@ -149,6 +155,8 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
         self.weheat_last = data.get("weheat_last") or self._weheat_last_from_events()
         self.event("start", mode=self.mode)
         self.building = data.get("building") if self.conf.get(CONF_USE_BAG) else None
+        self.curve_advice = curve.CurveAdvice.from_dict(data.get("curve"))
+        self.weheat_settings = data.get("weheat_settings") or {}
         if self.house.source != "learned":
             self.house = model.HouseModel(**self.house_start(), source="building register" if building.prior(self.building) else "default")
         self.ready, self.ready_missing = check.readiness(self.check, None, winter=self.check.get("winter")) if self.check else (False, [])
@@ -195,8 +203,9 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
             # an import in months was cut off by a restart: carry on with the older months
             self.spawn(self.async_import(WEHEAT_IMPORT_DAYS), "weheat import (resumed)")
         elif self.import_info.get("done") and self.import_info.get("fields", 1) < WEHEAT_FIELDS:
-            # imported by an older version: read again, now with the setpoint per hour (needed for the response)
-            self.spawn(self.async_import(WEHEAT_IMPORT_DAYS), "weheat import")
+            # imported by an older version: read the hourly logs again for the newer fields (setpoint, flow
+            # temperature); the energy per hour is there already
+            self.spawn(self.async_import(WEHEAT_IMPORT_DAYS, logs_only=True), "weheat import (new fields)")
         elif self.conf.get(CONF_IMPORT_ON_SETUP) and not self.import_info.get("done"):
             self.spawn(self.async_import(WEHEAT_IMPORT_DAYS), "weheat import")
         elif self.house.source != "learned":
@@ -249,13 +258,18 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
             "window_hours": sorted(h for h in self.window.hours if h > time.time() - 400 * 86400),
             "pred": {str(k): v for k, v in self.pred.items() if k > time.time() - 7200},
             "pv_k": self.pv_k, "load_profile": self.load_profile, "price_seen": self._price_seen_recent(),
+            "today": {"day": self._cost_day, "cost": round(self.cost_today, 4), "kwh": round(self.kwh_today, 3)},
             "check": self.check, "changes": [c for c in self.changes if c["ts"] > time.time() - 30 * 86400],
             "building": self.building,
+            "curve": self.curve_advice.as_dict() if self.curve_advice else None, "weheat_settings": self.weheat_settings,
             "sp_hist": {str(k): v for k, v in self.sp_hist.items() if k > time.time() - SP_HIST_DAYS * 86400},
             "room_models": {k: v.as_dict() for k, v in self.room_models.items() if any(r.id == k for r in self.rooms)},
             "weheat_last": self.weheat_last, "events": list(self.events)})
 
     async def _async_save_history(self) -> None:
+        cut = time.time() - HISTORY_KEEP_DAYS * 86400      # thirteen months: learning uses a year
+        self._weheat_hours = {k: v for k, v in self._weheat_hours.items() if k >= cut}
+        self._weather_hist = {k: v for k, v in self._weather_hist.items() if k >= cut}
         await self._hist_store.async_save({"weheat": {str(k): v for k, v in self._weheat_hours.items()},
                                            "weather": {str(k): list(v) for k, v in self._weather_hist.items()}})
 
@@ -715,6 +729,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
             self._issue_ready()
             self._issue_comfort()
             await self._async_learn_rooms(rows)
+            await self._async_curve(rows)
             if extra.get("pv_k"):
                 self.pv_k = extra["pv_k"]
             if extra.get("load_profile"):

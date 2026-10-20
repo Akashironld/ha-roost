@@ -1,6 +1,7 @@
 """Response to the thermostat, hot water profile, self-check and the correction from the last hours."""
 import math
 import os
+from datetime import datetime, timezone
 import random
 import sys
 
@@ -265,6 +266,14 @@ def test_slow_unit_plan_beats_a_steady_thermostat():
     evening = [x.sp for x, h in zip(p.hours, hours) if 17 <= h.hour < 21]
     afternoon = [x.sp for x, h in zip(p.hours, hours) if 13 <= h.hour < 17]
     assert max(evening) <= max(afternoon), (afternoon, evening)          # never more heat asked in the expensive evening
+
+
+def test_import_end_expected_sooner_with_logs_only():
+    """Adding fields reads only the hourly logs (once per two minutes), not the energy logs (once per half hour)."""
+    imp = {"months": 12, "months_done": 2, "at": "2026-10-20T09:45:00+00:00"}
+    at = datetime(2026, 10, 20, 9, 45, tzinfo=timezone.utc).timestamp()
+    assert check.import_done_at(imp, at) == at + 10 * 1800
+    assert check.import_done_at(imp, at, logs_only=True) == at + 10 * 150
 
 
 if __name__ == "__main__":

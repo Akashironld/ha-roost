@@ -44,9 +44,11 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
   Roost waits instead of heating the outdoors, and does not learn from it.
 - **Respects you.** At most one change an hour, steps aside for two hours when you change the thermostat, never below
   your minimums or its lowest setting, comfort suggestions instead of changing your settings by itself.
-- **Its own dashboard card** with the plan, the expected room temperature, the tariff per hour and what it saves — and
-  a **look back**: what was planned beside what happened, how well it predicted, a log of every change and why, and a
-  report to keep.
+- **Its own dashboard card** with the plan, the expected room temperature, the tariff per hour, **why each hour is what
+  it is**, and what it saves — and a **look back**: what was planned beside what happened, how well it predicted, a log
+  of every change and why, and a report to keep.
+- **Heating curve advice**: the flow temperatures your house needs, as the five points of the Weheat app, from your heat
+  loss, your floor or radiators and the heat pump's own logs — beside the curve it has now.
 
 ## Quick start
 

@@ -3,7 +3,7 @@
 The login is made in Roost's setup (or its reauth): the user logs in with the Weheat account on Weheat's page, through
 the app registration the Weheat integration already has in Home Assistant. Roost keeps the token in its config entry
 and refreshes it with Home Assistant's OAuth helper; when that is refused, Home Assistant asks the user to log in again.
-Endpoints are the Weheat third-party API (hourly logs and energy logs). The first import fetches the history a month
+Endpoints are the Weheat third-party API (hourly logs and energy logs; the installation settings for the heating curve). The first import fetches the history a month
 per call and Roost keeps it; after that only the last hours, once a night. Weheat's limits (logs at most every 2
 minutes, energy logs at most every half hour) are kept."""
 from __future__ import annotations
@@ -116,6 +116,40 @@ def _when(row: dict) -> datetime | None:
     return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
 
 
+CONTROL_METHODS = {1: "heating_curve", 2: "on_off", 3: "opentherm", 4: "opentherm_smart", 5: "cloud_thermostat"}
+
+
+async def async_settings(hass: HomeAssistant, entry_id: str, pump_id: str) -> dict | None:
+    """The installation's settings (read-only): how the unit is controlled and its heating curve. The heat pump does
+    not carry its installation: the list of installations does. {"available": False, ...} when Weheat does not give
+    them to this login (the advice then shows what the unit made instead of the curve it has); None on an error."""
+    try:
+        token = await _access(hass, entry_id)
+        session, auth = async_get_clientsession(hass), {"Authorization": f"Bearer {token}"}
+        async with session.get(f"{API_URL}/api/v1/installations", timeout=30, headers=auth) as r:
+            if r.status != 200:
+                return {"available": False, "status": r.status}
+            listed = await r.json()
+        items = listed.get("data", []) if isinstance(listed, dict) else listed if isinstance(listed, list) else []
+        inst = next((x.get("id") for x in items if isinstance(x, dict) and x.get("heatPumpId") == pump_id), None)
+        if not inst:
+            return {"available": False, "status": "no installation for this heat pump"}
+        async with session.get(f"{API_URL}/api/v1/installations/{inst}/settings", timeout=30, headers=auth) as r:
+            if r.status != 200:
+                return {"available": False, "status": r.status}
+            data = await r.json()
+    except Exception as err:  # noqa: BLE001 - an extra: never in the way of the rest
+        _LOGGER.debug("Roost: Weheat settings not available: %s", err)
+        return None
+    if not isinstance(data, dict):
+        return {"available": False, "status": "no object"}
+    xs, ys = data.get("heatingCurveX"), data.get("heatingCurveY")
+    curve = ([[float(x), float(y)] for x, y in zip(xs, ys)]
+             if isinstance(xs, list) and isinstance(ys, list) and len(xs) == len(ys) and xs else None)
+    return {"available": True, "control": CONTROL_METHODS.get(data.get("controlMethod"), data.get("controlMethod")),
+            "curve": curve}
+
+
 async def async_commissioned(hass: HomeAssistant, entry_id: str, pump_id: str) -> datetime | None:
     """When the heat pump was put into use: no history before it, so no need to ask for it."""
     try:
@@ -171,10 +205,11 @@ async def _get_window(hass: HomeAssistant, entry_id: str, path: str, kind: str, 
 
 
 async def async_fetch_months(hass: HomeAssistant, entry_id: str, pump_id: str, start: datetime, end: datetime,
-                             on_month, note=None, last_calls: dict | None = None) -> int:
+                             on_month, note=None, last_calls: dict | None = None, energy_logs: bool = True) -> int:
     """The history between start and end, newest month first, within Weheat's limits (logs at most every 2 minutes,
-    energy logs at most every half hour: a year takes some hours, in the background). After each month on_month(logs,
-    energy, oldest datetime done) is awaited, so Roost can keep and learn from what came in. -> number of calls."""
+    energy logs at most every half hour: a year takes some hours, in the background; logs alone, to add fields to
+    hours Roost already has, about half an hour). After each month on_month(logs, energy, oldest datetime done) is
+    awaited, so Roost can keep and learn from what came in. -> number of calls."""
     first = await async_commissioned(hass, entry_id, pump_id) if end - start > timedelta(days=31) else None
     if first and first > start:
         start = first
@@ -189,7 +224,8 @@ async def async_fetch_months(hass: HomeAssistant, entry_id: str, pump_id: str, s
                 raise RuntimeError("the Weheat API refuses even short periods")
             span = span / 2
             continue
-        energy = await _get_window(hass, entry_id, f"/api/v1/energy-logs/{pump_id}", "energy", t, t2, pacer, note)
+        energy = await _get_window(hass, entry_id, f"/api/v1/energy-logs/{pump_id}", "energy", t, t2, pacer, note) \
+            if energy_logs else []
         if energy is None:                      # energy logs may allow less: same period in halves
             energy = []
             mid = t + (t2 - t) / 2

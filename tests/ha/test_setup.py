@@ -129,3 +129,74 @@ async def test_a_window_open_leaves_the_thermostat_alone(hass: HomeAssistant, en
     await m._async_control(time.time())
     await hass.async_block_till_done()
     assert not climate_calls and m.decision.why.code == "window_open" and m.reason.code == "window_open"
+
+
+async def test_today_survives_a_restart(hass: HomeAssistant, entry) -> None:
+    """Issue #2: the heating electricity and cost of today are kept over a restart; a saved earlier day starts at zero."""
+    from homeassistant.util import dt as dt_util
+
+    m = entry.runtime_data
+    m._cost_day, m.cost_today, m.kwh_today = dt_util.now().date().isoformat(), 1.234, 4.56
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    m = entry.runtime_data
+    assert (round(m.cost_today, 3), round(m.kwh_today, 2)) == (1.234, 4.56)
+    assert hass.states.get("sensor.roost_heating_cost_today").state == "1.23"
+
+    m._cost_day = "2020-01-01"
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    m = entry.runtime_data
+    await m._async_tick(None)
+    assert m._cost_day == dt_util.now().date().isoformat() and m.cost_today == 0.0
+
+
+async def test_house_use_from_grid_and_solar(hass: HomeAssistant, weheat: str) -> None:
+    """No sensor for the house: the usage profile comes from the grid meter and solar."""
+    from datetime import timedelta
+    from unittest.mock import patch
+
+    from homeassistant.util import dt as dt_util
+
+    from custom_components.roost import learning
+
+    entry = await setup_roost(hass, weheat, {"has_solar": True, "grid_power": "sensor.grid", "pv_power": "sensor.pv"})
+    hass.states.async_set("sensor.grid", "0", {"unit_of_measurement": "W"})
+    hass.states.async_set("sensor.pv", "0", {"unit_of_measurement": "kW"})
+    end = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
+    hours = [end - timedelta(hours=i) for i in range(1, 15 * 24)]
+    # every hour: 300 W from the grid and 0.2 kW of solar; the pv sensor is unavailable at night (no statistics)
+    stats = {"sensor.grid": [{"start": t, "mean": 300.0} for t in hours],
+             "sensor.pv": [{"start": t, "mean": 0.2} for t in hours if 6 <= dt_util.as_local(t).hour < 20]}
+    m = entry.runtime_data
+    m._weather = {int(t.timestamp()): (8.0, 0.2 if 6 <= dt_util.as_local(t).hour < 20 else 0.0, 3.0) for t in hours}
+    with patch.object(learning.statistics, "statistics_during_period", return_value=stats), \
+            patch.object(learning, "_async_archive", return_value=None):
+        _rows, extra = await learning.async_rows(m)
+    prof = extra["load_profile"]
+    assert prof[12] == 0.5 and prof[2] == 0.3         # day: grid + solar; night: grid only
+
+
+async def test_every_plan_hour_has_a_reason(hass: HomeAssistant, entry) -> None:
+    """Issue #1: the planned-setpoint sensor carries a reason (code + values) for every hour of the plan."""
+    a = hass.states.get(_plan_entity(hass)).attributes
+    assert len(a["plan_why"]) == len(a["plan"])
+    assert all(isinstance(code, str) and isinstance(args, dict) for code, args in a["plan_why"])
+
+
+async def test_heating_curve_advice_sensor(hass: HomeAssistant, entry) -> None:
+    """The advice and the unit's own curve (when Weheat gives the installation's settings) on their sensor."""
+    from custom_components.roost import curve
+
+    m = entry.runtime_data
+    m.curve_advice = curve.CurveAdvice(points=[[-20.0, 46.0, None], [9.0, 30.5, 31.5], [15.0, None, 31.9], [20.0, None, None],
+                                               [25.0, None, None]], room=21.0, ua_kw=0.167, base_kw=-0.41, margin_kw=0.8,
+                                       k_kw=0.209, n=1.1, cycling_from=8.0, days=142, hours=1880, out_min=-1.3, out_max=11.9,
+                                       reliable=True, extrapolated=[-20.0])
+    m.weheat_settings = {"available": True, "control": "opentherm_smart", "curve": [[-20.0, 39.0], [9.0, 30.0]]}
+    m._notify()
+    await hass.async_block_till_done()
+    st = next(s for s in hass.states.async_all("sensor") if s.entity_id.endswith("heating_curve_advice"))
+    assert abs(float(st.state) - (46.0 + (30.5 - 46.0) * 20 / 29)) < 0.1            # 0 °C on the line from −20 to 9
+    assert st.attributes["control"] == "opentherm_smart" and st.attributes["points"][1][2] == 31.5
+    assert st.attributes["cycling_from"] == 8.0 and st.attributes["heat_loss_w_per_k"] == 167

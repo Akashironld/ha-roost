@@ -422,6 +422,9 @@
       },
       "heat_planned": {
         "name": "Warmte gepland dit uur"
+      },
+      "heating_curve": {
+        "name": "Stooklijnadvies"
       }
     },
     "binary_sensor": {

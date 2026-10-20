@@ -422,6 +422,9 @@
       },
       "heat_planned": {
         "name": "Geplante Wärme diese Stunde"
+      },
+      "heating_curve": {
+        "name": "Heizkurven-Empfehlung"
       }
     },
     "binary_sensor": {

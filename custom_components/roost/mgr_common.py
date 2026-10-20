@@ -52,7 +52,9 @@ DHW_WEEKS = 8                 # hot water profile from the last weeks
 EVENTS_KEPT = 300             # what Roost did, for a bug report
 SP_HIST_DAYS = 120            # own record of the thermostat's setpoint per hour
 NO_LEVER_KW = 0.2             # learned gain below this (kW per °C): the setpoint hardly moves the heat pump
-WEHEAT_FIELDS = 2             # 2: the import includes the setpoint per hour
+HISTORY_KEEP_DAYS = 400       # Weheat hours and past weather kept: a year for learning, and a month to spare
+WEHEAT_FIELDS = 4             # 2: the setpoint per hour; 3: flow and return temperature; 4: thermostat demand, backup
+                              # heater, boiler, compressor limits, errors, flow rate (history.EXTRA_LOGS)
 NOT_FOLLOWING_MIN = 45
 ROOM_SILENT_MIN = 30
 

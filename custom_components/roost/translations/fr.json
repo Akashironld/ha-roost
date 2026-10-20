@@ -422,6 +422,9 @@
       },
       "heat_planned": {
         "name": "Chaleur prévue cette heure"
+      },
+      "heating_curve": {
+        "name": "Conseil de courbe de chauffe"
       }
     },
     "binary_sensor": {

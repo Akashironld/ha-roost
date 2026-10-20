@@ -10,8 +10,9 @@ from homeassistant.components.recorder import get_instance, statistics
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import dt as dt_util
 
-from . import history, weather as om
-from .const import CONF_HOUSE_POWER, CONF_PV_POWER, CONF_ROOM, HISTORY_DAYS
+from . import history, value, weather as om
+from .const import (CONF_BATTERY_POWER, CONF_BATTERY_SOC, CONF_GRID_POWER, CONF_GRID_SIGN, CONF_HOUSE_POWER, CONF_PV_POWER,
+                    CONF_ROOM, HISTORY_DAYS)
 
 if TYPE_CHECKING:
     from .manager import RoostManager
@@ -22,6 +23,18 @@ ENERGY_ROLES = ("heat", "heat_defrost", "elec", "elec_defrost", "elec_dhw")
 
 def _ts(v) -> int:
     return int(v.timestamp() if isinstance(v, datetime) else float(v))
+
+
+def _to_kw(hass, eid: str) -> float:
+    """Factor from the sensor's unit to kW (W unless it says otherwise)."""
+    st = hass.states.get(eid)
+    return 0.001 if st is None or str(st.attributes.get("unit_of_measurement", "W")).lower() == "w" else 1.0
+
+
+def _derive_house(conf: dict) -> bool:
+    """No sensor for the house itself: work it out from the grid meter and solar (and the battery, when there is one)."""
+    return (not conf.get(CONF_HOUSE_POWER) and bool(conf.get(CONF_GRID_POWER)) and bool(conf.get(CONF_PV_POWER))
+            and (bool(conf.get(CONF_BATTERY_POWER)) or not conf.get(CONF_BATTERY_SOC)))
 
 
 async def _async_archive(mgr: "RoostManager", start: datetime, end: datetime) -> None:
@@ -76,6 +89,10 @@ async def async_rows(mgr: "RoostManager") -> tuple[list, dict]:
         ids["pv"] = conf[CONF_PV_POWER]
     if conf.get(CONF_HOUSE_POWER):
         ids["house"] = conf[CONF_HOUSE_POWER]
+    elif _derive_house(conf):
+        ids["grid"] = conf[CONF_GRID_POWER]
+        if conf.get(CONF_BATTERY_POWER):
+            ids["battery"] = conf[CONF_BATTERY_POWER]
     stats = await get_instance(hass).async_add_executor_job(
         statistics.statistics_during_period, hass, start, end, set(ids.values()), "hour", None, {"mean", "change"})
 
@@ -111,18 +128,28 @@ async def async_rows(mgr: "RoostManager") -> tuple[list, dict]:
     extra: dict = {}
     pv = [(v["pv"], wx[t][1]) for t, v in ha.items() if "pv" in v and t in wx and wx[t][1] >= 0.3]
     if len(pv) >= 30:
-        unit = (hass.states.get(conf[CONF_PV_POWER]).attributes.get("unit_of_measurement", "W") if hass.states.get(conf[CONF_PV_POWER]) else "W")
-        k = 0.001 if str(unit).lower() == "w" else 1.0
+        k = _to_kw(hass, conf[CONF_PV_POWER])
         ratios = sorted(p * k / r for p, r in pv)
         extra["pv_k"] = round(min(50.0, max(0.0, ratios[len(ratios) // 2])), 3)
+    house: dict[int, float] = {}            # hour -> kWh the house used, the heat pump included
     if conf.get(CONF_HOUSE_POWER):
-        st = hass.states.get(conf[CONF_HOUSE_POWER])
-        k = 0.001 if st is None or str(st.attributes.get("unit_of_measurement", "W")).lower() == "w" else 1.0
-        per: dict[int, list[float]] = defaultdict(list)
+        k = _to_kw(hass, conf[CONF_HOUSE_POWER])
+        house = {t: v["house"] * k for t, v in ha.items() if "house" in v}
+    elif _derive_house(conf):
+        kg, kp = _to_kw(hass, conf[CONF_GRID_POWER]), _to_kw(hass, conf[CONF_PV_POWER])
+        kb = _to_kw(hass, conf[CONF_BATTERY_POWER]) if conf.get(CONF_BATTERY_POWER) else 1.0
+        imp_pos = conf.get(CONF_GRID_SIGN, "import_positive") == "import_positive"
         for t, v in ha.items():
-            if "house" in v and t >= end.timestamp() - 21 * 86400:
-                hp_kwh = v.get("e", 0.0) + v.get("dhw_e", 0.0)
-                per[dt_util.as_local(datetime.fromtimestamp(t, tz=timezone.utc)).hour].append(max(0.0, v["house"] * k - hp_kwh))
+            # many inverters go unavailable at night: no solar reading in a dark hour is no solar
+            pv_kw = v["pv"] * kp if "pv" in v else (0.0 if t in wx and wx[t][1] < 0.005 else None)
+            if "grid" in v and pv_kw is not None and ("battery" in v or "battery" not in ids):
+                house[t] = value.house_use(v["grid"] * kg, pv_kw, v["battery"] * kb if "battery" in v else None, imp_pos)
+    if house:
+        per: dict[int, list[float]] = defaultdict(list)
+        for t, kwh in house.items():
+            if t >= end.timestamp() - 21 * 86400:
+                hp_kwh = ha[t].get("e", 0.0) + ha[t].get("dhw_e", 0.0)
+                per[dt_util.as_local(datetime.fromtimestamp(t, tz=timezone.utc)).hour].append(max(0.0, kwh - hp_kwh))
         if len(per) == 24 and all(len(x) >= 3 for x in per.values()):
             extra["load_profile"] = [round(sorted(per[h])[len(per[h]) // 2], 3) for h in range(24)]
     return rows, extra
