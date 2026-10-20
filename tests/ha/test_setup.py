@@ -8,7 +8,7 @@ from homeassistant.core import Context, HomeAssistant
 
 from custom_components.roost.diagnostics import async_get_config_entry_diagnostics
 
-from .conftest import THERMOSTAT, thermostat
+from .conftest import THERMOSTAT, setup_roost, thermostat
 
 
 def _plan_entity(hass: HomeAssistant) -> str:

@@ -77,7 +77,7 @@ async def test_comfort_checks(hass: HomeAssistant, weheat: str) -> None:
 
 async def test_options_menu_saves_each_part(hass: HomeAssistant, entry) -> None:
     r = await hass.config_entries.options.async_init(entry.entry_id)
-    assert r["type"] is FlowResultType.MENU and r["menu_options"] == ["mode", "house", "price", "solar", "comfort", "done"]
+    assert r["type"] is FlowResultType.MENU and r["menu_options"] == ["mode", "house", "price", "solar", "comfort", "notify", "done"]
     assert "comfort" in r["description_placeholders"] and r["description_placeholders"]["saved"] == ""
     r = await hass.config_entries.options.async_configure(r["flow_id"], {"next_step_id": "comfort"})
     r = await hass.config_entries.options.async_configure(r["flow_id"], {**COMFORT, "comfort": 21.0, "store_max": 23.0})
