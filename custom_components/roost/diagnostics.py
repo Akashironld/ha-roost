@@ -15,7 +15,7 @@ from homeassistant.loader import async_get_integration
 
 from . import RoostConfigEntry, recent_log
 from .const import WEHEAT
-from .manager import HOUR_LOG_KEPT
+from .manager import HOUR_LOG_KEPT, PLAN_LOG_KEPT
 
 REDACT = {"lat", "lon", "latitude", "longitude", "access_token", "refresh_token", "token"}
 
@@ -63,7 +63,7 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: RoostCo
                  "inputs": [vars(h) for h in m.plan_hours], "hours": [h.as_dict() for h in p.hours] if p else None,
                  "tariff": m.plan_tariff, "tariff_guessed": m.plan_guess,
                  "cost": p.cost if p else None, "steady_cost": p.baseline_cost if p else None, "rooms": m.room_status},
-        "hour_log": m.hour_log[-HOUR_LOG_KEPT:], "saving_days": m.saving_days, "day_stats": m.day_stats,
+        "hour_log": m.hour_log[-HOUR_LOG_KEPT:], "plan_log": m.plan_log[-PLAN_LOG_KEPT:], "saving_days": m.saving_days, "day_stats": m.day_stats,
         "thermostat_history": {str(k): v for k, v in sorted(m.sp_hist.items())[-72:]},
         "rooms": [vars(r) for r in m.rooms], "changes_by_hand": m.changes[-40:],
         "suggestion": m.suggestion.as_dict() if m.suggestion else None, "issues": sorted(m.health.issues),

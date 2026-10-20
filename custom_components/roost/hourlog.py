@@ -26,10 +26,27 @@ class HourLogMixin:
                               "sp_plan": self.plan.first.sp if self.plan and self.plan.first else None,
                               "reason": self.reason.code, "args": dict(self.reason.args),
                               "p6": pr.get("p6"), "p1": pr.get("p1"), "mode": self.mode, "window": hour in self.window.hours,
-                              "paused": bool(self.mem.pause_until and self.mem.pause_until > time.time())})
+                              "paused": bool(self.mem.pause_until and self.mem.pause_until > time.time()),
+                              # forecast 6 h before for this hour: [outdoor °C, sun, price, price guessed]
+                              "f6": pr.get("f6"), "corr": [self.corr_kw, self.corr_sun]})
         self.hour_log = self.hour_log[-HOUR_LOG_KEPT:]
+        self._log_plan(hour, room)
         self.pred = {k: v for k, v in self.pred.items() if k > hour - 7200}
         self.spawn(self.async_save(), "save the hour", background=False)   # a crash or power cut loses at most an hour
+
+    def _log_plan(self, hour: int, room: float) -> None:
+        """Everything the plan in force saw, so a decision can be replayed exactly (planner.plan with these hours, room,
+        storage, output and setpoint): per hour ahead [outdoor °C, sun, wind, grid price, own price, own solar kW, hot
+        water share, correction kW, price guessed], and the setpoints it planned."""
+        p, guess = self.plan, self.plan_guess
+        self.plan_log.append({
+            "ts": hour, "at": round(self.plan_at or 0), "room": round(room, 2), "E": round(self.storage_e, 2),
+            "w_now": None if self.plan_w_now is None else round(self.plan_w_now, 2), "sp_now": self.thermostat_sp(),
+            "corr": [self.corr_kw, self.corr_sun, self.corr_n],
+            "hours": [[round(h.t_out, 1), round(h.rad, 3), round(h.wind, 1), round(h.p_grid, 4), round(h.p_own, 4), round(h.own_kw, 2),
+                       round(h.dhw, 2), round(h.extra_kw, 3), guess[i] if i < len(guess) else None] for i, h in enumerate(self.plan_hours)],
+            "sp": [x.sp for x in p.hours] if p else None})
+        self.plan_log = self.plan_log[-PLAN_LOG_KEPT:]
 
     def _remember_prediction(self, now: datetime, p) -> None:
         """The room the plan expects at the start of the coming hours, 1 and 6 hours ahead, to set beside what happened."""
@@ -38,6 +55,10 @@ class HourLogMixin:
             ahead = j + 1
             if ahead in (1, 6):
                 self.pred.setdefault(base + ahead * 3600, {})[f"p{ahead}"] = round(hp.t_end, 2)
+        if len(self.plan_hours) > 6:
+            # the inputs this plan expects 6 hours ahead, to set beside what came: weather forecast and price errors
+            h, guess = self.plan_hours[6], self.plan_guess[6] if len(self.plan_guess) > 6 else None
+            self.pred.setdefault(base + 6 * 3600, {})["f6"] = [round(h.t_out, 1), round(h.rad, 3), round(h.p_grid, 4), guess]
 
     async def _async_close_day(self, day: str) -> None:
         """Replay yesterday with what Roost set and with a steady thermostat, from the same start (same model, same

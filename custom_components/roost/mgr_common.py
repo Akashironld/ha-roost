@@ -40,6 +40,7 @@ from .weheat_api import WeheatLoginNeeded, WeheatUnavailable, async_fetch_histor
 
 _LOGGER = logging.getLogger(f"{__package__}.manager")   # the name it always had (log settings, bug reports)
 HOUR_LOG_KEPT = 7 * 24 + 2                       # a week of hours: the replay of yesterday and the look back
+PLAN_LOG_KEPT = 48                               # the plan's inputs per hour (2 days): to replay a decision exactly
 
 
 def _iso_ts(v) -> float:

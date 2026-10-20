@@ -16,13 +16,14 @@ sun = load("sun")
 DAY0 = 20_000
 
 
-def simulate_house(p, days=40, seed=3, winter=True):
-    """A house following the model exactly, heated by a thermostat on 20.5 °C, plus measurement noise."""
+def simulate_house(p, days=40, seed=3, winter=True, mild_last=0):
+    """A house following the model exactly, heated by a thermostat on 20.5 °C, plus measurement noise. mild_last: the
+    last days this many at 18 °C outside (no heating)."""
     rnd = random.Random(seed)
     rows, T, E = [], 20.5, 0.0
     lag = p["lag"]
     for d in range(days):
-        base = 3.0 if winter else 13.0
+        base = 18.0 if d >= days - mild_last else 3.0 if winter else 13.0
         for h in range(24):
             t_out = base + 4 * math.sin((h - 9) / 24 * 2 * math.pi) + rnd.uniform(-1, 1)
             rad = max(0.0, 0.4 * math.sin((h - 7) / 11 * math.pi)) if 7 <= h <= 18 else 0.0
@@ -196,6 +197,58 @@ def test_after_insulating_recent_heating_wins():
     w = model.recency_weights({r.ts: r for r in rows}, model.select_days(rows))
     days = sorted(w)
     assert w[days[-1]] == 1.0 and w[days[0]] < 0.6, (w[days[0]], w[days[-1]])
+
+
+def _days(heat: list[float]) -> dict:
+    """An index of hours with this heat per hour, one value per day."""
+    return {(DAY0 + d) * 86400 + h * 3600: model.HourRow(ts=(DAY0 + d) * 86400 + h * 3600, T=21.0, T_out=10.0, Q=q)
+            for d, q in enumerate(heat) for h in range(24)}
+
+
+def test_newest_heating_days_over_a_summer_are_a_season():
+    """In autumn the 30 newest heating days reach back to spring: no verdict on a changed house from those."""
+    days = [DAY0 + d for d in range(180)]
+    autumn = _days([1.0] * 40 + [0.0] * 130 + [1.0] * 10)
+    assert model.recent_days(autumn, days) == []
+    winter = _days([0.0] * 100 + [1.0] * 80)
+    assert model.recent_days(winter, days)[0] == DAY0 + 150
+
+
+def test_mild_test_days_give_no_verdict_on_the_house():
+    """The newest heating days are tried against the year's model only when the test days were heated too."""
+    days = [DAY0 + d for d in range(80)]
+    train, test = days[:-3], days[-3:]
+    assert len(model.changed_house_days(_days([1.0] * 80), days, train, test)) == 30 - 3
+    assert model.changed_house_days(_days([1.0] * 78 + [0.0] * 2), days, train, test) == []
+
+
+def test_mild_test_days_keep_a_learned_model():
+    """On mild days without heating the generic house (here: the true one) predicts best, but it does not replace a
+    learned model there: the learned model is refitted or kept."""
+    rows = simulate_house(model.PRIOR, days=25, seed=5, mild_last=5)
+    learned = model.HouseModel(C=14.0, H=0.16, g=3.0, lag=0.8, internal=0.3, source="learned")
+    res = model.learn(rows, learned)
+    assert res.model.source == "learned" and "default" not in res.scores, (res.reason, res.scores)
+    idx, test = {r.ts: r for r in rows}, model.select_days(rows)[-3:]
+    assert not model.default_may_replace(idx, learned, test)
+    assert model.default_may_replace(idx, model.HouseModel(C=14.0, H=0.16), test)     # nothing learned yet: it may
+
+
+def test_heating_days_still_replace_a_learned_model_gone_wrong():
+    rows = simulate_house(model.PRIOR, days=20, seed=5)
+    wrong = model.HouseModel(C=10.0, H=0.22, g=2.0, lag=0.4, internal=0.4, source="learned")
+    res = model.learn(rows, wrong)
+    assert res.model.source == "default" and res.model.H == model.PRIOR["H"], (res.reason, res.scores)
+    days = model.select_days(rows)
+    assert model.default_may_replace({r.ts: r for r in rows}, wrong, days[-3:])
+
+
+def test_learning_waits_for_the_newest_hours():
+    rows = simulate_house(TRUE, days=10)
+    newest = max(r.ts for r in rows)
+    assert not model.stale(rows, newest + 3600)
+    assert model.stale(rows, newest + 3 * 86400)
+    assert model.stale([], newest)
 
 
 if __name__ == "__main__":

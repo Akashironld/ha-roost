@@ -61,6 +61,17 @@ async def test_diagnostics_and_unload(hass: HomeAssistant, entry) -> None:
     assert entry.state is ConfigEntryState.NOT_LOADED
 
 
+async def test_the_plan_inputs_are_kept_for_a_replay(hass: HomeAssistant, entry) -> None:
+    """Each hour the plan in force is kept with all it saw, so a decision can be replayed from the diagnostics."""
+    m = entry.runtime_data
+    assert m.plan and m.plan_hours
+    m._log_plan(int(time.time() // 3600 * 3600), 20.3)
+    d = await async_get_config_entry_diagnostics(hass, entry)
+    snap = d["plan_log"][-1]
+    assert snap["room"] == 20.3 and len(snap["hours"]) == len(m.plan_hours) and len(snap["hours"][0]) == 9
+    assert snap["sp"] == [h.sp for h in m.plan.hours]
+
+
 async def test_without_a_weheat_login_it_asks_for_one(hass: HomeAssistant, entry) -> None:
     """Installed without a Weheat login (or from before 0.5.3): Home Assistant shows the re-authenticate notice."""
     flows = hass.config_entries.flow.async_progress_by_handler("roost")

@@ -47,6 +47,8 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
         self.saving_days: dict[str, float] = {}     # date -> saving (currency)
         self.day_stats: dict[str, dict] = {}        # date -> the day in numbers (look back, day report)
         self.pred: dict[int, dict] = {}             # hour start -> room predicted for it 6 h and 1 h ahead
+        self.plan_log: list[dict] = []              # per hour: everything the plan in force saw (replay a decision)
+        self.plan_w_now: float | None = None        # the unit's output the last plan started from (kW)
         self.window = window.WindowWatch()          # airing: Roost waits and does not learn from those hours
         self.curve_advice = None                    # curve.CurveAdvice: the heating curve the house needs
         self.weheat_settings: dict = {}             # the unit's own settings from Weheat (control method, curve)
@@ -140,6 +142,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
         self.saving_days = data.get("saving_days", {})
         self.day_stats = data.get("day_stats") or {}
         self.pred = {int(k): v for k, v in (data.get("pred") or {}).items()}
+        self.plan_log = data.get("plan_log") or []
         self.window.hours = set(int(h) for h in (data.get("window_hours") or []))
         self.pv_k = data.get("pv_k")
         self.load_profile = data.get("load_profile")
@@ -257,6 +260,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
             "day_stats": dict(sorted(self.day_stats.items())[-62:]),
             "window_hours": sorted(h for h in self.window.hours if h > time.time() - 400 * 86400),
             "pred": {str(k): v for k, v in self.pred.items() if k > time.time() - 7200},
+            "plan_log": self.plan_log[-PLAN_LOG_KEPT:],
             "pv_k": self.pv_k, "load_profile": self.load_profile, "price_seen": self._price_seen_recent(),
             "today": {"day": self._cost_day, "cost": round(self.cost_today, 4), "kwh": round(self.kwh_today, 3)},
             "check": self.check, "changes": [c for c in self.changes if c["ts"] > time.time() - 30 * 86400],
@@ -560,11 +564,11 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
             p = await self.hass.async_add_executor_job(planner.plan, self.house, self.pump, s, hours, room, self.storage_e,
                                                        self.thermostat_sp(), 24, w_now, room_in)
             self.room_status = [{**meta, "expected": temps[:24]} for meta, temps in zip(room_meta, p.rooms)]
-            self.plan, self.plan_hours, self.plan_at = p, hours, now.timestamp()
-            self._remember_prediction(now, p)
+            self.plan, self.plan_hours, self.plan_at, self.plan_w_now = p, hours, now.timestamp(), w_now
             self.plan_tariff = list(inp.import_price)
             mode = self.conf.get(CONF_PRICE_MODE)
             self.plan_guess = [] if mode == "fixed" else list(self._price_guess.get("epex_import" if mode == "epex" else self.conf.get(CONF_IMPORT_PRICE)) or [])
+            self._remember_prediction(now, p)
             self.reason = planner.explain(p, hours, room, s, self.pump, self.house, self.conf.get(CONF_EMITTER, "floor") == "floor")
             self._last_reason_code = None
         finally:
@@ -691,7 +695,16 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin):
         self._learning = True
         try:
             from .learning import async_rows
+            if not self._weather:
+                await self._async_weather()           # just after a start the forecast service may not have answered yet
             rows, extra = await async_rows(self)
+            if model.stale(rows, time.time()):
+                # without the newest hours the test days would be weeks old (seen 18-10-2026: the last row in July after
+                # a restart without weather, and a summer model taken in October): wait for the next run
+                newest = max((r.ts for r in rows), default=None)
+                self.event("learn_skipped", reason="no recent hours",
+                           newest=datetime.fromtimestamp(newest, tz=timezone.utc).isoformat() if newest else None)
+                return
             # airing: those hours look like a house that suddenly loses much more heat; leave them out
             rows = [r for r in rows if r.ts not in self.window.hours]
             # hours without the setpoint in the Weheat logs (an on/off thermostat): Roost's own record of the thermostat

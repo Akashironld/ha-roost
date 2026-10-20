@@ -211,6 +211,21 @@ RECENT_HEATING_DAYS = 30     # these newest heating days count fully ...
 HEATING_HALF_LIFE = 30.0     # ... older ones halve every this many heating days
 NO_HEATING_WEIGHT = 0.25     # a day without heating (summer: windows open, high sun, the heat pump idle) counts less
 CHANGED_BY = 0.15            # the newest heating days alone must predict this much better to replace the year's model
+RECENT_SPAN_DAYS = 60        # ... and lie within this many days: 30 heating days that bridge a summer mix spring and
+                             # autumn, and beat the year's model on mild days for the season, not for a changed house
+RECENT_TEST_HEATED = 2       # ... and at least this many of the test days must be heating days
+HEATING_DAY_KWH = 5.0        # heat in a day (kWh) that makes it a heating day
+STALE_HOURS = 30             # the newest hour must be this recent to learn (else the test days would be old ones)
+
+
+def heating_day(idx: dict[int, HourRow], d: int) -> bool:
+    return sum(idx[d * 86400 + h * 3600].Q for h in range(24) if d * 86400 + h * 3600 in idx) >= HEATING_DAY_KWH
+
+
+def stale(rows: list[HourRow], now: float) -> bool:
+    """The newest hours are missing (no recent weather after a restart, statistics not there yet): learning would test
+    on days weeks old and take a model for another season."""
+    return not rows or max(r.ts for r in rows) < now - STALE_HOURS * 3600
 
 
 def recency_weights(idx: dict[int, HourRow], days: list[int], full: int = RECENT_HEATING_DAYS,
@@ -219,9 +234,7 @@ def recency_weights(idx: dict[int, HourRow], days: list[int], full: int = RECENT
     age last winter: in autumn it still counts (there is little new heating yet), but once a new heating season runs it
     takes over (after insulating, a new window, …). Days without heating count a quarter once there are at least 20
     heating days: they say little about a house that is heated, and summer behaviour (open windows) misleads."""
-    def heated(d: int) -> bool:
-        return sum(idx[d * 86400 + h * 3600].Q for h in range(24) if d * 86400 + h * 3600 in idx) >= 5.0
-    heating = sorted((d for d in days if heated(d)), reverse=True)
+    heating = sorted((d for d in days if heating_day(idx, d)), reverse=True)
     damp = NO_HEATING_WEIGHT if len(heating) >= 20 else 1.0
     out = {}
     for d in days:
@@ -231,13 +244,32 @@ def recency_weights(idx: dict[int, HourRow], days: list[int], full: int = RECENT
     return out
 
 
-def recent_days(idx: dict[int, HourRow], days: list[int], n: int = RECENT_HEATING_DAYS) -> list[int]:
-    """The days from the n-th newest heating day on: the house as it is now."""
-    heating = sorted((d for d in days if sum(idx[d * 86400 + h * 3600].Q for h in range(24) if d * 86400 + h * 3600 in idx) >= 5.0),
-                     reverse=True)
-    if len(heating) < n:
+def recent_days(idx: dict[int, HourRow], days: list[int], n: int = RECENT_HEATING_DAYS,
+                span: int = RECENT_SPAN_DAYS) -> list[int]:
+    """The days from the n-th newest heating day on: the house as it is now. Empty when those heating days are spread
+    over more than `span` days (in autumn the 30 newest reach back to spring: that is a season, not the house now)."""
+    heating = sorted((d for d in days if heating_day(idx, d)), reverse=True)
+    if len(heating) < n or heating[n - 1] < days[-1] - span:
         return []
     return [d for d in days if d >= heating[n - 1]]
+
+
+def changed_house_days(idx: dict[int, HourRow], days: list[int], train: list[int], test: list[int]) -> list[int]:
+    """The training days to try as 'the house now' against the year's model (insulation, new windows): the newest
+    heating days, only when the test days were heated too (mild days without heating say little about the heat loss,
+    and a model of the same season wins them anyway)."""
+    if sum(1 for d in test if heating_day(idx, d)) < RECENT_TEST_HEATED:
+        return []
+    keep = set(train)
+    return [d for d in recent_days(idx, days) if d in keep]
+
+
+def default_may_replace(idx: dict[int, HourRow], previous: "HouseModel", test: list[int]) -> bool:
+    """Whether the generic house may replace the previous model: always while nothing is learned, a learned model only
+    when the test days were heated (a model gone wrong shows there). On mild days without heating the generic house
+    wins by chance (no internal gains, little to get wrong), predicts the heating days after worse than the model it
+    replaced, and the next run would centre its fit on it again."""
+    return previous.source != "learned" or sum(1 for d in test if heating_day(idx, d)) >= RECENT_TEST_HEATED
 
 
 def fit(idx: dict[int, HourRow], days: list[int], centre: dict, spread: dict = SPREAD, weights: dict[int, float] | None = None) -> dict:
@@ -372,7 +404,7 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
     ix_new = idx_for(facade, vertical)
     # the house as it is now: only the newest heating days. Wins when the house changed (insulation, new windows) and the
     # model over the whole year mixes the old and the new house; otherwise the model with more data wins the tie
-    recent = [d for d in recent_days({r.ts: r for r in rows}, days) if d in set(train)]
+    recent = changed_house_days({r.ts: r for r in rows}, days, train, test)
     recent_p = fit(ix_new, recent, centre) if len(recent) >= 10 else None
     options = [("new", candidate, ix_new, None)] + ([("recent", recent_p, ix_new, None)] if recent_p else []) + [
                ("previous", previous.params(), idx_for(previous.sun_facade, previous.sun_vertical), previous.profile),
@@ -384,12 +416,14 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
             scores[name] = e
     if not scores:
         return LearnResult(previous, False, "no test data")
+    if "default" in scores and len(scores) > 1 and not default_may_replace(ix_new, previous, test):
+        del scores["default"]
     if "recent" in scores and "new" in scores and scores["recent"][2] > scores["new"][2] * (1 - CHANGED_BY):
         del scores["recent"]          # not clearly better: a season, not a changed house (the year's model knows winter)
     best = min(v[2] for v in scores.values())
     choice = next(n for n, *_ in options if n in scores and scores[n][2] <= best + MARGIN)
     idx = ix_new
-    heating = sum(1 for d in days if sum(idx[d * 86400 + h * 3600].Q for h in range(24) if d * 86400 + h * 3600 in idx) >= 5.0)
+    heating = sum(1 for d in days if heating_day(idx, d))
     rounded = {k: {"temperature": round(v[0], 3), "balance_kw": round(v[1], 3)} for k, v in scores.items()}
     rounded["sun"] = {f"{f:g}/{v:g}": round(e, 3) for e, f, v in tried if e < 1e9}
     rounded["sun_chosen"] = f"{facade:g}/{vertical:g}"
