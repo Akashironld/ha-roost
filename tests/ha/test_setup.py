@@ -211,3 +211,14 @@ async def test_heating_curve_advice_sensor(hass: HomeAssistant, entry) -> None:
     assert abs(float(st.state) - (46.0 + (30.5 - 46.0) * 20 / 29)) < 0.1            # 0 °C on the line from −20 to 9
     assert st.attributes["control"] == "opentherm_smart" and st.attributes["points"][1][2] == 31.5
     assert st.attributes["cycling_from"] == 8.0 and st.attributes["heat_loss_w_per_k"] == 167
+
+
+async def test_thermostat_gone_and_back_plans_once(hass: HomeAssistant, entry) -> None:
+    """The thermostat unavailable (just after a start) and back: one 'back' event and one new plan, no loop."""
+    m = entry.runtime_data
+    hass.states.async_set(THERMOSTAT, "unavailable", {})
+    await m._async_tick(None)
+    thermostat(hass)
+    await m._async_tick(None)
+    await hass.async_block_till_done()
+    assert sum(1 for e in m.events if e.get("kind") == "thermostat_back") == 1

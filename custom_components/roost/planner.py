@@ -350,7 +350,8 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
         V, choice[k] = Vn, ch
 
     # the search's choices over the whole horizon, from the real state
-    prev = min(range(NA), key=lambda a: abs(sps[a] - sp_now)) if sp_now is not None else NA // 2
+    # not known (the thermostat unavailable just after a start): from the lowest setting, never an arbitrary middle one
+    prev = min(range(NA), key=lambda a: abs(sps[a] - sp_now)) if sp_now is not None else 0
     T, E = t_now, e_now
     seq: list[float] = []
     for k in range(H):

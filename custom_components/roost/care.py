@@ -95,10 +95,13 @@ class CareMixin:
     def _watch_thermostat(self, t: float) -> None:
         """Unavailable for a while: a notice (and a notification when chosen); back: the notice goes."""
         if self.thermostat_reachable():
-            if self._th_gone_since is not None:
-                self.event("thermostat_back")
-            self._th_gone_since = None
+            back = self._th_gone_since is not None
+            self._th_gone_since = None                  # first: the planning below runs this check again
             self._issue("thermostat_unavailable", False)
+            if back:
+                self.event("thermostat_back")
+                # plan again with what the thermostat really has (a plan made without it would be followed meanwhile)
+                self.hass.async_create_background_task(self._async_tick(None, force_plan=True), "roost: plan after the thermostat is back")
             return
         if self._th_gone_since is None:
             self._th_gone_since = t

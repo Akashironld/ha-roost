@@ -247,6 +247,17 @@ def test_away_keeps_only_the_minimum_and_is_warm_again_on_time():
     assert p_back.hours[22].t_end >= 19.8, [round(h.t_end, 1) for h in p_back.hours]
 
 
+def test_unknown_thermostat_starts_low_not_in_the_middle():
+    """Just after a start the thermostat may be unavailable: on a warm afternoon the plan then keeps the lowest
+    setting, not an arbitrary middle one (seen 20-10: 19 -> 22 -> 19 after each restart, with no heat either way)."""
+    s = planner.Settings(comfort=20.0, day_min=19.0, night_min=19.0, sp_min=19.0, store_max=25.0)
+    warm = hours(13)
+    p = planner.plan(HOUSE, PUMP, s, warm, t_now=23.0, e_now=0.0, sp_now=None)
+    assert p.first.sp == 19.0, [h.sp for h in p.hours[:6]]
+    p = planner.plan(HOUSE, PUMP, s, warm, t_now=23.0, e_now=0.0, sp_now=19.0)
+    assert p.first.sp == 19.0                                                     # and stays where it is
+
+
 def test_heat_pump_power_by_source():
     """In the same mix as the house: solar first, then the battery, the rest from the grid."""
     sun, bat, grid = value.source_split(hp_kw=2.0, house_kw=2.5, pv_kw=1.0, battery_kw=0.5)

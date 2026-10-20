@@ -570,7 +570,8 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             w_now = self._kw(self.ent.get("power_out")) if self.pump_state() == "heating" else 0.0
             room_in, room_meta = self._rooms_ahead(hours)
             p = await self.hass.async_add_executor_job(planner.plan, self.house, self.pump, s, hours, room, self.storage_e,
-                                                       self.thermostat_sp(), 24, w_now, room_in)
+                                                       self.thermostat_sp() if self.thermostat_sp() is not None else self.mem.last_sp,
+                                                       24, w_now, room_in)
             self.room_status = [{**meta, "expected": temps[:24]} for meta, temps in zip(room_meta, p.rooms)]
             self.plan, self.plan_hours, self.plan_at, self.plan_w_now = p, hours, now.timestamp(), w_now
             self.plan_tariff = list(inp.import_price)
