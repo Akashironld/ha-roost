@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from .mgr_common import *  # noqa: F401,F403 - the shared imports and constants
 from .mgr_common import _LOGGER, _f, _i, _iso_ts  # noqa: F401
-from . import curve
+from . import curve, replan
 from .care import CareMixin
 from .health import HealthMixin
 from .hourlog import HourLogMixin
@@ -35,6 +35,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         self.plan_at: float | None = None
         self.plan_tariff: list[float] = []          # import price per plan hour (what the price sensor says, or a guess)
         self.plan_guess: list[bool] = []            # True: no price known yet for that hour, filled in
+        self.plan_on_guess = False                  # the plan in force set guessed prices to the mean (planner.neutral_prices)
         # price entity -> {hour epoch: price per kWh}: known hourly prices of the last days, to fill hours the price
         # forecast does not reach yet with the same hour a day earlier
         self.price_seen: dict[str, dict[int, float]] = {}
@@ -46,6 +47,9 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         self.import_info: dict = {}
         self.hour_log: list[dict] = []              # last ~48 h: state and inputs per hour, for the daily saving
         self.saving_days: dict[str, float] = {}     # date -> saving (currency)
+        self.saving_detail: dict[str, dict] = {}    # date -> the saving per hour (planner.breakdown), the last days
+        self.plan_changes: list[dict] = []          # the plan changed: setpoint / expected saving before -> after, why
+        self._plan_snap: dict | None = None         # the plan in force and what it saw (replan.snapshot)
         self.day_stats: dict[str, dict] = {}        # date -> the day in numbers (look back, day report)
         self.pred: dict[int, dict] = {}             # hour start -> room predicted for it 6 h and 1 h ahead
         self.plan_log: list[dict] = []              # per hour: everything the plan in force saw (replay a decision)
@@ -146,6 +150,9 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         self.day_stats = data.get("day_stats") or {}
         self.pred = {int(k): v for k, v in (data.get("pred") or {}).items()}
         self.plan_log = data.get("plan_log") or []
+        self.saving_detail = data.get("saving_detail") or {}
+        self.plan_changes = data.get("plan_changes") or []
+        self._plan_snap = data.get("plan_snap")
         self.window.hours = set(int(h) for h in (data.get("window_hours") or []))
         self.pv_k = data.get("pv_k")
         self.load_profile = data.get("load_profile")
@@ -265,6 +272,8 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             "window_hours": sorted(h for h in self.window.hours if h > time.time() - 400 * 86400),
             "pred": {str(k): v for k, v in self.pred.items() if k > time.time() - 7200},
             "plan_log": self.plan_log[-PLAN_LOG_KEPT:],
+            "saving_detail": dict(sorted(self.saving_detail.items())[-SAVING_DETAIL_DAYS:]),
+            "plan_changes": replan.prune(self.plan_changes, time.time()), "plan_snap": self._plan_snap,
             "pv_k": self.pv_k, "load_profile": self.load_profile, "price_seen": self._price_seen_recent(),
             "today": {"day": self._cost_day, "cost": round(self.cost_today, 4), "kwh": round(self.kwh_today, 3)},
             "check": self.check, "changes": [c for c in self.changes if c["ts"] > time.time() - 30 * 86400],
@@ -569,15 +578,30 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             s = self.settings()
             w_now = self._kw(self.ent.get("power_out")) if self.pump_state() == "heating" else 0.0
             room_in, room_meta = self._rooms_ahead(hours)
+            mode = self.conf.get(CONF_PRICE_MODE)
+            guess = [] if mode == "fixed" else list(self._price_guess.get("epex_import" if mode == "epex" else self.conf.get(CONF_IMPORT_PRICE)) or [])
+            sp_now = self.thermostat_sp() if self.thermostat_sp() is not None else self.mem.last_sp
             p = await self.hass.async_add_executor_job(planner.plan, self.house, self.pump, s, hours, room, self.storage_e,
-                                                       self.thermostat_sp() if self.thermostat_sp() is not None else self.mem.last_sp,
-                                                       24, w_now, room_in)
+                                                       sp_now, 24, w_now, room_in)
+            self.plan_on_guess = False
+            neutral = planner.neutral_prices(hours, guess)
+            if neutral is not None and p.first is not None:
+                q = await self.hass.async_add_executor_job(planner.plan, self.house, self.pump, s, neutral, room, self.storage_e,
+                                                           sp_now, 24, w_now, room_in)
+                if q.first is not None and abs(q.first.sp - p.first.sp) > 0.01:
+                    # this hour only differs through prices that are not published yet: keep to the plan without them
+                    p, hours, self.plan_on_guess = q, neutral, True
             self.room_status = [{**meta, "expected": temps[:24]} for meta, temps in zip(room_meta, p.rooms)]
             self.plan, self.plan_hours, self.plan_at, self.plan_w_now = p, hours, now.timestamp(), w_now
             self.plan_tariff = list(inp.import_price)
-            mode = self.conf.get(CONF_PRICE_MODE)
-            self.plan_guess = [] if mode == "fixed" else list(self._price_guess.get("epex_import" if mode == "epex" else self.conf.get(CONF_IMPORT_PRICE)) or [])
+            self.plan_guess = guess
             self._remember_prediction(now, p)
+            snap = replan.snapshot(now.timestamp(), int(now.timestamp() // 3600 * 3600), p, hours, inp.import_price, guess, room,
+                                   self.corr_kw, vars(s), self.plan_on_guess)
+            line = replan.compare(self._plan_snap, snap, room)
+            if line:
+                self.plan_changes = replan.prune(self.plan_changes + [line], now.timestamp())
+            self._plan_snap = snap
             self.reason = planner.explain(p, hours, room, s, self.pump, self.house, self.conf.get(CONF_EMITTER, "floor") == "floor")
             self._last_reason_code = None
         finally:

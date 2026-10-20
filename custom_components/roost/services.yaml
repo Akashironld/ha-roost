@@ -90,3 +90,10 @@ import_history:
           min: 7
           max: 365
           unit_of_measurement: d
+explain_saving:
+  fields:
+    day:
+      default: yesterday
+      example: "2026-10-19"
+      selector:
+        text:

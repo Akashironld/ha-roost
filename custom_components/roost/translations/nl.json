@@ -739,6 +739,15 @@
           "name": "Dagen"
         }
       }
+    },
+    "explain_saving": {
+      "name": "Besparing uitleggen",
+      "description": "Waar de besparing vandaan komt, per uur t.o.v. een vaste thermostaat met hetzelfde comfort, voor gisteren (of een dag uit de afgelopen week) of de komende 24 uur, met hoe het plan veranderde en waarom.",
+      "fields": {
+        "day": {
+          "name": "Dag: yesterday, next_24h of een datum (JJJJ-MM-DD)"
+        }
+      }
     }
   }
 }

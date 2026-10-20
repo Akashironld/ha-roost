@@ -82,8 +82,58 @@ def test_replay_day_saving():
     p = planner.plan(HOUSE, PUMP, s, hs, t_now=20.6, e_now=2.0, sp_now=20.5)
     entries = [{"T": 20.6 if i == 0 else 0, "E": 2.0, "sp": h.sp, "t_out": x.t_out, "rad": x.rad, "wind": x.wind, "p_grid": x.p_grid,
                 "p_own": x.p_own, "own": x.own_kw, "day": x.day} for i, (h, x) in enumerate(zip(p.hours, hs))]
-    roost, steady = planner.replay_day(HOUSE, PUMP, s, entries)
+    roost, steady, bd = planner.replay_day(HOUSE, PUMP, s, entries)
     assert steady - roost > 0.2, (roost, steady)
+    # the breakdown adds up to the same saving, hour by hour plus the state at the end
+    assert len(bd["hours"]) == 24
+    assert abs(sum(r["save"] for r in bd["hours"]) + bd["b_end"] - bd["end"] - bd["saving"]) < 0.01, bd
+    assert abs(bd["saving"] - (steady - roost)) < 0.01, (bd["saving"], steady - roost)
+
+
+def test_replay_ending_colder_is_no_saving():
+    """Ending the day colder than the steady thermostat saves electricity today that is bought back tomorrow: the
+    replay counts what the state at the end still costs, so turning down at the end is not a saving."""
+    s = planner.Settings()
+    hs = hours(5, prices=[0.25] * 24)
+    steady = [round(planner.baseline_sp(s, PUMP, HOUSE, h) * 2) / 2 for h in hs]
+    base = [{"T": 20.5 if i == 0 else 0, "E": 0.0, "sp": sp, "t_out": x.t_out, "rad": x.rad, "wind": x.wind, "p_grid": x.p_grid,
+             "p_own": x.p_own, "own": 0.0, "day": x.day, "hour": x.hour} for i, (sp, x) in enumerate(zip(steady, hs))]
+    cold_end = [{**e, "sp": 17.0} if i >= 20 else e for i, e in enumerate(base)]     # 04:00-08:00 the next night: down
+    r0, b0, _ = planner.replay_day(HOUSE, PUMP, s, base)
+    r1, b1, bd = planner.replay_day(HOUSE, PUMP, s, cold_end)
+    assert sum(x["kwh"] for x in bd["hours"]) < sum(x["b_kwh"] for x in bd["hours"])     # less electricity today ...
+    # ... and only the smaller heat loss of the colder hours counts (counting the end the other way round gave ~0.89)
+    assert b1 - r1 < b0 - r0 + 0.15, (b0 - r0, b1 - r1)
+
+
+def test_plan_breakdown_adds_up():
+    p = planner.plan(HOUSE, PUMP, planner.Settings(), hours(0), t_now=20.6, e_now=2.0, sp_now=20.5)
+    bd = p.breakdown
+    assert len(bd["hours"]) == 24 and abs(bd["saving"] - p.saving) < 0.01, (bd["saving"], p.saving)
+    assert abs(bd["cost"] - p.cost) < 0.01 and abs(bd["b_cost"] - p.baseline_cost) < 0.01
+    assert abs(sum(r["save"] for r in bd["hours"]) + bd["b_end"] - bd["end"] - bd["saving"]) < 0.01
+
+
+def test_guessed_prices_are_set_to_the_mean_of_the_known():
+    hs = hours(5, prices=[0.20] * 6 + [0.40] * 18)
+    guess = [False] * 6 + [True] * 18
+    n = planner.neutral_prices(hs, guess)
+    assert [h.p_grid for h in n[:6]] == [0.20] * 6 and all(abs(h.p_grid - 0.20) < 1e-9 for h in n[6:])
+    assert all(h.p_own == 0.05 for h in n)                        # own solar keeps its (lower) export value
+    assert planner.neutral_prices(hs, [False] * 24) is None        # nothing guessed: nothing to do
+    assert planner.neutral_prices(hs, [False] * 24 + [True] * 12) is None    # only guesses past 24 h
+
+
+def test_a_guessed_expensive_morning_does_not_move_tonight():
+    """Tomorrow's prices are not published yet and are filled with today's: a plan built on them may store heat
+    tonight for a guessed expensive morning; with the guesses at the mean of what is known it does not."""
+    s = planner.Settings()
+    prices = [0.25] * 6 + [0.45] * 6 + [0.25] * 24          # from 20:00; 02:00-08:00 guessed dear
+    hs = hours(0, prices=prices, start=20)
+    guess = [False] * 4 + [True] * 32
+    real = planner.plan(HOUSE, PUMP, s, hs, t_now=20.5, e_now=0.0, sp_now=20.5)
+    calm = planner.plan(HOUSE, PUMP, s, planner.neutral_prices(hs, guess), t_now=20.5, e_now=0.0, sp_now=20.5)
+    assert max(h.sp for h in calm.hours[:6]) <= max(h.sp for h in real.hours[:6])
 
 
 # ---------------------------------------------------------------- control
@@ -199,7 +249,7 @@ def test_fixed_contract_prices():
 def test_reasons_follow_the_heat_emitter():
     s = planner.Settings(comfort=20.5)
     hours = [planner.HourIn(t_out=2.0, wind=3.5, rad=0.0, p_grid=0.50 if i < 3 else 0.25, p_own=0.25) for i in range(12)]
-    p = planner.Plan([planner.HourPlan(19.0, 20.6, 0.1, 0.4, 0.05, 0.5)], 0, 0, 0, 0, 0, None)
+    p = planner.Plan([planner.HourPlan(19.0, 20.6, 0.1, 0.4, 0.05, 0.5 if i < 3 else 0.25) for i in range(12)], 0, 0, 0, 0, 0, None)
     assert planner.explain(p, hours, 20.8, s).code == "expensive"
     assert planner.explain(p, hours, 20.8, s, floor=False).code == "expensive_house"
 
@@ -256,6 +306,29 @@ def test_unknown_thermostat_starts_low_not_in_the_middle():
     assert p.first.sp == 19.0, [h.sp for h in p.hours[:6]]
     p = planner.plan(HOUSE, PUMP, s, warm, t_now=23.0, e_now=0.0, sp_now=19.0)
     assert p.first.sp == 19.0                                                     # and stays where it is
+
+
+def test_one_fixed_rate_has_no_cheap_or_dear_hours():
+    """#4: with one fixed rate no hour is 'cheap' or 'expensive' (every hour was both before)."""
+    s = planner.Settings(comfort=20.0)
+    flat = [planner.HourIn(t_out=9.0, wind=3.5, rad=0.0, p_grid=0.23, p_own=0.23) for _ in range(12)]
+    p = planner.Plan([planner.HourPlan(21.0, 20.4, 0.5, 2.0, 0.1, 0.23)] + [planner.HourPlan(20.0, 20.3, 0.2, 0.8, 0.05, 0.23)] * 11,
+                     0, 0, 0, 0, 0, None)
+    assert planner.explain(p, flat, 20.2, s).code not in ("store_cheap", "store_cheap_house", "expensive", "expensive_house")
+
+
+def test_fast_house_with_a_fixed_rate_does_not_preheat():
+    """#4 (the model numbers of the report): radiators, learned lag 0.29 h, one fixed rate. Nothing to gain by heating
+    earlier, but the search dropped the heat still on its way to the room and planned 21 °C all evening."""
+    house = model.HouseModel(C=9.0, H=0.123, g=7.4, lag=0.29, internal=0.19, Hw=0.0074, source="learned")
+    pump = heatpump.HeatPumpModel.for_profile("p80")
+    for k, v in dict(a=1.2, k=1.5, offset=-0.1, follow=0.7, th_diff=0.07).items():
+        setattr(pump, k, v)
+    s = planner.Settings(comfort=20.0, day_min=20.0, night_min=20.0, sp_min=20.0, store_max=22.0)
+    flat = [planner.HourIn(t_out=max(5.0, 9.2 - 0.5 * i) if i < 12 else 5.0 + 0.4 * (i - 12), wind=3.5, rad=0.0, p_grid=0.232,
+                           p_own=0.232, day=7 <= (19 + i) % 24 < 22, hour=(19 + i) % 24) for i in range(36)]
+    p = planner.plan(house, pump, s, flat, t_now=20.22, e_now=0.0, sp_now=20.0, w_now=0.0)
+    assert max(h.sp for h in p.hours[:12]) <= 20.5, [h.sp for h in p.hours[:12]]
 
 
 def test_heat_pump_power_by_source():

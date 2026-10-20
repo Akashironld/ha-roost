@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.7.0 — where the saving comes from
+
+**For everyone** — the report shows per hour where the saving comes from and why the plan changed (#1); houses that warm up quickly (radiators) no longer heat ahead on a fixed price (#4). Yesterday's saving is now counted fairly: a house left colder at the end of the day is no longer counted as a saving, so the figure can be lower than before.
+
+### Fixes
+- **Fast houses** (radiators, a short delay): the planner threw away heat still on its way to the room, so it thought the room would sink and planned higher than needed — with one fixed price it heated ahead for nothing (#4)
+- **A fixed price** is never called cheap or expensive in the reasons any more (#4)
+- **Heat left at the end** was counted the wrong way round in the replay of yesterday and in the planning of slow (OpenTherm) heat pumps: a colder house at the end looked like a saving. Now a colder house counts as heat to buy back later. The saving of yesterday and this month can be lower than before; slow heat pumps no longer turn down the next morning only because it looked cheaper
+- **The steady thermostat** Roost compares with is on the same 0.5 °C steps as the plan, as a real thermostat is; between them it made an even plan look more expensive
+
+### Improvements
+- **Where the saving comes from** (#1): the report (*Look back → Report*) shows per hour for yesterday and the next 24 hours what Roost does beside the steady thermostat (setting, room, kWh, cost, saved) and what the state at the end still costs; the same as `roost.explain_saving` (day: `yesterday`, `next_24h` or a date of the last week) and in the diagnostics
+- **Plan changes** (#1): every new plan that changes the setting for now or the expected saving by 5 ct or more is kept for two days with the setting and the saving before → after and why: new prices published, prices changed, weather forecast changed, room off from what was expected, correction from the last hours, settings, estimated prices left out, or a new hour
+- **Estimated prices**: hours whose price is not published yet are filled in from a day earlier; Roost no longer changes the thermostat because of them — when only the estimates would make it do something else now, it plans as if those hours cost the average of the known prices
+
+### After updating
+Update in HACS (or install the new `roost.zip`) and restart Home Assistant, then reload the dashboard (Ctrl+F5) for the new card. The saving per hour of yesterday appears after the first midnight, plan changes from the first new plan on.
+
 ## v0.6.1 — a field left empty stays empty
 
 **For everyone who changes settings** — a sensor left empty in *Configure* (house power, solar, battery, room or window sensors) is now really gone; before, the one chosen in the setup came back (#3).

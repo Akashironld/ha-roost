@@ -17,7 +17,7 @@ from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform, UnitOfTemperature
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv, entity_registry as er, issue_registry as ir
 from homeassistant.helpers.storage import Store
@@ -133,6 +133,18 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         for m in targets(call):
             m.spawn(m.async_import(int(call.data["days"])), "weheat import")
 
+    async def explain_saving(call: ServiceCall) -> ServiceResponse:
+        day = call.data["day"]
+        if day not in ("yesterday", "next_24h"):
+            try:
+                day = cv.date(day).isoformat()
+            except vol.Invalid as err:
+                raise ServiceValidationError("day: yesterday, next_24h or a date (YYYY-MM-DD)") from err
+        ms = targets(call)
+        if len(ms) == 1:
+            return ms[0].explain_saving(day)
+        return {"entries": [{"entry": m.entry.title, **m.explain_saving(day)} for m in ms]}
+
     hass.services.async_register(DOMAIN, "pause", pause, vol.Schema({vol.Optional("hours", default=2): vol.All(vol.Coerce(float), vol.Range(min=0.25, max=72))}))
     hass.services.async_register(DOMAIN, "resume", resume, vol.Schema({}))
     hass.services.async_register(DOMAIN, "away", away, vol.Schema({
@@ -145,6 +157,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         vol.Optional("comfort"): temp(15, 25), vol.Optional("day_min"): temp(10, 25), vol.Optional("night_min"): temp(5, 25),
         vol.Optional("store_max"): temp(15, 28), vol.Optional("lowest_setpoint"): temp(5, 25),
         vol.Optional("day_from"): hour(0, 23), vol.Optional("day_to"): hour(1, 24)}))
+    hass.services.async_register(DOMAIN, "explain_saving", explain_saving, vol.Schema({vol.Optional("day", default="yesterday"): str}),
+                                 supports_response=SupportsResponse.ONLY)
     hass.services.async_register(DOMAIN, "import_history", import_history,
                                  vol.Schema({vol.Optional("days", default=365): vol.All(vol.Coerce(int), vol.Range(min=7, max=365))}))
     return True

@@ -222,3 +222,28 @@ async def test_thermostat_gone_and_back_plans_once(hass: HomeAssistant, entry) -
     await m._async_tick(None)
     await hass.async_block_till_done()
     assert sum(1 for e in m.events if e.get("kind") == "thermostat_back") == 1
+
+
+async def test_explain_saving_service(hass: HomeAssistant, entry) -> None:
+    """Issue #1: roost.explain_saving gives the saving per hour of the next 24 hours (and of a replayed day), with
+    the plan changes; a recalculation that changes the plan is logged with why."""
+    import pytest
+    from homeassistant.exceptions import ServiceValidationError
+
+    m = entry.runtime_data
+    r = await hass.services.async_call("roost", "explain_saving", {"day": "next_24h"}, blocking=True, return_response=True)
+    assert r["available"] and len(r["hours"]) == 24
+    assert abs(sum(h["save"] for h in r["hours"]) + r["b_end"] - r["end"] - r["saving"]) < 0.02
+    assert {"sp", "t", "kwh", "cost", "b_sp", "b_t", "b_kwh", "b_cost", "ts"} <= set(r["hours"][0])
+    r = await hass.services.async_call("roost", "explain_saving", {}, blocking=True, return_response=True)
+    assert r["available"] is False and "plan_changes" in r                 # no day replayed yet
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call("roost", "explain_saving", {"day": "last tuesday"}, blocking=True, return_response=True)
+    # the plan in force expected another setpoint now: the next plan logs the change
+    snap = dict(m._plan_snap)
+    m._plan_snap = {**snap, "sp": [x + 1.0 for x in snap["sp"]], "saving": snap["saving"] + 0.5}
+    await m._async_tick(None, force_plan=True)
+    line = m.plan_changes[-1]
+    assert line["sp"][0] == snap["sp"][0] + 1.0 and line["why"]
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    assert diag["plan_changes"] and diag["saving_explained"]["next_24h"]["hours"]

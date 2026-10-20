@@ -739,6 +739,15 @@
           "name": "Days"
         }
       }
+    },
+    "explain_saving": {
+      "name": "Explain the saving",
+      "description": "Where the saving comes from, hour by hour against a steady thermostat at equal comfort, for yesterday (or a day of the last week) or the next 24 hours, with how the plan changed and why.",
+      "fields": {
+        "day": {
+          "name": "Day: yesterday, next_24h or a date (YYYY-MM-DD)"
+        }
+      }
     }
   }
 }

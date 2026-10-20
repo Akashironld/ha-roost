@@ -17,7 +17,7 @@ Only the first hour is carried out; the plan is made again every quarter of an h
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from .heatpump import HeatPumpModel
 from .model import HouseModel
@@ -94,6 +94,7 @@ class Plan:
     min_day: float | None
     notes: list[str] = field(default_factory=list)
     rooms: list[list[float]] = field(default_factory=list)    # extra rooms: expected temperature at the end of each hour
+    breakdown: dict = field(default_factory=dict)             # the saving per hour against the steady thermostat
 
     @property
     def first(self) -> HourPlan | None:
@@ -171,25 +172,34 @@ def _deficit(T: float, h: HourIn, s: Settings) -> float:
 
 
 def comparable_steady(sim: Simulator, hours: list[HourIn], T0: float, E0: float, w0: float | None, house: HouseModel,
-                      deficit: float) -> tuple[float, float, float, float]:
+                      deficit: float, trace: dict | None = None) -> tuple[float, float, float, float]:
     """The steady thermostat to compare with, at equal comfort: one offset on the setpoint that holds the comfort
     temperature, the lowest that is at least as comfortable as the plan (°C·hours below comfort in the comfort hours).
-    Comparing with a colder steady thermostat would make a comfortable plan look expensive. -> (cost, kWh, T, E)."""
+    Comparing with a colder steady thermostat would make a comfortable plan look expensive. -> (cost, kWh, T, E).
+    On the same steps as the plan: a steady thermostat between them would make a plan on them look expensive.
+    `trace`: filled with what the chosen steady thermostat does per hour (setpoint, room, kWh, cost), for the breakdown."""
     s, hp = sim.s, sim.hp
     last = None
     for off in [x / 10 for x in range(-5, 16)]:
         T, E, w, cost, kwh, dfc = T0, E0, w0, 0.0, 0.0, 0.0
+        rows = []
         for h in hours:
-            T, E, c, e, _q, _ = sim.hour(T, E, baseline_sp(s, hp, house, h) + off, h, w)
+            sp = round((baseline_sp(s, hp, house, h) + off) / s.step) * s.step     # a thermostat has steps too
+            T, E, c, e, _q, _ = sim.hour(T, E, sp, h, w)
             w = sim.w_end if w is not None else None
             cost, kwh, dfc = cost + c, kwh + e, dfc + _deficit(T, h, s)
+            rows.append((sp, T, e, c))
         last = (cost, kwh, T, E)
         if dfc <= deficit + 0.05:
             break
+    if trace is not None:           # per hour (setpoint, room at the end, kWh, cost), the offset and its comfort shortfall
+        trace.update(rows=rows, offset=off, deficit=dfc)
     return last
 
 
 def _end_value(sim: Simulator, hours: list[HourIn], comfort: float):
+    """-> f(T, E): what the state at the end still costs, to compare plans that end differently: the heat short of
+    comfort bought back later (positive), heat above comfort partly counted as already bought (negative)."""
     tail = hours[-6:] or hours
     price = sum(h.p_grid for h in tail) / len(tail)
     cop = sim.hp.cop(hours[-1].t_out, 3.5) if sim.s.end_cop == "last" else \
@@ -255,7 +265,7 @@ def polish(sim: Simulator, hours: list[HourIn], t_now: float, e_now: float, w_no
             T = T1
             tot += c + pen + (s.switch_cost if prev is not None and sp != prev else 0.0)
             prev = sp
-        return tot - end(T, E), states
+        return tot + end(T, E), states
 
     best, best_states = None, None
     for st in starts:
@@ -337,6 +347,8 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
                 base = {}
                 for a in allowed:
                     T1, E1, c, _kwh, _q, pen = sim.hour(T0, E0, sps[a], h)
+                    if NE == 1:
+                        T1 += E1 / house.C          # not tracked: what is still on its way reaches the room, not lost
                     base[a] = c + pen + interp(V, T1, E1, a)
                 best_a = min(base, key=base.get)
                 best = base[best_a] + s.switch_cost
@@ -360,6 +372,8 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
         prev = choice[k][i][j][prev]
         seq.append(sps[prev])
         T, E, *_ = sim.hour(T, E, sps[prev], hours[k])
+        if NE == 1:
+            T, E = T + E / house.C, 0.0
     if hp.follow < SLOW or rooms:
         # a unit that follows the thermostat slowly (OpenTherm, modulating): the search above takes a new setpoint as
         # working at once, so improve its plan with the real delay (and never end up worse than a steady thermostat).
@@ -389,10 +403,55 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
         T, E = T1, E1
 
     # the steady thermostat to compare with, at equal comfort
-    base_cost, base_kwh, Tb, Eb = comparable_steady(sim, hours[:R], t_now, e_now, w_now, house, deficit)
+    trace: dict = {}
+    base_cost, base_kwh, Tb, Eb = comparable_steady(sim, hours[:R], t_now, e_now, w_now, house, deficit, trace)
     saving = base_cost - total + end_r(Tb, Eb) - end_r(T, E)
     room_t = room_temps(sim, hours[:R], t_now, e_now, w_now, seq[:R], rooms) if rooms else []
-    return Plan(out, total, kwh_tot, base_cost, base_kwh, saving, min_day, rooms=room_t)
+    bd = breakdown(hours[:R], [(x.sp, x.t_end, x.kwh, x.cost) for x in out], trace, end_r(T, E), end_r(Tb, Eb), deficit)
+    return Plan(out, total, kwh_tot, base_cost, base_kwh, saving, min_day, rooms=room_t, breakdown=bd)
+
+
+def breakdown(hours: list[HourIn], roost: list[tuple], steady: dict, end_roost: float, end_steady: float,
+              deficit: float) -> dict:
+    """Where a saving comes from, hour by hour: what Roost does and what the steady thermostat at equal comfort does
+    (setpoint, room at the end of the hour, kWh, cost), and what the state at the end of the period still costs
+    for each (_end_value). saving = Σ (steady − Roost) + end steady − end Roost."""
+    rows = []
+    for k, (h, r, b) in enumerate(zip(hours, roost, steady.get("rows", []))):
+        rows.append({"i": k, "hour": h.hour, "t_out": round(h.t_out, 1), "price": round(h.p_grid, 4), "day": h.day,
+                     "sp": round(r[0], 1), "t": round(r[1], 2), "kwh": round(r[2], 3), "cost": round(r[3], 4),
+                     "b_sp": round(b[0], 1), "b_t": round(b[1], 2), "b_kwh": round(b[2], 3), "b_cost": round(b[3], 4),
+                     "save": round(b[3] - r[3], 4)})
+    cost, base = sum(r[3] for r in roost), sum(b[3] for b in steady.get("rows", []))
+    return {"hours": rows, "cost": round(cost, 3), "b_cost": round(base, 3),
+            "kwh": round(sum(r[2] for r in roost), 2), "b_kwh": round(sum(b[2] for b in steady.get("rows", [])), 2),
+            "end": round(end_roost, 3), "b_end": round(end_steady, 3),
+            "saving": round(base + end_steady - cost - end_roost, 3),
+            "short": round(deficit, 2), "b_short": round(steady.get("deficit", 0.0), 2),
+            "b_offset": round(steady.get("offset", 0.0), 1)}
+
+
+PRICE_SPREAD = 0.05     # prices within 5 % of each other are one price: no hour is cheap or dear then
+
+
+def neutral_prices(hours: list[HourIn], guess: list[bool], window: int = 24) -> list[HourIn] | None:
+    """The hours with every guessed price (past the published ones, filled from a day earlier) set to the mean of
+    the published ones: a plan that only differs from the normal one through guessed prices must not change the
+    thermostat. None when no hour in the first `window` is a guess."""
+    if not any(guess[:window]):
+        return None
+    known = [h.p_grid for h, g in zip(hours, guess + [True] * len(hours)) if not g]
+    if not known:
+        return None
+    mean = sum(known) / len(known)
+    out = []
+    for i, h in enumerate(hours):
+        if i < len(guess) and not guess[i]:
+            out.append(h)
+        else:
+            own = mean if abs(h.p_own - h.p_grid) < 1e-9 else min(h.p_own, mean)
+            out.append(replace(h, p_grid=mean, p_own=own))
+    return out
 
 
 def explain(p: Plan, hours: list[HourIn], room: float, s: Settings, hp: HeatPumpModel | None = None,
@@ -410,8 +469,10 @@ def explain(p: Plan, hours: list[HourIn], room: float, s: Settings, hp: HeatPump
     j = max(0, min(i, len(p.hours) - 12))
     prices = sorted(x.price for x in p.hours[j:j + 12])
     now = ph.price
-    cheap = now <= prices[len(prices) // 3]
-    dear = now >= prices[(2 * len(prices)) // 3]
+    # cheap or dear only where prices really differ: with one fixed rate every hour would be both (#4)
+    spread = (prices[-1] - prices[0]) / max(0.01, sum(prices) / len(prices))
+    cheap = spread > PRICE_SPREAD and now <= prices[len(prices) // 3]
+    dear = spread > PRICE_SPREAD and now >= prices[(2 * len(prices)) // 3]
     if ph.heat < 0.1 and sp <= room + th:
         # no heat this hour: the room is warmer than the setpoint (sun, a warm day), whatever the price — not storing
         return Reason("warm_enough", {"room": round(room, 1)})
@@ -433,10 +494,10 @@ def explain_hours(p: Plan, hours: list[HourIn], room: float, s: Settings, hp: He
     return [explain(p, hours, rooms[i], s, hp, house, floor, i) for i in range(min(len(p.hours), len(hours)))]
 
 
-def replay_day(house: HouseModel, hp: HeatPumpModel, s: Settings, entries: list[dict]) -> tuple[float, float] | None:
+def replay_day(house: HouseModel, hp: HeatPumpModel, s: Settings, entries: list[dict]) -> tuple[float, float, dict] | None:
     """Yesterday twice with the same model, weather and prices, from the same start: once with the setpoints Roost
-    set (or would have set, in shadow mode), once with a steady thermostat. -> (cost with Roost, cost steady),
-    each with the heat left at the end valued the same way."""
+    set (or would have set, in shadow mode), once with a steady thermostat. -> (cost with Roost, cost steady, breakdown),
+    each with what the state at the end still costs added the same way."""
     if not entries:
         return None
     hours = [HourIn(t_out=e["t_out"], wind=e.get("wind", 3.5), rad=e.get("rad", 0.0), p_grid=e["p_grid"], p_own=e.get("p_own", e["p_grid"]),
@@ -445,9 +506,15 @@ def replay_day(house: HouseModel, hp: HeatPumpModel, s: Settings, entries: list[
     end = _end_value(sim, hours, s.comfort)
     T0, E0 = entries[0]["T"], entries[0].get("E", 0.0)
     T, E, cost, deficit = T0, E0, 0.0, 0.0
+    rows = []
     for e, h in zip(entries, hours):
-        T, E, c, *_ = sim.hour(T, E, float(e["sp"]), h)
+        T, E, c, kwh, *_ = sim.hour(T, E, float(e["sp"]), h)
         cost += c
         deficit += _deficit(T, h, s)
-    base, _kwh, Tb, Eb = comparable_steady(sim, hours, T0, E0, None, house, deficit)
-    return cost - end(T, E), base - end(Tb, Eb)
+        rows.append((float(e["sp"]), T, kwh, c))
+    trace: dict = {}
+    base, _kwh, Tb, Eb = comparable_steady(sim, hours, T0, E0, None, house, deficit, trace)
+    bd = breakdown(hours, rows, trace, end(T, E), end(Tb, Eb), deficit)
+    for r, e in zip(bd["hours"], entries):
+        r["ts"] = e.get("ts")
+    return cost + end(T, E), base + end(Tb, Eb), bd

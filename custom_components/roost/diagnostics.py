@@ -64,6 +64,7 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: RoostCo
                  "tariff": m.plan_tariff, "tariff_guessed": m.plan_guess,
                  "cost": p.cost if p else None, "steady_cost": p.baseline_cost if p else None, "rooms": m.room_status},
         "hour_log": m.hour_log[-HOUR_LOG_KEPT:], "plan_log": m.plan_log[-PLAN_LOG_KEPT:], "saving_days": m.saving_days, "day_stats": m.day_stats,
+        "saving_explained": {"next_24h": m.next_breakdown(), "days": m.saving_detail}, "plan_changes": m.plan_changes,
         "thermostat_history": {str(k): v for k, v in sorted(m.sp_hist.items())[-72:]},
         "rooms": [vars(r) for r in m.rooms], "changes_by_hand": m.changes[-40:],
         "suggestion": m.suggestion.as_dict() if m.suggestion else None, "issues": sorted(m.health.issues),

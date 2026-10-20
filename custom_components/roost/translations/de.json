@@ -739,6 +739,15 @@
           "name": "Tage"
         }
       }
+    },
+    "explain_saving": {
+      "name": "Ersparnis erklären",
+      "description": "Woher die Ersparnis kommt, Stunde für Stunde gegenüber einem festen Thermostat bei gleichem Komfort, für gestern (oder einen Tag der letzten Woche) oder die nächsten 24 Stunden, mit den Planänderungen und ihren Gründen.",
+      "fields": {
+        "day": {
+          "name": "Tag: yesterday, next_24h oder ein Datum (JJJJ-MM-TT)"
+        }
+      }
     }
   }
 }

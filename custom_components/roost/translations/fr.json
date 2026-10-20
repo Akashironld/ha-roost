@@ -739,6 +739,15 @@
           "name": "Jours"
         }
       }
+    },
+    "explain_saving": {
+      "name": "Expliquer l'économie",
+      "description": "D'où vient l'économie, heure par heure par rapport à un thermostat fixe à confort égal, pour hier (ou un jour de la semaine passée) ou les prochaines 24 heures, avec les changements du plan et leurs raisons.",
+      "fields": {
+        "day": {
+          "name": "Jour : yesterday, next_24h ou une date (AAAA-MM-JJ)"
+        }
+      }
     }
   }
 }

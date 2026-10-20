@@ -255,7 +255,12 @@ place, so the card does not grow. Choose **24 h**, **48 h** or **7 d**:
 - **Log** (folded; click to open): every change with its reason, and what happened an hour later against what was
   expected (✓, or *deviation*).
 - **Report**: a page with the period's numbers, the graph, the log and the days, to keep or share (made in your
-  browser, nothing is sent anywhere).
+  browser, nothing is sent anywhere). It also shows **where the saving comes from**: per hour for yesterday and for
+  the next 24 hours, Roost beside the steady thermostat it is compared with (setting, room, kWh, cost, saved), what
+  the state at the end of the period still costs for each (a colder house is heat bought back later, a warmer one
+  heat already bought), and every **plan change** of the last two days: the setting for that hour and the expected
+  saving before → after, and why (new prices published, prices changed, weather forecast changed, room off from what
+  was expected, correction from the last hours, settings, estimated prices left out, or simply a new hour).
 
 Roost keeps a week of hours and 60 days of day numbers for this; the history starts when you install 0.5.5.
 
@@ -477,6 +482,7 @@ Switched off by default (enable them on the device page under *+ disabled entiti
 | `roost.home` | — | End away |
 | `roost.set_settings` | any of `comfort`, `day_min`, `night_min`, `store_max`, `lowest_setpoint`, `day_from`, `day_to` | Roost's own temperatures and comfort hours (as in *Configure → Comfort*, not the thermostat); the one changed wins, the others follow. Also in the card: mode menu → ⚙ Settings |
 | `roost.import_history` | `days` (default 365) | Read the heat pump's history from Weheat again and learn |
+| `roost.explain_saving` | `day`: `yesterday` (default), `next_24h` or a date of the last week (`2026-10-19`) | Returns where the saving comes from, per hour against the steady thermostat, plus the plan changes and why (*Developer tools → Actions*, tick *return response*). The same as in the report |
 
 **Example: pause while nobody is home**
 
@@ -540,7 +546,7 @@ automation:
 | The thermostat shows 19 °C while it is cold outside | It is a lever: the floor is warm, the evening is expensive | Look at *room expected*. If the room really gets too cold, raise *Lowest thermostat setting* |
 | The room gets too warm in the afternoon | Roost charges the floor | Lower *Warmest while storing heat* (equal to comfort switches it off) |
 | Bedroom upstairs gets cold | Radiators get no water while the heat pump rests | Add the bedroom as an extra room (section [9](#9-extra-rooms-radiators-upstairs-a-bedroom)) |
-| Savings negative | A warm house at the end of the day counts as cost until it is used; in mild weather there is little to save | Look at the month figure, not one day |
+| Savings negative | Heat stored at the end of the day counts for only part of what it cost until it is used; in mild weather there is little to save | Look at the month figure, not one day; the report (or `roost.explain_saving`) shows per hour where it went |
 | *Weheat import*: waiting for the Weheat login | Roost has no Weheat login yet, or Weheat refused it | *Re-authenticate* at Roost on the integration page (section [10](#the-weheat-login)) |
 | *Configure → Mode* says *Heating hours* ⏳ | Too little heating lately and no heating weeks in the history yet (a new install without the Weheat import). Hours the heat pump heated with the room well above the setpoint do not count: not the thermostat asking (its own heating curve?) — *unfollowed_hours* in *Plan accuracy*'s details | Wait for colder weather; if *unfollowed_hours* is high, check the heat pump follows only the thermostat (Weheat app) |
 | *Plan accuracy* high (> 1 °C) | Little heating data yet, or a change in the house (a new window, a stove) | Wait a week; the nightly learning catches up |
@@ -593,6 +599,20 @@ floor heating and a slow OpenTherm heat pump (it follows a new setpoint over hou
 3 % with a fixed price (heating in the warmer, more efficient hours), 7–8 % with radiators or an on/off thermostat. Own
 solar and a home battery add to it. The card shows it against a steady thermostat that is as comfortable as Roost's
 plan.
+
+**Why does the expected saving change during the day?** Every 15 minutes Roost plans again with what it knows then.
+The plan changes when tomorrow's prices are published (in the afternoon), when the weather forecast changes, when the
+room is warmer or colder than expected, or simply because the 24 hours moved on an hour. The report and
+`roost.explain_saving` list each change with the setting and expected saving before → after and why. Hours whose
+price is not published yet are filled in from the same hour a day earlier; Roost never changes the thermostat because
+of such an estimate: when only the estimates would make it do something else now, it plans as if those hours cost the
+average of the known prices.
+
+**How is the saving calculated?** Roost plays the same hours twice with the same house model, weather and prices:
+once with its own settings, once with a steady thermostat — on the same 0.5 °C steps, set just high enough to be as
+comfortable as Roost. The difference in cost is the saving, plus the difference in what the house's state at the end
+still costs: a house left colder must be heated back later, so turning down at the end of a day is not counted as a
+saving. Yesterday is replayed after midnight with what really happened.
 
 **Does it work with an air conditioner as well?** No, Roost is for a Weheat heat pump driven by a thermostat.
 

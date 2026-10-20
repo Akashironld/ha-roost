@@ -55,6 +55,9 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
 - **Its own dashboard card** with the plan, the expected room temperature, the tariff per hour, **why each hour is what
   it is**, and what it saves; the plan and the last week as a **table**; and a **look back**: what was planned beside
   what happened, how well it predicted, a log of every change and why, and a report to keep.
+- **Explains its saving.** Per hour, for yesterday and the next 24 hours, Roost beside the equally comfortable steady
+  thermostat it is compared with, and every change of the plan with why (in the report and as `roost.explain_saving`).
+  It never changes the thermostat because of a price that is not published yet.
 - **Heating curve advice**: the flow temperatures your house needs, as the five points of the Weheat app, from your heat
   loss, your floor or radiators and the heat pump's own logs — beside what the heat pump really made, and for another
   indoor temperature if you like.

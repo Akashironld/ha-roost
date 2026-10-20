@@ -57,6 +57,7 @@ class Scenario:
     settings: dict = field(default_factory=dict)
     pump_bias: dict = field(default_factory=dict)  # after learning, multiply these true response values
     own_curve: float = 0.0                         # history only: share of warm hours the unit heats on its own curve
+    learned_set: dict = field(default_factory=dict)   # after learning, set these house values (a fast house learned as fast)
 
 
 SCENARIOS = {
@@ -108,10 +109,31 @@ SCENARIOS = {
     "winter_onoff": Scenario("the same winter month with an on/off thermostat, 28 days",
                              dict(C=16.0, H=0.15, g=4.0, lag=0.6, internal=0.2, Hw=0.007),
                              dict(a=1.0, k=None, offset=0.0, follow=1.0, q_min=2.5), weeks=[5.0, 2.0, -4.0, 6.0]),
+    "fixed_rad": Scenario("radiators, fast unit, fixed price",
+                          dict(C=12.0, H=0.16, g=4.0, lag=0.15, internal=0.2, Hw=0.007),
+                          dict(a=0.95, k=3.0, offset=0.1, follow=0.8, q_min=2.0, alpha=2.4), prices="fixed"),
+    "issue4": Scenario("issue #4: radiators, fixed price, mild, comfort = minimums = lowest = 20",
+                       dict(C=9.0, H=0.13, g=4.0, lag=0.3, internal=0.2, Hw=0.007),
+                       dict(a=1.1, k=1.5, offset=-0.1, follow=0.7, th_diff=0.07, q_min=2.0), prices="fixed", t_mean=9.0,
+                       settings=dict(comfort=20.0, day_min=20.0, night_min=20.0, sp_min=20.0)),
+    "old_fixed": Scenario("1930s house, radiators, fast unit, fixed price", dict(C=13.0, H=0.28, g=3.0, lag=0.2, internal=0.2, Hw=0.012),
+                          dict(a=0.95, k=3.0, offset=0.1, follow=0.8, q_min=2.0), prices="fixed"),
     "bedroom": Scenario("extra bedroom upstairs (radiators) with a minimum in the evening",
                         dict(C=18.0, H=0.15, g=5.0, lag=1.0, internal=0.2, Hw=0.007),
                         dict(a=0.9, k=1.0, offset=0.3, follow=0.35, q_min=2.4),
                         room={"model": dict(b0=0.0, b_heat=0.10, b_out=0.025, b_main=0.03), "min": 17.0, "from": 19, "to": 23}),
+    "rad_fast": Scenario("radiators, dynamic, learned lag 0.2", dict(C=12.0, H=0.16, g=4.0, lag=0.15, internal=0.2, Hw=0.007), dict(a=0.95, k=3.0, offset=0.1, follow=0.8, q_min=2.0, alpha=2.4), learned_set={"lag": 0.2}),
+    "rad_fixed_fast": Scenario("radiators, fixed, learned lag 0.2", dict(C=12.0, H=0.16, g=4.0, lag=0.15, internal=0.2, Hw=0.007), dict(a=0.95, k=3.0, offset=0.1, follow=0.8, q_min=2.0, alpha=2.4), prices="fixed", learned_set={"lag": 0.2}),
+    "rad_double_fast": Scenario("radiators, night rate, learned lag 0.2", dict(C=12.0, H=0.16, g=4.0, lag=0.15, internal=0.2, Hw=0.007), dict(a=0.95, k=3.0, offset=0.1, follow=0.8, q_min=2.0, alpha=2.4), prices="double", learned_set={"lag": 0.2}),
+    "rad_volatile_fast": Scenario("radiators, volatile, learned lag 0.2", dict(C=12.0, H=0.16, g=4.0, lag=0.15, internal=0.2, Hw=0.007), dict(a=0.95, k=3.0, offset=0.1, follow=0.8, q_min=2.0, alpha=2.4), prices="volatile", learned_set={"lag": 0.2}),
+    "rad_cold_fast": Scenario("radiators, -4 C, fixed, learned lag 0.2", dict(C=12.0, H=0.16, g=4.0, lag=0.15, internal=0.2, Hw=0.007), dict(a=0.95, k=3.0, offset=0.1, follow=0.8, q_min=2.0, alpha=2.4), prices="fixed", t_mean=-4.0, learned_set={"lag": 0.2}),
+    "old_fast": Scenario("old house, dynamic, learned lag 0.2", dict(C=13.0, H=0.28, g=3.0, lag=0.2, internal=0.2, Hw=0.012), dict(a=0.95, k=3.0, offset=0.1, follow=0.8, q_min=2.0), learned_set={"lag": 0.2}),
+    "old_fixed_fast": Scenario("old house, fixed, learned lag 0.2", dict(C=13.0, H=0.28, g=3.0, lag=0.2, internal=0.2, Hw=0.012), dict(a=0.95, k=3.0, offset=0.1, follow=0.8, q_min=2.0), prices="fixed", learned_set={"lag": 0.2}),
+    "issue4_fast": Scenario("issue #4, learned lag 0.29", dict(C=9.0, H=0.13, g=4.0, lag=0.3, internal=0.2, Hw=0.007),
+                       dict(a=1.1, k=1.5, offset=-0.1, follow=0.7, th_diff=0.07, q_min=2.0), prices="fixed", t_mean=9.0,
+                       settings=dict(comfort=20.0, day_min=20.0, night_min=20.0, sp_min=20.0), learned_set={"lag": 0.29}),
+    "issue4_dyn_fast": Scenario("issue #4 house, dynamic price, default comfort, learned lag 0.29", dict(C=9.0, H=0.13, g=4.0, lag=0.3, internal=0.2, Hw=0.007),
+                       dict(a=1.1, k=1.5, offset=-0.1, follow=0.7, th_diff=0.07, q_min=2.0), t_mean=9.0, learned_set={"lag": 0.29}),
 }
 
 
@@ -204,6 +226,8 @@ def learn(sc: Scenario, rows):
     house = res.model
     for k, f in sc.learned_bias.items():
         setattr(house, k, getattr(house, k) * f)
+    for k, v in sc.learned_set.items():
+        setattr(house, k, v)
     pump0 = heatpump.HeatPumpModel.for_profile("p80")
     pump, _ = heatpump.learn(rows, pump0)
     pump, note = response.learn(rows, house, pump)
@@ -219,7 +243,7 @@ def run(name: str, days: int = 7, seed: int = 1) -> dict:
     house, pump, house_note, pump_note = learn(sc, rows)
     true_house, true_hp = true_models(sc)
     over = json.loads(os.environ.get("SIM_SETTINGS", "{}"))       # try planner settings: SIM_SETTINGS='{"switch_cost": 0.15}'
-    s = planner.Settings(comfort=20.5, day_min=20.0, night_min=19.0, store_max=22.5, sp_min=19.0, **{**sc.settings, **over})
+    s = planner.Settings(**{**dict(comfort=20.5, day_min=20.0, night_min=19.0, store_max=22.5, sp_min=19.0), **sc.settings, **over})
     cs = control.ControlSettings()
     truth = planner.Simulator(true_house, true_hp, s)
     wx = weather(rnd, sc, days + 2, DAY0)

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from .mgr_common import *  # noqa: F401,F403 - the shared imports and constants
 from .mgr_common import _LOGGER, _f, _i, _iso_ts  # noqa: F401
+from . import replan
 
 
 class HourLogMixin:
@@ -45,7 +46,7 @@ class HourLogMixin:
             "corr": [self.corr_kw, self.corr_sun, self.corr_n],
             "hours": [[round(h.t_out, 1), round(h.rad, 3), round(h.wind, 1), round(h.p_grid, 4), round(h.p_own, 4), round(h.own_kw, 2),
                        round(h.dhw, 2), round(h.extra_kw, 3), guess[i] if i < len(guess) else None] for i, h in enumerate(self.plan_hours)],
-            "sp": [x.sp for x in p.hours] if p else None})
+            "sp": [x.sp for x in p.hours] if p else None, "neutral": self.plan_on_guess})
         self.plan_log = self.plan_log[-PLAN_LOG_KEPT:]
 
     def _remember_prediction(self, now: datetime, p) -> None:
@@ -69,6 +70,8 @@ class HourLogMixin:
         res = await self.hass.async_add_executor_job(planner.replay_day, self.house, self.pump, self.settings(), entries)
         if res is not None:
             self.saving_days[day] = round(res[1] - res[0], 3)
+            self.saving_detail[day] = res[2]
+            self.saving_detail = dict(sorted(self.saving_detail.items())[-SAVING_DETAIL_DAYS:])
         by_hand = sum(1 for e in self.events if e.get("kind") == "by_hand" and str(e.get("t", "")).startswith(day))
         self.day_stats[day] = lookback.day_stats(entries, self.settings().comfort, by_hand,
                                                  res[0] if res else None, res[1] if res else None)
@@ -82,7 +85,31 @@ class HourLogMixin:
         return {"hours": [e for e in self.hour_log if e["ts"] >= cut],
                 "events": [e for e in self.events if e.get("kind") in kinds and _iso_ts(e.get("t")) >= cut],
                 "days": dict(sorted(self.day_stats.items())[-62:]),
+                "saving_detail": self.saving_detail, "next": self.next_breakdown(),
+                "plan_changes": [c for c in self.plan_changes if c["ts"] >= cut],
                 "comfort": self.settings().comfort, "currency": self.hass.config.currency or "EUR", "mode": self.mode}
+
+    def next_breakdown(self) -> dict | None:
+        """The saving per hour of the plan in force (planner.breakdown), with the time of each hour."""
+        p = self.plan
+        if p is None or not p.breakdown or self.plan_at is None:
+            return None
+        base = int(self.plan_at // 3600 * 3600)
+        return {**p.breakdown, "hours": [{**r, "ts": base + r["i"] * 3600} for r in p.breakdown["hours"]]}
+
+    def explain_saving(self, day: str = "yesterday") -> dict:
+        """roost.explain_saving: where the saving of a day (replayed at the end of it) or of the next 24 hours (the plan
+        in force) comes from, hour by hour against a steady thermostat at equal comfort, and how the plan changed."""
+        cur = self.hass.config.currency or "EUR"
+        changes = replan.prune(self.plan_changes, time.time())
+        if day == "next_24h":
+            bd = self.next_breakdown()
+            return {"day": day, "currency": cur, "available": bd is not None, **(bd or {}), "plan_changes": changes}
+        if day == "yesterday":
+            day = (dt_util.now().date() - timedelta(days=1)).isoformat()
+        bd = self.saving_detail.get(day)
+        on_day = [c for c in changes if dt_util.as_local(datetime.fromtimestamp(c["ts"], tz=timezone.utc)).date().isoformat() == day]
+        return {"day": day, "currency": cur, "available": bd is not None, **(bd or {}), "plan_changes": on_day}
 
     def saving_month(self) -> float:
         month = dt_util.now().date().isoformat()[:7]
