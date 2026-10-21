@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.7.3 — why Roost heats ahead
+
+**For everyone who reads the reasons** — when Roost heats in an hour that is not cheap to be ready for dearer hours later (a slow floor needs the start), the reason now says so, with the price and the hour, instead of *keeping the room at temperature*.
+
+### Improvements
+- **Reasons**: *warming the floor ahead of dearer hours (43 ct from 7:00)* for an hour that is warmer than holding the room needs but not among the cheap hours
+
+### After updating
+Update in HACS (or install the new `roost.zip`) and restart Home Assistant, then reload the dashboard (Ctrl+F5) for the new card.
+
 ## v0.7.2 — Settings in the card open at the first tap
 
 **For everyone who uses the card's settings** — tapping ⚙ Settings in the mode menu gave the error *required key not provided at 'option'* and closed the menu; it opens at the first tap now.

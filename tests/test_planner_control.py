@@ -312,6 +312,21 @@ def test_unknown_thermostat_starts_low_not_in_the_middle():
     assert p.first.sp == 19.0                                                     # and stays where it is
 
 
+def test_heating_ahead_of_dearer_hours_says_so():
+    """21-10: the floor kept warm at night at the battery's 37.5 ct for a dear morning said 'keeping the room at
+    temperature'; it names the dearer hours now."""
+    s = planner.Settings(comfort=20.0)
+    hs = [planner.HourIn(t_out=10.0, wind=3.5, rad=0.0, p_grid=0.375, p_own=0.375, day=False, hour=(21 + k) % 24) for k in range(4)] + \
+         [planner.HourIn(t_out=9.0, wind=3.5, rad=0.0, p_grid=0.30, p_own=0.30, day=False, hour=1 + k) for k in range(6)] + \
+         [planner.HourIn(t_out=9.0, wind=3.5, rad=0.0, p_grid=0.43, p_own=0.43, day=True, hour=7 + k) for k in range(2)]
+    p = planner.Plan([planner.HourPlan(21.0, 20.4, 0.3, 1.0, 0.11, h.p_grid) for h in hs[:10]] +
+                     [planner.HourPlan(19.0, 20.4, 0.1, 0.3, 0.04, h.p_grid) for h in hs[10:]], 0, 0, 0, 0, 0, None)
+    r = planner.explain(p, hs, 20.3, s, PUMP, HOUSE, True, 0)      # 37.5 ct is not cheap here: 30 ct follows
+    assert r.code == "store_ahead" and r.args == {"ct": 43.0, "at": 7}, r
+    assert str(r) == "warming the floor ahead of dearer hours (43 ct from 7:00)"
+    assert planner.explain(p, hs, 20.3, s, PUMP, HOUSE, True, 4).code == "store_cheap"           # 30 ct: cheap
+
+
 def test_one_fixed_rate_has_no_cheap_or_dear_hours():
     """#4: with one fixed rate no hour is 'cheap' or 'expensive' (every hour was both before)."""
     s = planner.Settings(comfort=20.0)

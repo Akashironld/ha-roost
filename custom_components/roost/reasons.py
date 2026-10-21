@@ -22,6 +22,8 @@ EN = {
     "store_solar_house": "storing heat in the house on own solar (up to {sp:g} °C)",
     "store_cheap_house": "storing heat in the house now ({ct:.0f} ct) before more expensive hours",
     "expensive_house": "expensive hour ({ct:.0f} ct): living off the heat in the house",
+    "store_ahead": "warming the floor ahead of dearer hours ({ct:.0f} ct from {at}:00)",
+    "store_ahead_house": "warming the house ahead of dearer hours ({ct:.0f} ct from {at}:00)",
     "warm_enough": "warm enough ({room:.1f} °C): no heat needed",
     "holding": "keeping the room at temperature",
     # control: what happens with the thermostat

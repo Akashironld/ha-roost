@@ -485,6 +485,12 @@ def explain(p: Plan, hours: list[HourIn], room: float, s: Settings, hp: HeatPump
         return Reason("store_solar" if floor else "store_solar_house", {"sp": sp})
     if sp > hold + 0.25 and cheap:
         return Reason("store_cheap" if floor else "store_cheap_house", {"ct": round(now * 100, 1)})
+    if sp > hold + 0.25:
+        # warmer than holding, but not a cheap hour: heat ahead of dearer hours to come (a slow floor needs the start)
+        for k in range(i + 1, min(len(p.hours), len(hours), i + 13)):
+            if p.hours[k].price >= now * (1 + PRICE_SPREAD) + 0.005:
+                return Reason("store_ahead" if floor else "store_ahead_house",
+                              {"ct": round(p.hours[k].price * 100, 1), "at": hours[k].hour if hours[k].hour >= 0 else k - i})
     if sp < hold - 0.25 and dear:
         return Reason("expensive" if floor else "expensive_house", {"ct": round(now * 100, 1)})
     if sp <= room + th - 0.5:

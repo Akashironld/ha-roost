@@ -1,6 +1,6 @@
 /* Roost card - served by the roost integration. */
 (() => {   // own scope: safe if the file is loaded twice as a classic script (legacy frontend + a manual resource)
-const CARD_VERSION = "0.7.2";
+const CARD_VERSION = "0.7.3";
 
 // Plain ES2017 on purpose (no ?. / ??), ASCII only (\u escapes): wall tablets often run an older browser.
 const nn = (a, b) => (a === null || a === undefined ? b : a);
@@ -92,6 +92,8 @@ const WHY = {
         store_solar_house: "storing heat in the house on own solar (up to {sp} \u00b0C)",
         store_cheap_house: "storing heat in the house now ({ct} ct) before more expensive hours",
         expensive_house: "expensive hour ({ct} ct): living off the heat in the house",
+        store_ahead: "warming the floor ahead of dearer hours ({ct} ct from {at}:00)",
+        store_ahead_house: "warming the house ahead of dearer hours ({ct} ct from {at}:00)",
         warm_enough: "warm enough ({room} \u00b0C): no heat needed", holding: "keeping the room at temperature",
         paused: "changed by hand: leaving the thermostat alone for {min} more min",
         already_right: "thermostat already right", wait: "next change allowed in {min} min",
@@ -104,6 +106,8 @@ const WHY = {
         store_solar_house: "warmte opslaan in het huis met eigen zonnestroom (tot {sp} \u00b0C)",
         store_cheap_house: "warmte opslaan in het huis ({ct} ct), straks wordt het duurder",
         expensive_house: "duur uur ({ct} ct): teert op de warmte in het huis",
+        store_ahead: "vloer alvast opwarmen voor duurdere uren ({ct} ct vanaf {at}:00)",
+        store_ahead_house: "huis alvast opwarmen voor duurdere uren ({ct} ct vanaf {at}:00)",
         warm_enough: "warm genoeg ({room} \u00b0C): geen warmte nodig", holding: "kamer op temperatuur houden",
         paused: "met de hand gewijzigd: thermostaat nog {min} min met rust gelaten",
         already_right: "thermostaat staat al goed", wait: "volgende wijziging over {min} min",
@@ -116,6 +120,8 @@ const WHY = {
         store_solar_house: "speichert W\u00e4rme im Haus mit eigenem Solarstrom (bis {sp} \u00b0C)",
         store_cheap_house: "speichert W\u00e4rme im Haus jetzt ({ct} ct) vor teureren Stunden",
         expensive_house: "teure Stunde ({ct} ct): lebt von der W\u00e4rme im Haus",
+        store_ahead: "w\u00e4rmt den Boden vor teureren Stunden vor ({ct} ct ab {at}:00)",
+        store_ahead_house: "w\u00e4rmt das Haus vor teureren Stunden vor ({ct} ct ab {at}:00)",
         warm_enough: "warm genug ({room} \u00b0C): keine W\u00e4rme n\u00f6tig", holding: "h\u00e4lt den Raum auf Temperatur",
         paused: "von Hand ge\u00e4ndert: l\u00e4sst das Thermostat noch {min} min in Ruhe",
         already_right: "Thermostat steht schon richtig", wait: "n\u00e4chste \u00c4nderung in {min} min erlaubt",
@@ -128,12 +134,14 @@ const WHY = {
         store_solar_house: "stocke de la chaleur dans la maison avec le solaire (jusqu'\u00e0 {sp} \u00b0C)",
         store_cheap_house: "stocke de la chaleur dans la maison maintenant ({ct} ct) avant des heures plus ch\u00e8res",
         expensive_house: "heure ch\u00e8re ({ct} ct) : vit de la chaleur de la maison",
+        store_ahead: "pr\u00e9chauffe le sol avant des heures plus ch\u00e8res ({ct} ct d\u00e8s {at} h)",
+        store_ahead_house: "pr\u00e9chauffe la maison avant des heures plus ch\u00e8res ({ct} ct d\u00e8s {at} h)",
         warm_enough: "assez chaud ({room} \u00b0C) : pas besoin de chaleur", holding: "maintient la pi\u00e8ce \u00e0 temp\u00e9rature",
         paused: "chang\u00e9 \u00e0 la main : laisse le thermostat encore {min} min",
         already_right: "thermostat d\u00e9j\u00e0 bien r\u00e9gl\u00e9", wait: "prochain changement possible dans {min} min",
         urgent: "pi\u00e8ce sous le minimum : correction maintenant", following: "suit le plan" },
 };
-const WHY_DECIMALS = { sp: 1, room: 1, ct: 0, min: 0 };
+const WHY_DECIMALS = { sp: 1, room: 1, ct: 0, min: 0, at: 0 };
 // The heating curve advice (sensor heating_curve): a folded table under the plan.
 const CURVE_T = {
   en: { none_needed: "none", n_none: "None: at this outdoor temperature your house needs no heat.", wi_label: "Indoor temperature", wi_note: "what if: changes neither Roost nor the thermostat", lg_cloud_ot: "Measured under OpenTherm: each dot is an hour the heat pump ran the whole hour", lg_cloud_curve: "Measured on its heating curve: each dot is an hour the heat pump ran the whole hour", lg_cloud: "Measured: each dot is an hour the heat pump ran the whole hour", lg_dash: "Dashed: calculated (colder than measured) or in the cycling zone", need: "Needed", meas_ot: "Measured (OT)", meas_curve: "Measured (curve)", n_need: "Needed: the least your house asks for at that outdoor temperature, without margin.", n_meas_ot: "Measured (OT): the flow by the heat pump's own sensor, in hours it ran the whole hour while the OpenTherm thermostat set the water temperature.", n_meas_curve: "Measured (curve): the flow by the heat pump's own sensor, in hours it ran the whole hour on its own heating curve.", title: "Heating curve advice", out: "Outdoor", now: "Now", adv: "Advice", meas: "Measured", cz: "cycling zone", at0: "At 0 \u00b0C outside", loss: "Heat loss", cyc: "Cycles above", flow: "flow temperature", outside: "outdoor", x_axis: "outdoor temperature", y_axis: "flow \u00b0C", lg_adv: "Advice: the heating curve to set in the Weheat app", lg_now: "Now: the curve your heat pump has", lg_need: "Needed: the least your house asks for (without margin)", lg_meas: "Measured: what your heat pump really made", lg_cyc: "Cycling zone: here the heat pump switches on and off anyway", n_for: "For {room} \u00b0C indoors, from {days} heating days and {hours} hours of steady heating.", n_rough: "Still rough: little data yet.", n_cycles: "Above about {t} \u00b0C outside the heat pump switches on and off anyway; the points there (grey) matter little.", n_extra: "{x} \u00b0C is calculated: colder than any day measured (coldest {min} \u00b0C).", n_meas: "Measured: the flow temperature in hours the heat pump ran the whole hour, near that outdoor temperature.", n_thermostat: "Your heat pump follows the thermostat now; the advice applies when it runs on its heating curve.", n_oncurve: "Your heat pump runs on its heating curve.", n_set: "Set the points in the Weheat app (heating curve).", none: "No advice yet: Roost needs about 20 heating days and 30 hours of steady heating with the flow temperature from the Weheat logs." },
