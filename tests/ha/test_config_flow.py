@@ -165,6 +165,27 @@ async def test_options_a_field_left_empty_is_gone(hass: HomeAssistant, entry) ->
     assert "house_power" not in conf and conf["battery_soc"] == "sensor.soc" and entry.data["token"] == {"access_token": "x"}
 
 
+async def test_options_an_emptied_field_is_not_filled_in_again(hass: HomeAssistant, entry) -> None:
+    """#3, again: a house power sensor Roost can detect by its name, emptied in Configure, is not suggested again
+    when Configure is opened later (and so not saved again with the next change)."""
+    hass.states.async_set("sensor.house_power", "450", {"device_class": "power", "unit_of_measurement": "W"})
+    hass.config_entries.async_update_entry(entry, data={**entry.data, "pv_power": "sensor.pv", "grid_power": "sensor.grid",
+                                                         "battery_soc": "sensor.soc", "house_power": "sensor.house_power"})
+    await hass.async_block_till_done()
+    r = await hass.config_entries.options.async_init(entry.entry_id)
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {"next_step_id": "solar"})
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {
+        "solar_section": {"has_solar": True, "pv_power": "sensor.pv", "grid_power": "sensor.grid", "grid_sign": "import_positive"},
+        "battery_section": {"has_battery": True, "battery_soc": "sensor.soc"},
+        "grid_preference": 0.0})
+    assert "house_power" not in {**entry.data, **entry.options}
+    r = await hass.config_entries.options.async_init(entry.entry_id)
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {"next_step_id": "solar"})
+    battery = next(v for k, v in r["data_schema"].schema.items() if str(k) == "battery_section")
+    suggested = {str(k): (k.description or {}).get("suggested_value") for k in battery.schema.schema}
+    assert suggested.get("house_power") is None and suggested.get("battery_soc") == "sensor.soc", suggested
+
+
 async def test_built_in_day_ahead_prices_screen(hass: HomeAssistant, weheat: str) -> None:
     r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     r = await hass.config_entries.flow.async_configure(r["flow_id"], {"name": "Roost", "heat_pump": weheat, "thermostat": THERMOSTAT,

@@ -106,7 +106,8 @@ def energy(hass: HomeAssistant) -> dict[str, str]:
         bp = [s.entity_id for s in power if _has(s.entity_id, ("battery", "accu")) and _device(hass, s.entity_id) == _device(hass, out["battery_soc"])]
         if bp:
             out["battery_power"] = sorted(bp, key=len)[0]
-    house = [s.entity_id for s in power if _has(s.entity_id, ("load", "house", "home", "huis", "consumption")) and same(s.entity_id)]
+    house = [s.entity_id for s in power if _has(s.entity_id, ("load", "house", "home", "huis", "consumption"))
+             and not _has(s.entity_id, ("battery", "accu")) and same(s.entity_id)]
     if house:
         out["house_power"] = sorted(house, key=len)[0]
     kwh = [s for s in _sensors(hass) if str(s.attributes.get("unit_of_measurement") or "").lower() == "kwh"

@@ -676,7 +676,10 @@ class RoostOptionsFlow(OptionsFlow):
             o.update(_clean({k: v for k, v in user_input.items() if k not in (SOLAR_SECTION, BATTERY_SECTION)}))
             return await self._async_saved()
         solar, battery = bool(o.get(CONF_HAS_SOLAR)), bool(o.get(CONF_HAS_BATTERY))
-        found = detect.energy(self.hass)
+        # detected sensors only for a block not set up yet: in a block already set up, a field left empty was emptied
+        # on purpose and must not come back filled in (#3)
+        found = {k: v for k, v in detect.energy(self.hass).items()
+                 if not ((solar and k in SOLAR_KEYS) or (battery and k in BATTERY_KEYS))}
         values = _suggest(self.hass, o, found)
         suggested = {SOLAR_SECTION: {k: values[k] for k in [CONF_HAS_SOLAR] + SOLAR_KEYS if k in values},
                      BATTERY_SECTION: {k: values[k] for k in [CONF_HAS_BATTERY] + BATTERY_KEYS if k in values},
