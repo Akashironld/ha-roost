@@ -271,6 +271,23 @@ def test_slow_unit_plan_beats_a_steady_thermostat():
     assert min(x.sp for x, h in zip(p.hours, hours) if 15 <= h.hour < 20) < 19.5, [x.sp for x in p.hours]    # 70 ct: coasts
 
 
+def test_steady_comparison_is_exactly_as_comfortable():
+    """#5: on 0.5 °C steps the steady thermostat one step lower fell a hair short of the plan's comfort, so a whole
+    step higher was taken (21 °C all day for a 20.5 °C comfort) and the plan seemed to save what that step costs. The
+    two steps are weighed to the plan's comfort now."""
+    hp = true_pump()
+    s = planner.Settings(comfort=20.5, day_min=20.0, night_min=19.0, store_max=22.5)
+    hours = []
+    for i in range(36):
+        hr = (13 + i) % 24
+        price = 0.22 if 10 <= hr < 16 else (0.45 if 17 <= hr < 21 else (0.25 if hr >= 21 or hr < 7 else 0.30))
+        hours.append(planner.HourIn(t_out=2 + 2 * math.sin((hr - 9) / 24 * 2 * math.pi), wind=4, rad=0.15 if 10 <= hr <= 15 else 0,
+                                    p_grid=price, p_own=price, day=7 <= hr < 22, hour=hr))
+    bd = planner.plan(HOUSE, hp, s, hours, 20.6, 1.0, 20.0, w_now=2.0).breakdown
+    assert abs(bd["b_short"] - bd["short"]) < 0.02, (bd["short"], bd["b_short"])      # whole steps: 0.18 against 0.08
+    assert abs(sum(r["save"] for r in bd["hours"]) + bd["b_end"] - bd["end"] - bd["saving"]) < 0.01
+
+
 def test_import_end_expected_sooner_with_logs_only():
     """Adding fields reads only the hourly logs (once per two minutes), not the energy logs (once per half hour)."""
     imp = {"months": 12, "months_done": 2, "at": "2026-10-20T09:45:00+00:00"}

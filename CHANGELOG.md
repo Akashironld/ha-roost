@@ -1,8 +1,11 @@
 # Changelog
 
-## v0.7.3 — why Roost heats ahead
+## v0.7.3 — a steadier saving, and why Roost heats ahead
 
-**For everyone who reads the reasons** — when Roost heats in an hour that is not cheap to be ready for dearer hours later (a slow floor needs the start), the reason now says so, with the price and the hour, instead of *keeping the room at temperature*.
+**For everyone who looks at the saving or reads the reasons** — the steady thermostat Roost compares with no longer jumps half a degree too warm (which made the expected saving jump, #5); and when Roost heats in an hour that is not cheap to be ready for dearer hours later, the reason says so.
+
+### Fixes
+- **The steady thermostat to compare with** (#5): on 0.5 °C steps the one just below fell a hair short of Roost's comfort, so a whole step higher was taken — 21 °C all day for a comfort of 20.5 °C — and the expected saving jumped by what that step costs (0.23 € one moment, 0.02 € a quarter later). When one step is a little too cold and the next too warm, the two are now weighed to exactly Roost's comfort
 
 ### Improvements
 - **Reasons**: *warming the floor ahead of dearer hours (43 ct from 7:00)* for an hour that is warmer than holding the room needs but not among the cheap hours

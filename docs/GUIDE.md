@@ -609,8 +609,8 @@ of such an estimate: when only the estimates would make it do something else now
 average of the known prices.
 
 **How is the saving calculated?** Roost plays the same hours twice with the same house model, weather and prices:
-once with its own settings, once with a steady thermostat — on the same 0.5 °C steps, set just high enough to be as
-comfortable as Roost. The difference in cost is the saving, plus the difference in what the house's state at the end
+once with its own settings, once with a steady thermostat — on the same 0.5 °C steps and exactly as comfortable as
+Roost (when one step is a little too cold and the next too warm, the two are weighed). The difference in cost is the saving, plus the difference in what the house's state at the end
 still costs: a house left colder must be heated back later, so turning down at the end of a day is not counted as a
 saving. Yesterday is replayed after midnight with what really happened.
 

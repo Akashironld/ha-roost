@@ -176,10 +176,12 @@ def comparable_steady(sim: Simulator, hours: list[HourIn], T0: float, E0: float,
     """The steady thermostat to compare with, at equal comfort: one offset on the setpoint that holds the comfort
     temperature, the lowest that is at least as comfortable as the plan (°C·hours below comfort in the comfort hours).
     Comparing with a colder steady thermostat would make a comfortable plan look expensive. -> (cost, kWh, T, E).
-    On the same steps as the plan: a steady thermostat between them would make a plan on them look expensive.
+    On the same steps as the plan, as a real thermostat; when one step is a little too cold and the next too warm, the
+    two are weighed to exactly the plan's comfort — taking the warmer step whole made a plan look like it saved what
+    the step costs (#5), the colder one like it cost it.
     `trace`: filled with what the chosen steady thermostat does per hour (setpoint, room, kWh, cost), for the breakdown."""
     s, hp = sim.s, sim.hp
-    last = None
+    last = prev = None
     for off in [x / 10 for x in range(-5, 16)]:
         T, E, w, cost, kwh, dfc = T0, E0, w0, 0.0, 0.0, 0.0
         rows = []
@@ -189,12 +191,21 @@ def comparable_steady(sim: Simulator, hours: list[HourIn], T0: float, E0: float,
             w = sim.w_end if w is not None else None
             cost, kwh, dfc = cost + c, kwh + e, dfc + _deficit(T, h, s)
             rows.append((sp, T, e, c))
-        last = (cost, kwh, T, E)
+        if last is not None and rows != last[5]:
+            prev = last
+        last = (cost, kwh, T, E, dfc, rows, off)
         if dfc <= deficit + 0.05:
             break
+    cost, kwh, T, E, dfc, rows, off = last
+    if prev is not None and dfc < deficit < prev[4]:
+        wt = (prev[4] - deficit) / (prev[4] - dfc)        # share of the warmer step
+        mix = lambda a, b: a * (1 - wt) + b * wt           # noqa: E731
+        cost, kwh, T, E, off = (mix(prev[i], x) for i, x in ((0, cost), (1, kwh), (2, T), (3, E), (6, off)))
+        rows = [tuple(mix(a, b) for a, b in zip(ra, rb)) for ra, rb in zip(prev[5], rows)]
+        dfc = deficit
     if trace is not None:           # per hour (setpoint, room at the end, kWh, cost), the offset and its comfort shortfall
         trace.update(rows=rows, offset=off, deficit=dfc)
-    return last
+    return cost, kwh, T, E
 
 
 def _end_value(sim: Simulator, hours: list[HourIn], comfort: float):
