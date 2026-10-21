@@ -173,9 +173,11 @@ class CareMixin:
             from homeassistant.exceptions import ServiceValidationError
             raise ServiceValidationError("The comfort hours must end after they start")
         opts = {**self.entry.options, **{keys[k]: v for k, v in f.items()}}
-        self.hass.config_entries.async_update_entry(self.entry, options=opts)
         from . import _conf_key
-        self.conf_key = _conf_key(self.entry)          # settings Roost takes as they are: no reload for them
+        # settings Roost takes as they are: no reload for them. Known before saving: the update listener may run
+        # within async_update_entry (an eager task), and then saw the old key and reloaded Roost (card unavailable)
+        self.conf_key = _conf_key(self.entry, opts)
+        self.hass.config_entries.async_update_entry(self.entry, options=opts)
         self.event("settings", **{k: f[k] for k in new})
         await self._async_tick(None, force_plan=True)
 

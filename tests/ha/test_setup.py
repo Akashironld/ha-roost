@@ -247,3 +247,14 @@ async def test_explain_saving_service(hass: HomeAssistant, entry) -> None:
     assert line["sp"][0] == snap["sp"][0] + 1.0 and line["why"]
     diag = await async_get_config_entry_diagnostics(hass, entry)
     assert diag["plan_changes"] and diag["saving_explained"]["next_24h"]["hours"]
+
+
+async def test_settings_from_the_card_do_not_reload(hass: HomeAssistant, entry) -> None:
+    """21-10: a temperature changed in the card (roost.set_settings) reloaded Roost, and the card showed 'not
+    available' for a moment: the update listener ran within async_update_entry and saw the old settings key."""
+    m = entry.runtime_data
+    await hass.services.async_call("roost", "set_settings", {"comfort": 21.0}, blocking=True)
+    await hass.async_block_till_done()
+    assert entry.runtime_data is m                                  # the same manager: no reload
+    assert {**entry.data, **entry.options}["comfort"] == 21.0 and m.settings().comfort == 21.0
+    assert hass.states.get(_plan_entity(hass)).state not in ("unknown", "unavailable")

@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.7.4 — settings from the card without a restart of Roost
+
+**For everyone who changes temperatures in the card** — changing a temperature or the comfort hours with ⚙ Settings in the card restarted Roost, so the card showed *Not available* for a moment; the setting is now taken over without that.
+
+### Fixes
+- **⚙ Settings in the card** (`roost.set_settings`) no longer reloads Roost: Home Assistant checks for a reload while the setting is saved, and Roost marked the change as one it takes over only after that
+
+### After updating
+Update in HACS (or install the new `roost.zip`) and restart Home Assistant, then reload the dashboard (Ctrl+F5).
+
 ## v0.7.3 — the saving in parts, hybrids, a steadier comparison
 
 **For everyone who looks at the saving, and for hybrid heat pumps** — the steady thermostat Roost compares with no longer jumps half a degree too warm (which made the expected saving jump, #5), the saving is shown in parts (also what waiting for the sun saved), and a hybrid keeps its gas boiler out of storing heat.

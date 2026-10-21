@@ -248,9 +248,11 @@ async def async_remove_entry(hass: HomeAssistant, entry: RoostConfigEntry) -> No
         ir.async_delete_issue(hass, DOMAIN, issue_id)
 
 
-def _conf_key(entry: RoostConfigEntry) -> str:
-    """The settings, without Roost's own Weheat token (refreshed in the entry now and then: no reason to reload)."""
-    return json.dumps({"data": {k: v for k, v in entry.data.items() if k != "token"}, "options": dict(entry.options),
+def _conf_key(entry: RoostConfigEntry, options: dict | None = None) -> str:
+    """The settings, without Roost's own Weheat token (refreshed in the entry now and then: no reason to reload).
+    options: the options about to be saved (the update listener can run before async_update_entry returns)."""
+    return json.dumps({"data": {k: v for k, v in entry.data.items() if k != "token"},
+                       "options": dict(entry.options if options is None else options),
                        "rooms": {sid: dict(sub.data) for sid, sub in entry.subentries.items()}}, sort_keys=True, default=str)
 
 
