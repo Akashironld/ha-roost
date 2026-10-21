@@ -90,6 +90,15 @@ def _extras(x: dict, fields: dict[str, str]) -> dict:
     return out
 
 
+BOILER_MIN_S = 300         # a gas boiler that ran at least 5 minutes in an hour
+HYBRID_HOURS = 3           # ... in this many hours of the year: a hybrid heat pump
+
+
+def boiler_hours(hours: dict[int, dict]) -> int:
+    """Hours in which a gas boiler ran (Weheat's hourly logs, controlBridgeStatusGasBoiler): a hybrid heat pump."""
+    return sum(1 for v in hours.values() if (v.get("boiler_s") or 0) >= BOILER_MIN_S)
+
+
 def merge_hours(have: dict[int, dict], new: dict[int, dict]) -> None:
     """Add hours from Weheat to the ones kept, field by field: reading the hourly logs alone (to add new fields) must
     keep the energy an hour already has."""

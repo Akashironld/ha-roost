@@ -34,7 +34,9 @@ def _expected_now(old: dict, at: float) -> float | None:
 
 
 def compare(old: dict | None, new: dict, room: float) -> dict | None:
-    """-> a log line when the setpoint for now or the expected saving changed, with what caused it; None otherwise."""
+    """-> a log line when the setpoint for now or the expected saving changed, with what caused it; None otherwise. A
+    change of the saving alone that nothing explains (small differences in the room or the forecast add up) is no line;
+    a change of the setpoint names its largest cause even when that is below its threshold."""
     if not old or not new["sp"]:
         return None
     shift = (new["base"] - old["base"]) // 3600
@@ -56,30 +58,35 @@ def compare(old: dict | None, new: dict, room: float) -> dict | None:
             published += 1
         elif not og and not ng and abs(pn - po) > PRICE_REL * max(abs(po), 0.01):
             changed += 1
+    dt = max((abs(new["t_out"][k] - old["t_out"][k + shift]) for k in range(min(n, 12))), default=0.0)
+    dr = max((abs(new["rad"][k] - old["rad"][k + shift]) for k in range(min(n, 12))), default=0.0)
+    exp = _expected_now(old, new["at"])
+    droom = abs(room - exp) if exp is not None else 0.0
+    dcorr = abs(new["corr"] - old["corr"])
+    # each cause against its threshold: >= 1 counts; below, the largest still names a change of the setpoint
+    size = {"forecast": max(dt / FORECAST_K, dr / FORECAST_SUN), "room": droom / ROOM_K, "correction": dcorr / CORR_KW}
     if published:
         why.append("prices_published")
         detail["prices_published"] = published
     if changed:
         why.append("prices_changed")
         detail["prices_changed"] = changed
-    dt = max((abs(new["t_out"][k] - old["t_out"][k + shift]) for k in range(min(n, 12))), default=0.0)
-    dr = max((abs(new["rad"][k] - old["rad"][k + shift]) for k in range(min(n, 12))), default=0.0)
-    if dt > FORECAST_K or dr > FORECAST_SUN:
-        why.append("forecast")
-        detail["forecast_k"], detail["forecast_sun"] = round(dt, 1), round(dr, 2)
-    exp = _expected_now(old, new["at"])
-    if exp is not None and abs(room - exp) > ROOM_K:
-        why.append("room")
-        detail["room"], detail["room_expected"] = round(room, 2), round(exp, 2)
-    if abs(new["corr"] - old["corr"]) > CORR_KW:
-        why.append("correction")
-        detail["corr"] = [old["corr"], new["corr"]]
     if new["settings"] != old["settings"]:
         why.append("settings")
     if new["neutral"] != old["neutral"]:
         why.append("estimated")
+    why += [c for c in ("forecast", "room", "correction") if size[c] >= 1.0]
     if not why:
-        why.append("new_hour" if shift > 0 else "other")
+        if abs(sp_new - sp_old) < 0.01:
+            return None                 # only the expected saving moved, and nothing that explains it: no line
+        biggest = max(size, key=size.get)
+        why.append(biggest if size[biggest] >= 0.25 else ("new_hour" if shift > 0 else "other"))
+    if "forecast" in why:
+        detail["forecast_k"], detail["forecast_sun"] = round(dt, 1), round(dr, 2)
+    if "room" in why and exp is not None:
+        detail["room"], detail["room_expected"] = round(room, 2), round(exp, 2)
+    if "correction" in why:
+        detail["corr"] = [old["corr"], new["corr"]]
     return {"ts": new["at"], "sp": [sp_old, sp_new], "saving": [old["saving"], new["saving"]], "why": why, "detail": detail}
 
 

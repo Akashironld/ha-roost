@@ -112,6 +112,10 @@ def test_plan_breakdown_adds_up():
     assert len(bd["hours"]) == 24 and abs(bd["saving"] - p.saving) < 0.01, (bd["saving"], p.saving)
     assert abs(bd["cost"] - p.cost) < 0.01 and abs(bd["b_cost"] - p.baseline_cost) < 0.01
     assert abs(sum(r["save"] for r in bd["hours"]) + bd["b_end"] - bd["end"] - bd["saving"]) < 0.01
+    parts = bd["parts"]          # the parts add up to the saving; the sunny hours are a part of 'less electricity'
+    assert abs(parts["less_kwh"] + parts["cheaper_hours"] + parts["end"] - bd["saving"]) < 0.01, parts
+    assert parts["cheaper_hours"] > 0.1, parts                     # a cold day with a dear evening: mostly timing
+    assert any(r["sun"] for r in bd["hours"]) and not all(r["sun"] for r in bd["hours"])
 
 
 def test_guessed_prices_are_set_to_the_mean_of_the_known():

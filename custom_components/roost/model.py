@@ -39,6 +39,7 @@ SPREAD = {"C": 10.0, "H": 0.08, "g": 3.0, "lag": 0.8, "internal": 0.25, "Hw": 0.
 SIGMA_T = 0.7        # typical open-loop error per hour (°C); errors within a day are related: a day counts as ~1 observation
 SIGMA_BAL = 0.4      # typical daily energy-balance error (kW average)
 TEST_DAYS = 3
+SHOWN_DAYS = 7          # the error shown (sensor house_model): over a week, so a few odd days do not make it jump
 MARGIN = 0.03        # within this, prefer the model with more evidence behind it
 FACADES = (90.0, 135.0, 180.0, 225.0, 270.0)
 VERTICAL = (0.5, 1.0)
@@ -448,6 +449,7 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
             if plain and with_prof and with_prof[2] < plain[2]:
                 profile = residual_profile(final, idx, days, local_hour)
                 err = errors(final, idx, test, extra_for(profile)) or err
+        err = errors(final, idx, days[-SHOWN_DAYS:], extra_for(profile)) or err
         m = HouseModel(**{k: round(v, 4) for k, v in final.items()}, error_t=round(err[0], 3),
                        error_balance=round(err[1], 3), days=len(days), heating_days=heating, source="learned",
                        sun_facade=facade, sun_vertical=vertical, profile=profile,
@@ -457,5 +459,9 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
                if dropped else "")
         return LearnResult(m, True, "new model adopted" + why, rounded)
     keep = previous if choice == "previous" else HouseModel(**base)
-    keep = HouseModel.from_dict({**keep.as_dict(), "error_t": round(scores[choice][0], 3), "error_balance": round(scores[choice][1], 3)})
+    shown = scores[choice]
+    if choice == "previous":
+        shown = errors(previous.params(), idx_for(previous.sun_facade, previous.sun_vertical), days[-SHOWN_DAYS:],
+                       extra_for(previous.profile)) or shown
+    keep = HouseModel.from_dict({**keep.as_dict(), "error_t": round(shown[0], 3), "error_balance": round(shown[1], 3)})
     return LearnResult(keep, False, f"{choice} model predicts the last days better: kept", rounded)

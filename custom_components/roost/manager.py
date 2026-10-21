@@ -36,6 +36,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         self.plan_tariff: list[float] = []          # import price per plan hour (what the price sensor says, or a guess)
         self.plan_guess: list[bool] = []            # True: no price known yet for that hour, filled in
         self.plan_on_guess = False                  # the plan in force set guessed prices to the mean (planner.neutral_prices)
+        self.boiler_hours = 0                       # hours a gas boiler ran in the last year: a hybrid (history.boiler_hours)
         # price entity -> {hour epoch: price per kWh}: known hourly prices of the last days, to fill hours the price
         # forecast does not reach yet with the same hour a day earlier
         self.price_seen: dict[str, dict[int, float]] = {}
@@ -114,8 +115,11 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
     def settings(self) -> planner.Settings:
         c = self.conf
         night = _f(c.get(CONF_BASELINE_NIGHT)) or 0.0
+        above = float(c[CONF_MAX_ABOVE])
+        if self.boiler_hours >= history.HYBRID_HOURS:
+            above = min(above, HYBRID_MAX_ABOVE)    # a hybrid: a setpoint far above the room calls the gas boiler
         return planner.Settings(comfort=float(c[CONF_COMFORT]), day_min=float(c[CONF_DAY_MIN]), night_min=float(c[CONF_NIGHT_MIN]),
-                                store_max=max(float(c[CONF_STORE_MAX]), float(c[CONF_COMFORT])), max_above_room=float(c[CONF_MAX_ABOVE]),
+                                store_max=max(float(c[CONF_STORE_MAX]), float(c[CONF_COMFORT])), max_above_room=above,
                                 sp_min=float(c.get(CONF_SP_MIN, c[CONF_NIGHT_MIN])),
                                 baseline_night=night if night > 0 else None,
                                 away_min=float(self.mem.away_min) if self.mem.away_min is not None else AWAY_MIN)
@@ -174,6 +178,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             self.house = model.HouseModel(**self.house_start(), source="building register" if building.prior(self.building) else "default")
         self.ready, self.ready_missing = check.readiness(self.check, None, winter=self.check.get("winter")) if self.check else (False, [])
         self._weheat_hours = {int(k): v for k, v in (hist.get("weheat") or {}).items()}
+        self.boiler_hours = history.boiler_hours(self._weheat_hours)
         self._weather_hist = {int(k): tuple(v) for k, v in (hist.get("weather") or {}).items()}
         self._unsubs.append(async_track_time_interval(self.hass, self._async_tick, timedelta(seconds=TICK_SECONDS)))
         self._unsubs.append(async_track_time_change(self.hass, self._async_nightly, hour=LEARN_HOUR, minute=LEARN_MINUTE, second=0))
@@ -286,6 +291,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
     async def _async_save_history(self) -> None:
         cut = time.time() - HISTORY_KEEP_DAYS * 86400      # thirteen months: learning uses a year
         self._weheat_hours = {k: v for k, v in self._weheat_hours.items() if k >= cut}
+        self.boiler_hours = history.boiler_hours(self._weheat_hours)
         self._weather_hist = {k: v for k, v in self._weather_hist.items() if k >= cut}
         await self._hist_store.async_save({"weheat": {str(k): v for k, v in self._weheat_hours.items()},
                                            "weather": {str(k): list(v) for k, v in self._weather_hist.items()}})

@@ -182,7 +182,7 @@ Filled in from your thermostat's last days when Home Assistant still has them.
 | Field | Default | When to change |
 |---|---|---|
 | Lowest thermostat setting | 19 °C | Roost never sets the thermostat lower. Lower lets a slow heat pump stop sooner, but if Home Assistant is down the thermostat stays where Roost left it |
-| Setpoint at most this above the room | 1 °C | Keeps an OpenTherm thermostat asking for lukewarm water. Raise it if radiators upstairs stay cold |
+| Setpoint at most this above the room | 1 °C | Keeps an OpenTherm thermostat asking for lukewarm water. Raise it if radiators upstairs stay cold. With a hybrid (a gas boiler that ran in Weheat's logs) Roost keeps it at 0.5 °C at most, so a storing step does not call the boiler |
 | At most one change per | 60 min | Less often if your thermostat or heat pump does not like frequent changes |
 | Pause after a change by hand | 2 h | How long Roost steps aside when you change the thermostat yourself |
 | Night setback of the thermostat to compare with | 0 | Only for the savings figure: the steady thermostat Roost compares with |
@@ -260,7 +260,10 @@ place, so the card does not grow. Choose **24 h**, **48 h** or **7 d**:
   the state at the end of the period still costs for each (a colder house is heat bought back later, a warmer one
   heat already bought), and every **plan change** of the last two days: the setting for that hour and the expected
   saving before → after, and why (new prices published, prices changed, weather forecast changed, room off from what
-  was expected, correction from the last hours, settings, estimated prices left out, or simply a new hour).
+  was expected, correction from the last hours, settings, estimated prices left out, or simply a new hour; a saving
+  that moves without any of these is not listed). The saving is also split into parts that add up: **less
+  electricity** (waiting for the sun, not overheating, heating in warmer hours — of which in hours with sun, marked ☀
+  in the table), **cheaper hours** and **heat left at the end**.
 
 Roost keeps a week of hours and 60 days of day numbers for this; the history starts when you install 0.5.5.
 
@@ -315,7 +318,7 @@ In shadow mode Roost plans and shows everything, but never touches the thermosta
    keeps Weheat's limits. *Waiting for the Weheat login*: Roost has no Weheat login yet or Weheat refused it — use
    *Re-authenticate* at Roost on the integration page.
 2. **Learning** — right after the import, and every night at 03:30. Sensor *House model error* shows how well the house
-   model predicts a day (°C; below about 0.6 is good). Its details hold what Roost learned (Settings → Devices &
+   model predicts the room over the last week (°C; below about 0.6 is good). Its details hold what Roost learned (Settings → Devices &
    services → Roost → the sensor → ⋮ → **Details** → *Attributes*): heat loss, storage, floor delay, the facade the sun
    comes in through, and more.
 3. **Self-check** — every night Roost replays the last 7 days with the setpoints that were really on the thermostat
@@ -462,7 +465,7 @@ integration page: click it and log in again. Installs from before 0.5.3 get that
 | `sensor.roost_plan_accuracy` | Nightly self-check: the room 6 hours ahead (°C) |
 | `sensor.roost_room_expected_in_6_hours` | The room the plan expects in 6 hours — beside the room sensor in a history graph it shows how well Roost predicts |
 | `sensor.roost_heat_planned_this_hour` | The heat the plan has the heat pump deliver this hour (kWh) |
-| `sensor.roost_house_model_error` | How well the house model predicts a day (°C); the learned house in the details |
+| `sensor.roost_house_model_error` | How well the house model predicts the room over the last week (°C); the learned house in the details |
 | `sensor.roost_weheat_import` | Status of the Weheat history import |
 | `sensor.roost_weheat_import_progress` | How far the import is (%), the expected end in its details |
 | `binary_sensor.roost_paused_changed_by_hand` | On while Roost steps aside after a change by hand |

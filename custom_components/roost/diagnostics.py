@@ -69,6 +69,6 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: RoostCo
         "rooms": [vars(r) for r in m.rooms], "changes_by_hand": m.changes[-40:],
         "suggestion": m.suggestion.as_dict() if m.suggestion else None, "issues": sorted(m.health.issues),
         "events": list(m.events), "log": list(recent_log(hass).records),
-        "weheat_hours_imported": len(m._weheat_hours), "pv_k": m.pv_k, "load_profile": m.load_profile,
+        "weheat_hours_imported": len(m._weheat_hours), "gas_boiler_hours": m.boiler_hours, "pv_k": m.pv_k, "load_profile": m.load_profile,
     }
     return async_redact_data(data, REDACT)

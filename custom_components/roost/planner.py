@@ -425,6 +425,9 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
     return Plan(out, total, kwh_tot, base_cost, base_kwh, saving, min_day, rooms=room_t, breakdown=bd)
 
 
+SUNNY = 0.1             # kW/m² global radiation: an hour with sun on the house (breakdown)
+
+
 def breakdown(hours: list[HourIn], roost: list[tuple], steady: dict, end_roost: float, end_steady: float,
               deficit: float) -> dict:
     """Where a saving comes from, hour by hour: what Roost does and what the steady thermostat at equal comfort does
@@ -433,12 +436,21 @@ def breakdown(hours: list[HourIn], roost: list[tuple], steady: dict, end_roost: 
     rows = []
     for k, (h, r, b) in enumerate(zip(hours, roost, steady.get("rows", []))):
         rows.append({"i": k, "hour": h.hour, "t_out": round(h.t_out, 1), "price": round(h.p_grid, 4), "day": h.day,
+                     "sun": h.rad >= SUNNY,
                      "sp": round(r[0], 1), "t": round(r[1], 2), "kwh": round(r[2], 3), "cost": round(r[3], 4),
                      "b_sp": round(b[0], 1), "b_t": round(b[1], 2), "b_kwh": round(b[2], 3), "b_cost": round(b[3], 4),
                      "save": round(b[3] - r[3], 4)})
     cost, base = sum(r[3] for r in roost), sum(b[3] for b in steady.get("rows", []))
-    return {"hours": rows, "cost": round(cost, 3), "b_cost": round(base, 3),
-            "kwh": round(sum(r[2] for r in roost), 2), "b_kwh": round(sum(b[2] for b in steady.get("rows", [])), 2),
+    kwh, b_kwh = sum(r[2] for r in roost), sum(b[2] for b in steady.get("rows", []))
+    # the saving in parts that add up: less electricity (at the steady thermostat's average price: waiting for the sun,
+    # no overshoot, warmer hours), of which in sunny hours, cheaper hours (the rest of the cost), the state at the end
+    avg = base / b_kwh if b_kwh > 0.01 else (sum(h.p_grid for h in hours) / len(hours) if hours else 0.0)
+    less = (b_kwh - kwh) * avg
+    sun = sum((b[2] - r[2]) * avg for h, r, b in zip(hours, roost, steady.get("rows", [])) if h.rad >= SUNNY)
+    parts = {"less_kwh": round(less, 3), "sun": round(sun, 3), "cheaper_hours": round(base - cost - less, 3),
+             "end": round(end_steady - end_roost, 3)}
+    return {"hours": rows, "cost": round(cost, 3), "b_cost": round(base, 3), "parts": parts,
+            "kwh": round(kwh, 2), "b_kwh": round(b_kwh, 2),
             "end": round(end_roost, 3), "b_end": round(end_steady, 3),
             "saving": round(base + end_steady - cost - end_roost, 3),
             "short": round(deficit, 2), "b_short": round(steady.get("deficit", 0.0), 2),

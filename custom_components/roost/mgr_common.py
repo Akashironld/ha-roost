@@ -42,6 +42,7 @@ from .weheat_api import WeheatLoginNeeded, WeheatUnavailable, async_fetch_histor
 _LOGGER = logging.getLogger(f"{__package__}.manager")   # the name it always had (log settings, bug reports)
 HOUR_LOG_KEPT = 7 * 24 + 2                       # a week of hours: the replay of yesterday and the look back
 PLAN_LOG_KEPT = 48                               # the plan's inputs per hour (2 days): to replay a decision exactly
+HYBRID_MAX_ABOVE = 0.5                           # a hybrid: the setpoint at most this above the room (no gas boiler for storing)
 SAVING_DETAIL_DAYS = 7                           # the saving per hour of the last days (roost.explain_saving, the report)
 
 

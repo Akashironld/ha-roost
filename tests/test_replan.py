@@ -54,6 +54,16 @@ def test_saving_alone_and_settings_and_estimates():
     assert replan.compare(snap(), snap(at=BASE + 1500, saving=0.43), 20.5) is None     # 3 ct: not worth a line
 
 
+def test_unexplained_saving_change_is_no_line_and_a_setpoint_change_names_the_largest_cause():
+    """21-10: many lines said only 'recalculated' while the saving jumped 10-20 ct. A saving that moves on its own is
+    no line now; a setpoint that changes names the largest cause, also below its threshold."""
+    assert replan.compare(snap(), snap(at=BASE + 1500, saving=0.60), 20.45) is None
+    line = replan.compare(snap(), snap(at=BASE + 1500, sp=21.0, room=20.35), 20.35)       # room 0.15 off: under 0.3
+    assert line["why"] == ["room"] and line["detail"]["room"] == 20.35, line
+    line = replan.compare(snap(), snap(at=BASE + 1500, sp=21.0), 20.5)
+    assert line["why"] == ["other"], line
+
+
 def test_prune_keeps_two_days():
     log = [{"ts": BASE - 3 * 86400}, {"ts": BASE - 86400}]
     assert replan.prune(log, BASE) == [{"ts": BASE - 86400}]

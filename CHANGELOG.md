@@ -1,13 +1,17 @@
 # Changelog
 
-## v0.7.3 — a steadier saving, and why Roost heats ahead
+## v0.7.3 — the saving in parts, hybrids, a steadier comparison
 
-**For everyone who looks at the saving or reads the reasons** — the steady thermostat Roost compares with no longer jumps half a degree too warm (which made the expected saving jump, #5); and when Roost heats in an hour that is not cheap to be ready for dearer hours later, the reason says so.
+**For everyone who looks at the saving, and for hybrid heat pumps** — the steady thermostat Roost compares with no longer jumps half a degree too warm (which made the expected saving jump, #5), the saving is shown in parts (also what waiting for the sun saved), and a hybrid keeps its gas boiler out of storing heat.
 
 ### Fixes
 - **The steady thermostat to compare with** (#5): on 0.5 °C steps the one just below fell a hair short of Roost's comfort, so a whole step higher was taken — 21 °C all day for a comfort of 20.5 °C — and the expected saving jumped by what that step costs (0.23 € one moment, 0.02 € a quarter later). When one step is a little too cold and the next too warm, the two are now weighed to exactly Roost's comfort
+- **Hybrid heat pumps** (#5): when Weheat's logs show a gas boiler ran, Roost puts the thermostat at most 0.5 °C above the room, so storing heat does not call the boiler (whatever *Setpoint at most this above the room* says)
 
 ### Improvements
+- **The saving in parts** (report and `roost.explain_saving`): less electricity (waiting for the sun, not overheating, warmer hours), of which in hours with sun (☀ in the table), heating in cheaper hours, and heat left at the end — they add up to the saving
+- **Plan changes**: a change of the expected saving that nothing explains is no longer listed as *recalculated*; a change of the setting names its largest cause
+- **House model error** is measured over the last week instead of the last three days, so a few odd days (a thermostat held by hand, a sunny weekend) no longer make it jump; the model is still chosen on the newest days
 - **Reasons**: *warming the floor ahead of dearer hours (43 ct from 7:00)* for an hour that is warmer than holding the room needs but not among the cheap hours
 
 ### After updating
