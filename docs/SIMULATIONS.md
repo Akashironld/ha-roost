@@ -61,6 +61,48 @@ python3 tools/sim/sim.py winter,winter_rad,winter_onoff 28
 The savings hold over a whole month and through a cold week, at about the same comfort, with no more thermostat
 changes than in a single week.
 
+## Results (v0.7.1, two weeks of different weather and prices)
+
+Saving against the equally comfortable steady thermostat, mean of seeds 1 and 2 (7 days; the winter scenarios 28 days),
+beside v0.6.1 on the same scenarios. v0.7.0 fixed how the heat left at the end is counted and the planning of fast
+houses (#4); v0.7.1 lowered the cost of a thermostat change in the plan from 15 to 5 ct (it was tuned to the old count).
+Median 5.3 % (v0.6.1: 3.2 %). The price: about three changes of the thermostat a day, and in a cold month a little more
+time just below comfort (winter: 9.7 °C·h in 28 days against 4.9).
+
+| scenario | saving v0.7.1 | v0.6.1 | °C·h below comfort | hours below minimum | changes / week |
+|---|---|---|---|---|---|
+| home | 3.8 % | 2.0 % | 0.6 | 0 | 21 |
+| radiators | 9.9 % | 8.4 % | 1.8 | 0 | 30 |
+| fixed | 5.0 % | 3.0 % | 1.1 | 0 | 17 |
+| double | 4.5 % | 2.8 % | 0.9 | 0 | 10 |
+| mismatch | 4.1 % | 3.0 % | 4.9 | 0 | 26 |
+| spring | 5.4 % | 2.2 % | 0.5 | 0 | 15 |
+| onoff | 9.6 % | 7.2 % | 0.2 | 0 | 18 |
+| insulated | 4.4 % | 2.7 % | 0.6 | 0 | 20 |
+| old | 6.8 % | 6.5 % | 4.5 | 2 | 24 |
+| newbuild | 13.2 % | 8.3 % | 0.2 | 0 | 18 |
+| apartment | 13.1 % | 4.2 % | 0.6 | 0 | 22 |
+| cold | 4.5 % | 4.3 % | 3.8 | 0 | 26 |
+| volatile | 10.9 % | 11.0 % | 0.7 | 0 | 24 |
+| slowpump | 3.9 % | 1.7 % | 1.5 | 0 | 26 |
+| autumn | 7.6 % | 2.9 % | 1.3 | 0 | 11 |
+| fixed_rad | 7.1 % | 3.7 % | 0.6 | 0 | 25 |
+| issue4 | 4.8 % | -1.1 % | 0.0 | 0 | 11 |
+| old_fixed | 5.4 % | 5.5 % | 3.4 | 2 | 19 |
+| bedroom | 0.0 % | 1.0 % | 0.8 | 0 | 18 |
+| rad_fast | 9.6 % | 5.0 % | 1.6 | 0 | 26 |
+| rad_fixed_fast | 6.5 % | 1.8 % | 1.6 | 0 | 18 |
+| rad_double_fast | 3.3 % | -1.4 % | 0.5 | 0 | 10 |
+| rad_volatile_fast | 17.6 % | 13.4 % | 0.0 | 0 | 28 |
+| rad_cold_fast | 2.8 % | -2.9 % | 1.0 | 0 | 20 |
+| old_fast | 5.3 % | -2.9 % | 5.0 | 2 | 18 |
+| old_fixed_fast | 5.2 % | -3.7 % | 4.9 | 2 | 17 |
+| issue4_fast | 3.1 % | -5.0 % | 0.0 | 0 | 9 |
+| issue4_dyn_fast | 9.7 % | 0.3 % | 0.1 | 0 | 18 |
+| winter (28 d) | 6.0 % | 3.9 % | 9.7 | 0 | 24 |
+| winter_rad (28 d) | 8.8 % | 7.2 % | 7.0 | 0 | 28 |
+| winter_onoff (28 d) | 10.2 % | 8.9 % | 4.0 | 0 | 18 |
+
 ## Results (v0.5.2, three weeks of different weather and prices)
 
 Saving against the equally comfortable steady thermostat, mean of three weeks (range):

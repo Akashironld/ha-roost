@@ -597,10 +597,10 @@ diagnostics.
 ## 16. FAQ
 
 **How much does it save?** Honestly: it depends on your heat pump, your floor and your prices, and beta testers will
-tell. In [closed-loop simulations](SIMULATIONS.md) against an equally comfortable steady thermostat: about 2 % with
-floor heating and a slow OpenTherm heat pump (it follows a new setpoint over hours, so there is little to shift), about
-3 % with a fixed price (heating in the warmer, more efficient hours), 7–8 % with radiators or an on/off thermostat. Own
-solar and a home battery add to it. The card shows it against a steady thermostat that is as comfortable as Roost's
+tell. In [closed-loop simulations](SIMULATIONS.md) against an equally comfortable steady thermostat (v0.7.1, 28
+scenarios × 2 weeks, median 5 %): about 3–6 % with floor heating and a slow OpenTherm heat pump (it follows a new
+setpoint over hours, so there is less to shift), about 5 % with a fixed price (heating in the warmer, more efficient
+hours), 8–11 % with radiators or an on/off thermostat. Own solar and a home battery add to it. The card shows it against a steady thermostat that is as comfortable as Roost's
 plan.
 
 **Why does the expected saving change during the day?** Every 15 minutes Roost plans again with what it knows then.
