@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.7.2 — Settings in the card open at the first tap
+
+**For everyone who uses the card's settings** — tapping ⚙ Settings in the mode menu gave the error *required key not provided at 'option'* and closed the menu; it opens at the first tap now.
+
+### Fixes
+- **Card**: ⚙ Settings in the mode menu no longer also tries to switch the mode (an error, and the menu closed); the settings open at the first tap
+
+### After updating
+Update in HACS (or install the new `roost.zip`) and restart Home Assistant, then reload the dashboard (Ctrl+F5) for the new card.
+
 ## v0.7.1 — slow heat pumps save again, house power stays empty
 
 **For everyone with a slow (OpenTherm) heat pump, and everyone who emptied a sensor field** — v0.7.0 fixed how the heat left at the end is counted, but the cost Roost gives each thermostat change was still tuned to the old count, so a slow heat pump hardly moved and saved less than before; and a sensor Roost recognises by its name came back in an emptied field (#3).

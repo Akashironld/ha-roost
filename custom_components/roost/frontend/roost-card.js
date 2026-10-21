@@ -1,6 +1,6 @@
 /* Roost card - served by the roost integration. */
 (() => {   // own scope: safe if the file is loaded twice as a classic script (legacy frontend + a manual resource)
-const CARD_VERSION = "0.7.1";
+const CARD_VERSION = "0.7.2";
 
 // Plain ES2017 on purpose (no ?. / ??), ASCII only (\u escapes): wall tablets often run an older browser.
 const nn = (a, b) => (a === null || a === undefined ? b : a);
@@ -585,7 +585,7 @@ class RoostCard extends HTMLElement {
     root.querySelectorAll(".pill.modebtn").forEach((pl) => pl.addEventListener("click", (ev) => {
       ev.stopPropagation(); this._modeOpen = !this._modeOpen; this._armed = null; this._render();
     }));
-    root.querySelectorAll(".mopt").forEach((b) => b.addEventListener("click", (ev) => {
+    root.querySelectorAll(".mopt[data-m]").forEach((b) => b.addEventListener("click", (ev) => {     // not the Settings button
       ev.stopPropagation();
       const m = b.dataset.m;
       if (m === "active" && this._armed !== "active") { this._armed = "active"; b.querySelector("small").textContent = this._t("mo_sure"); return; }
