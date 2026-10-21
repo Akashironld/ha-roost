@@ -37,6 +37,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         self.plan_guess: list[bool] = []            # True: no price known yet for that hour, filled in
         self.plan_on_guess = False                  # the plan in force set guessed prices to the mean (planner.neutral_prices)
         self.boiler_hours = 0                       # hours a gas boiler ran in the last year: a hybrid (history.boiler_hours)
+        self.replayed_with: int | None = None       # planner.REPLAY_VERSION the days kept were replayed with
         # price entity -> {hour epoch: price per kWh}: known hourly prices of the last days, to fill hours the price
         # forecast does not reach yet with the same hour a day earlier
         self.price_seen: dict[str, dict[int, float]] = {}
@@ -155,6 +156,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         self.pred = {int(k): v for k, v in (data.get("pred") or {}).items()}
         self.plan_log = data.get("plan_log") or []
         self.saving_detail = data.get("saving_detail") or {}
+        self.replayed_with = data.get("replayed_with")
         self.plan_changes = data.get("plan_changes") or []
         self._plan_snap = data.get("plan_snap")
         self.window.hours = set(int(h) for h in (data.get("window_hours") or []))
@@ -186,6 +188,8 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         self._unsubs.append(async_track_state_change_event(self.hass, [self.conf[CONF_THERMOSTAT]], self._on_thermostat))
         self._stop_unsub = self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, self._on_ha_stop)
         self.spawn(self._async_first_run(), "first run", background=False)
+        if data.get("replayed_with") != planner.REPLAY_VERSION:
+            self.spawn(self._async_replay_kept_days(), "replay the days kept")
 
     async def _async_building(self) -> None:
         """Opt-in: the building register (BAG via PDOK) around the home location, once (again when the home moves).
@@ -276,7 +280,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             "day_stats": dict(sorted(self.day_stats.items())[-62:]),
             "window_hours": sorted(h for h in self.window.hours if h > time.time() - 400 * 86400),
             "pred": {str(k): v for k, v in self.pred.items() if k > time.time() - 7200},
-            "plan_log": self.plan_log[-PLAN_LOG_KEPT:],
+            "plan_log": self.plan_log[-PLAN_LOG_KEPT:], "replayed_with": self.replayed_with,
             "saving_detail": dict(sorted(self.saving_detail.items())[-SAVING_DETAIL_DAYS:]),
             "plan_changes": replan.prune(self.plan_changes, time.time()), "plan_snap": self._plan_snap,
             "pv_k": self.pv_k, "load_profile": self.load_profile, "price_seen": self._price_seen_recent(),

@@ -258,3 +258,24 @@ async def test_settings_from_the_card_do_not_reload(hass: HomeAssistant, entry) 
     assert entry.runtime_data is m                                  # the same manager: no reload
     assert {**entry.data, **entry.options}["comfort"] == 21.0 and m.settings().comfort == 21.0
     assert hass.states.get(_plan_entity(hass)).state not in ("unknown", "unavailable")
+
+
+async def test_an_update_replays_the_days_kept(hass: HomeAssistant, entry) -> None:
+    """After an update that replays a day differently (planner.REPLAY_VERSION) the days still in the hourly log are
+    replayed again, so the saving of the last week and of this month is counted one way."""
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+
+    from custom_components.roost import planner
+
+    m = entry.runtime_data
+    start = dt_util.start_of_local_day(dt_util.now() - timedelta(days=1))
+    day = start.date().isoformat()
+    m.hour_log = [{"ts": int((start + timedelta(hours=h)).timestamp()), "T": 20.5, "E": 0.0, "sp": 20.5, "sp_t": 20.5,
+                   "t_out": 5.0, "rad": 0.0, "hour": h, "wind": 3.5, "p_grid": 0.3, "p_own": 0.3, "own": 0.0,
+                   "day": 7 <= h < 22, "e": 0.3, "q": 1.2} for h in range(24)]
+    m.saving_days[day], m.replayed_with = 9.99, None                 # as an older version left it
+    await m._async_replay_kept_days()
+    assert m.saving_days[day] != 9.99 and day in m.saving_detail and m.saving_detail[day]["parts"]
+    assert m.replayed_with == planner.REPLAY_VERSION

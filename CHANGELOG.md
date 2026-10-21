@@ -1,11 +1,13 @@
 # Changelog
 
-## v0.7.4 — settings from the card without a restart of Roost
+## v0.7.4 — settings from the card without a restart, the week's saving recounted
 
-**For everyone who changes temperatures in the card** — changing a temperature or the comfort hours with ⚙ Settings in the card restarted Roost, so the card showed *Not available* for a moment; the setting is now taken over without that.
+**For everyone** — changing a temperature in the card no longer restarts Roost (the card showed *Not available* for a moment); the saving of the days Roost still keeps is counted again the current way, so this month's figure is fairer; and the table shows electricity for the past days too.
 
 ### Fixes
 - **⚙ Settings in the card** (`roost.set_settings`) no longer reloads Roost: Home Assistant checks for a reload while the setting is saved, and Roost marked the change as one it takes over only after that
+- **The saving of the last week** is replayed once after this update the way v0.7.3 counts it (the end counted the right way round, the steady thermostat weighed between two steps). Days before that keep the saving they had, so *this month* moves only by the days still kept; the report shows the saving in parts for yesterday right away
+- **Table, last 7 days**: the kWh column shows electricity, as in the plan above it — it showed the heat delivered, three to four times as much and not comparable
 
 ### After updating
 Update in HACS (or install the new `roost.zip`) and restart Home Assistant, then reload the dashboard (Ctrl+F5).

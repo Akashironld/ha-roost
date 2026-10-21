@@ -528,6 +528,10 @@ def explain_hours(p: Plan, hours: list[HourIn], room: float, s: Settings, hp: He
     return [explain(p, hours, rooms[i], s, hp, house, floor, i) for i in range(min(len(p.hours), len(hours)))]
 
 
+REPLAY_VERSION = 2      # the way a day is replayed; days kept are replayed again when it changes (v0.7.0: the end
+                        # counted the right way round; v0.7.3: the steady thermostat weighed between two steps)
+
+
 def replay_day(house: HouseModel, hp: HeatPumpModel, s: Settings, entries: list[dict]) -> tuple[float, float, dict] | None:
     """Yesterday twice with the same model, weather and prices, from the same start: once with the setpoints Roost
     set (or would have set, in shadow mode), once with a steady thermostat. -> (cost with Roost, cost steady, breakdown),

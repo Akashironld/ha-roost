@@ -824,13 +824,14 @@ class RoostCard extends HTMLElement {
       let rows = "";
       runs.forEach((r) => {
         const f = r.items[0], l = r.items[r.items.length - 1], n = r.items.length;
-        const price = r.items.reduce((t, h) => t + (h.p_grid || 0), 0) / n * 100, heat = r.items.reduce((t, h) => t + (h.q || 0), 0);
+        // electricity, as in the plan above (not the heat delivered: three to four times as much, not comparable)
+        const price = r.items.reduce((t, h) => t + (h.p_grid || 0), 0) / n * 100, elec = r.items.reduce((t, h) => t + (h.e || 0), 0);
         const set = f.sp_plan !== null && f.sp_plan !== undefined && Math.abs(f.sp_plan - f.sp_t) >= 0.25
           ? `${this._num(f.sp_plan, 1)}\u2192${this._num(f.sp_t, 1)}` : this._num(f.sp_t, 1);
         const marks = (hand.has(f.ts) ? ` <i class="mk">${this._t("h_byhand")}</i>` : "") + (f.window ? ` <i class="mk">${this._t("h_window")}</i>` : "");
         const pred = f.p6 !== null && f.p6 !== undefined ? ` <small>(${this._t("t_exp")} ${this._num(f.p6, 1)})</small>` : "";
         rows += `<div class="tr"><span>${this._span(f.ts, n)}</span><b class="o">${set}</b><span>${this._range2(f.T, l.T, 1)}${pred}</span>` +
-          `<span class="pr">${this._num(price, 0)} ct</span><span>${heat >= 0.05 ? this._num(heat, 1) : "\u2013"}</span>` +
+          `<span class="pr">${this._num(price, 0)} ct</span><span>${elec >= 0.05 ? this._num(elec, 1) : "\u2013"}</span>` +
           `<div class="tw">${f.reason ? this._why(f.reason, f.args || {}, "") : ""}${marks}</div></div>`;
       });
       html += `<details class="tday" data-day="${day}"${open ? " open" : ""}><summary><b>${label}</b>${sum}</summary>${loss}${this._srcLine(hs)}` +

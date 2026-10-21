@@ -212,7 +212,7 @@ Click **Submit**. Roost is set up — in shadow mode — and starts importing an
   Predbat-style — hours with the same setting and reason on one line (time, setting with ↑/↓ where it changes, room
   expected, tariff coloured cheap/dear, kWh) with the reason under it; below it the last 7 days per day (today open, the
   other days folded with their cost, saving and how well the room was predicted): what was planned → what was set, the
-  room measured (and expected 6 hours before), price, heat and why, with *by hand* and *window open* marked. A day that
+  room measured (and expected 6 hours before), price, electricity and why, with *by hand* and *window open* marked. A day that
   cost more than a steady thermostat says why (e.g. *4 h stored that were not needed: the room went up to 21.7 °C*).
   With solar or a home battery each day (and the look back's period) shows where the heating electricity came from:
   own solar, battery, grid — hot water not counted.

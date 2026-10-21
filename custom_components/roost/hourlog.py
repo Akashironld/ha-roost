@@ -77,6 +77,18 @@ class HourLogMixin:
                                                  res[0] if res else None, res[1] if res else None)
         await self.async_save()
 
+    async def _async_replay_kept_days(self) -> None:
+        """After an update that replays a day differently (planner.REPLAY_VERSION): every complete day still in the
+        hourly log again, so the saving of the last week (and this month) is counted one way. Older days keep theirs."""
+        today = dt_util.now().date().isoformat()
+        days = sorted({dt_util.as_local(datetime.fromtimestamp(e["ts"], tz=timezone.utc)).date().isoformat() for e in self.hour_log})
+        for day in days:
+            if day < today:
+                await self._async_close_day(day)
+        self.replayed_with = planner.REPLAY_VERSION
+        self.event("replayed", days=[d for d in days if d < today], version=planner.REPLAY_VERSION)
+        await self.async_save()
+
     def history_payload(self, days: int = 7) -> dict:
         """Everything the card's look back needs (websocket roost/history): the hours, the events that explain them,
         the days in numbers."""
