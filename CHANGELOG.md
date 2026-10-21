@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.7.1 — slow heat pumps save again, house power stays empty
+
+**For everyone with a slow (OpenTherm) heat pump, and everyone who emptied a sensor field** — v0.7.0 fixed how the heat left at the end is counted, but the cost Roost gives each thermostat change was still tuned to the old count, so a slow heat pump hardly moved and saved less than before; and a sensor Roost recognises by its name came back in an emptied field (#3).
+
+### Fixes
+- **Slow heat pumps** (OpenTherm, modulating): each thermostat change now counts 5 ct in the plan instead of 15 ct. In the simulations of slow heat pumps the saving against an equally comfortable steady thermostat is back at or above v0.6.1 in most cases (e.g. a winter week 3.7 % → 6.9 %, a fixed price 0 % → 5 %); Roost changes the thermostat a few times a day more, still at most once an hour
+- **Configure → Solar and home battery** no longer fills a field you emptied with a sensor it recognises by its name; detected sensors are only suggested for a block you have not set up yet, and a sensor with *battery* in its name is never taken for house power (#3)
+- **Away**: while the house is still empty at the end of the plan, Roost only needs the away minimum then, not the comfort temperature — it no longer keeps an empty house warm for nothing
+
+### After updating
+Update in HACS (or install the new `roost.zip`) and restart Home Assistant. If house power came back after you emptied it, empty it once more in *Configure → Solar and home battery*.
+
 ## v0.7.0 — where the saving comes from
 
 **For everyone** — the report shows per hour where the saving comes from and why the plan changed (#1); houses that warm up quickly (radiators) no longer heat ahead on a fixed price (#4). Yesterday's saving is now counted fairly: a house left colder at the end of the day is no longer counted as a saving, so the figure can be lower than before.

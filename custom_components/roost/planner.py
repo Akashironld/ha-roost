@@ -57,7 +57,7 @@ class Settings:
     penalty_above: float = 0.0     # per °C·hour above comfort + above_margin: storing heat only when it pays
     above_margin: float = 0.3
     end_cop: str = "last"          # value of the heat left at the end: COP of the last hour ("last") or of the horizon ("mean")
-    switch_cost: float = 0.15      # per setpoint change (0.05 gave ~5 changes a day for little gain)
+    switch_cost: float = 0.05      # per setpoint change (0.15 was tuned while polish counted the end the wrong way round)
     end_factor: float = 0.6        # share of surplus heat after 24 h that still counts
     baseline_night: float | None = None   # baseline thermostat at night (None: same as the day)
 
@@ -199,7 +199,10 @@ def comparable_steady(sim: Simulator, hours: list[HourIn], T0: float, E0: float,
 
 def _end_value(sim: Simulator, hours: list[HourIn], comfort: float):
     """-> f(T, E): what the state at the end still costs, to compare plans that end differently: the heat short of
-    comfort bought back later (positive), heat above comfort partly counted as already bought (negative)."""
+    comfort bought back later (positive), heat above comfort partly counted as already bought (negative). Still away
+    at the end: the away minimum is what the house needs then, not the comfort temperature."""
+    if hours and hours[-1].away:
+        comfort = sim.s.away_min
     tail = hours[-6:] or hours
     price = sum(h.p_grid for h in tail) / len(tail)
     cop = sim.hp.cop(hours[-1].t_out, 3.5) if sim.s.end_cop == "last" else \

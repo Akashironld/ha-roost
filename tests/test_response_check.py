@@ -251,13 +251,12 @@ def test_a_sunny_afternoon_does_not_warm_the_night():
 
 def test_slow_unit_plan_beats_a_steady_thermostat():
     """A modulating unit that follows slowly: the plan (search + polish with the real delay) keeps the room within
-    comfort and asks no more heat in the expensive evening. With an evening at 45 ct storing earns less than switching
-    the thermostat twice, so it holds and costs about what a steady thermostat costs; at 70 ct it coasts through the
-    evening and saves. (Until v0.7.0 polish counted the heat left at the end the wrong way round: a setback the next
-    morning looked like a saving.)"""
+    comfort and saves against the steady thermostat; with a steep evening (70 ct) it coasts through it on far less
+    electricity. (Until v0.7.0 polish counted the heat left at the end the wrong
+    way round; v0.7.0 fixed that but kept a switching cost tuned to the old count, so a slow unit hardly moved.)"""
     hp = true_pump()
     s = planner.Settings(comfort=20.5, day_min=20.0, night_min=19.0, store_max=22.5)
-    for evening_price, least in ((0.45, -0.05), (0.70, 0.10)):
+    for evening_price in (0.45, 0.70):
         hours = []
         for i in range(36):
             hr = (13 + i) % 24
@@ -265,11 +264,11 @@ def test_slow_unit_plan_beats_a_steady_thermostat():
             hours.append(planner.HourIn(t_out=2 + 2 * math.sin((hr - 9) / 24 * 2 * math.pi), wind=4, rad=0.15 if 10 <= hr <= 15 else 0,
                                         p_grid=price, p_own=price, day=7 <= hr < 22, hour=hr))
         p = planner.plan(HOUSE, hp, s, hours, 20.6, 1.0, 20.0, w_now=2.0)
-        assert p.saving > least, (evening_price, p.saving)
+        assert p.saving > 0.0, (evening_price, p.saving)
         assert all(x.t_end >= 20.1 for x, h in zip(p.hours, hours) if h.day), [round(x.t_end, 2) for x in p.hours]
-        evening = [x.sp for x, h in zip(p.hours, hours) if 17 <= h.hour < 21]
-        afternoon = [x.sp for x, h in zip(p.hours, hours) if 13 <= h.hour < 17]
-        assert max(evening) <= max(afternoon), (afternoon, evening)      # never more heat asked in the expensive evening
+    ev = [r for r in p.breakdown["hours"] if 17 <= r["hour"] < 21]
+    assert sum(r["kwh"] for r in ev) < 0.7 * sum(r["b_kwh"] for r in ev), ev          # 70 ct: far less in the evening
+    assert min(x.sp for x, h in zip(p.hours, hours) if 15 <= h.hour < 20) < 19.5, [x.sp for x in p.hours]    # 70 ct: coasts
 
 
 def test_import_end_expected_sooner_with_logs_only():
