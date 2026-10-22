@@ -59,6 +59,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         self.window = window.WindowWatch()          # airing: Roost waits and does not learn from those hours
         self.curve_advice = None                    # curve.CurveAdvice: the heating curve the house needs
         self.weheat_settings: dict = {}             # the unit's own settings from Weheat (control method, curve)
+        self.weheat_pump: dict = {}                 # the unit's fixed data from Weheat (weheat_api.async_pump_info)
         self.cost_today = 0.0
         self.kwh_today = 0.0
         self._care_init()
@@ -67,6 +68,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         self._last_tick: float | None = None
         self.pv_k: float | None = None              # kW of PV per kW/m² of radiation (learned)
         self.load_profile: list[float] | None = None
+        self.battery = battery.BatteryHabits()      # how the home battery is charged (battery.py, learned nightly)
         self.health = Health()
         self._weather: dict[int, tuple] = {}
         self._weather_at = 0.0
@@ -113,11 +115,16 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
     def conf(self) -> dict:
         return {**DEFAULTS, **self.entry.data, **self.entry.options}
 
+    @property
+    def hybrid(self) -> bool:
+        """A gas boiler next to the heat pump (history.is_hybrid)."""
+        return history.is_hybrid(self.weheat_pump.get("boiler_type"), self.boiler_hours)
+
     def settings(self) -> planner.Settings:
         c = self.conf
         night = _f(c.get(CONF_BASELINE_NIGHT)) or 0.0
         above = float(c[CONF_MAX_ABOVE])
-        if self.boiler_hours >= history.HYBRID_HOURS:
+        if self.hybrid:
             above = min(above, HYBRID_MAX_ABOVE)    # a hybrid: a setpoint far above the room calls the gas boiler
         return planner.Settings(comfort=float(c[CONF_COMFORT]), day_min=float(c[CONF_DAY_MIN]), night_min=float(c[CONF_NIGHT_MIN]),
                                 store_max=max(float(c[CONF_STORE_MAX]), float(c[CONF_COMFORT])), max_above_room=above,
@@ -162,6 +169,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         self.window.hours = set(int(h) for h in (data.get("window_hours") or []))
         self.pv_k = data.get("pv_k")
         self.load_profile = data.get("load_profile")
+        self.battery = battery.BatteryHabits.from_dict(data.get("battery"))
         today = data.get("today") or {}
         if today.get("day"):                # another day: the first tick closes it and starts today at zero
             self._cost_day, self.cost_today, self.kwh_today = today["day"], float(today.get("cost") or 0.0), float(today.get("kwh") or 0.0)
@@ -176,6 +184,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         self.building = data.get("building") if self.conf.get(CONF_USE_BAG) else None
         self.curve_advice = curve.CurveAdvice.from_dict(data.get("curve"))
         self.weheat_settings = data.get("weheat_settings") or {}
+        self.weheat_pump = data.get("weheat_pump") or {}
         if self.house.source != "learned":
             self.house = model.HouseModel(**self.house_start(), source="building register" if building.prior(self.building) else "default")
         self.ready, self.ready_missing = check.readiness(self.check, None, winter=self.check.get("winter")) if self.check else (False, [])
@@ -221,6 +230,10 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             self._ask_login("not logged in to Weheat yet")     # installed before 0.5.3, or setup without a login
         await self._async_building()
         await self._async_seed_prices()
+        if not self.weheat_pump:
+            await self._async_pump_info()                  # whether a gas boiler is there, before the first plan
+        if not self.battery.at:
+            await self._async_learn_battery()              # how the battery is charged, before the first plan
         await self._async_tick(None, force_plan=True)
         if not self.import_info.get("done") and self.import_info.get("oldest"):
             # an import in months was cut off by a restart: carry on with the older months
@@ -283,11 +296,12 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             "plan_log": self.plan_log[-PLAN_LOG_KEPT:], "replayed_with": self.replayed_with,
             "saving_detail": dict(sorted(self.saving_detail.items())[-SAVING_DETAIL_DAYS:]),
             "plan_changes": replan.prune(self.plan_changes, time.time()), "plan_snap": self._plan_snap,
-            "pv_k": self.pv_k, "load_profile": self.load_profile, "price_seen": self._price_seen_recent(),
+            "pv_k": self.pv_k, "load_profile": self.load_profile, "battery": self.battery.as_dict(), "price_seen": self._price_seen_recent(),
             "today": {"day": self._cost_day, "cost": round(self.cost_today, 4), "kwh": round(self.kwh_today, 3)},
             "check": self.check, "changes": [c for c in self.changes if c["ts"] > time.time() - 30 * 86400],
             "building": self.building,
             "curve": self.curve_advice.as_dict() if self.curve_advice else None, "weheat_settings": self.weheat_settings,
+            "weheat_pump": self.weheat_pump,
             "sp_hist": {str(k): v for k, v in self.sp_hist.items() if k > time.time() - SP_HIST_DAYS * 86400},
             "room_models": {k: v.as_dict() for k, v in self.room_models.items() if any(r.id == k for r in self.rooms)},
             "weheat_last": self.weheat_last, "events": list(self.events)})
@@ -744,7 +758,24 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
     # ------------------------------------------------------------ learning
     async def _async_nightly(self, _now: datetime) -> None:
         await self._async_refresh_weheat()
+        await self._async_learn_battery()
         await self.async_learn()
+
+    async def _async_learn_battery(self) -> None:
+        """How the home battery is charged (from the grid, in which hours, how full) and the charge it stops at."""
+        from .learning import async_battery
+        try:
+            got = await async_battery(self)
+        except Exception as err:  # noqa: BLE001 - keep what was learned before
+            _LOGGER.debug("Roost: battery habits not learned: %s", err)
+            return
+        if got is None:
+            return
+        was = self.battery.charges_from_grid
+        got.at = dt_util.now().isoformat(timespec="seconds")
+        self.battery = got
+        if got.charges_from_grid != was:
+            self.event("battery", grid_charging=got.charges_from_grid, hours=got.charge_hours, kwh_day=got.grid_kwh_day)
 
     async def async_learn(self) -> None:
         if self._learning:

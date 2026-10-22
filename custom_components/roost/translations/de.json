@@ -112,12 +112,14 @@
           "battery_kwh": "Nutzbare Batteriekapazität",
           "battery_kw": "Maximale Ladeleistung der Batterie",
           "battery_reserve": "Batteriereserve",
+          "battery_use": "Die Wärmepumpe und die Hausbatterie",
           "house_power": "Hausleistung (für das Verbrauchsprofil)",
           "grid_preference": "Vorzug für eigene Energie (pro kWh aus dem Netz aufgeschlagen)"
         },
         "data_description": {
           "grid_power": "Alles optional. Mit Solar sieht Roost den echten Solarüberschuss (Einspeisung minus Batterieentladung, höchstens die Solarleistung).",
           "battery_power": "Nötig, um Solareinspeisung von einer ins Netz verkaufenden Batterie zu unterscheiden.",
+          "battery_use": "Für das Haus behalten: Strom, den die Wärmepumpe aus der Batterie nimmt, kostet, was dem Haus später fehlt (die Stunde, in der die Batterie leer wäre), also heizt Roost in Netzstunden und lässt die Batterie dem Haus. Nutzen, wenn günstiger: Wird die Batterie auch aus dem Netz geladen (das lernt Roost), kostet Strom daraus die günstigste ihrer kommenden Ladestunden — für eine Batterie mit einer Steuerung, die vorausplant und Platz hat (Predbat und ähnliche).",
           "house_power": "Optional. Was das ganze Haus verbraucht, um den Verbrauch pro Tagesstunde zu lernen (welche kommenden Stunden Solarüberschuss haben, wie lange der Akku reicht). Leer gelassen berechnet Roost ihn aus Netzleistung + Solarleistung (+ Akkuleistung)."
         }
       },
@@ -350,11 +352,13 @@
               "battery_kwh": "Nutzbare Batteriekapazität",
               "battery_kw": "Maximale Ladeleistung der Batterie",
               "battery_reserve": "Batteriereserve",
+              "battery_use": "Die Wärmepumpe und die Hausbatterie",
               "house_power": "Hausleistung (für das Verbrauchsprofil)"
             },
             "data_description": {
               "has_battery": "Roost bewertet Energie aus der Batterie dann mit dem, was das Nachladen kostet.",
               "battery_power": "Nötig, um Solareinspeisung von einer ins Netz verkaufenden Batterie zu unterscheiden.",
+              "battery_use": "Für das Haus behalten: Strom, den die Wärmepumpe aus der Batterie nimmt, kostet, was dem Haus später fehlt (die Stunde, in der die Batterie leer wäre), also heizt Roost in Netzstunden und lässt die Batterie dem Haus. Nutzen, wenn günstiger: Wird die Batterie auch aus dem Netz geladen (das lernt Roost), kostet Strom daraus die günstigste ihrer kommenden Ladestunden — für eine Batterie mit einer Steuerung, die vorausplant und Platz hat (Predbat und ähnliche).",
               "house_power": "Optional. Was das ganze Haus verbraucht, um den Verbrauch pro Tagesstunde zu lernen (welche kommenden Stunden Solarüberschuss haben, wie lange der Akku reicht). Leer gelassen berechnet Roost ihn aus Netzleistung + Solarleistung (+ Akkuleistung)."
             }
           }
@@ -556,6 +560,12 @@
       "options": {
         "import_positive": "Bezug ist positiv",
         "export_positive": "Einspeisung ist positiv"
+      }
+    },
+    "battery_use": {
+      "options": {
+        "house": "Batterie für das Haus behalten",
+        "cheaper": "Batterie nutzen, wenn das günstiger ist"
       }
     },
     "weather_source": {

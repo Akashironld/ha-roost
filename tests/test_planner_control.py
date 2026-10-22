@@ -53,6 +53,15 @@ def test_never_far_above_the_room_and_never_too_cold():
     assert min(later) >= s.day_min - 0.1, [round(h.t_end, 1) for h in p.hours]
 
 
+def test_a_setpoint_set_too_far_above_the_room_comes_down():
+    """21.5 was set with 'at most 1.5 above the room'; the user turns that back to 1.0 with the room at 20.1: keeping
+    21.5 (the thermostat asking for 37 °C water) is no longer allowed."""
+    s = planner.Settings(max_above_room=1.0)
+    p = planner.plan(HOUSE, PUMP, s, hours(5), t_now=20.1, e_now=0.0, sp_now=21.5)
+    assert p.first.sp <= 20.1 + s.max_above_room + planner.HOLD_MARGIN, [h.sp for h in p.hours[:4]]
+
+
+
 def test_own_solar_is_used_for_storing():
     s = planner.Settings()
     own = [0, 0, 3, 3, 3, 3, 0, 0] + [0] * 16

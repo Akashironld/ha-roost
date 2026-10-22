@@ -10,8 +10,8 @@ from homeassistant.components.recorder import get_instance, statistics
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import dt as dt_util
 
-from . import history, value, weather as om
-from .const import (CONF_BATTERY_POWER, CONF_BATTERY_SOC, CONF_GRID_POWER, CONF_GRID_SIGN, CONF_HOUSE_POWER, CONF_PV_POWER,
+from . import battery, history, value, weather as om
+from .const import (CONF_BATTERY_KWH, CONF_BATTERY_POWER, CONF_BATTERY_SOC, CONF_GRID_POWER, CONF_GRID_SIGN, CONF_HOUSE_POWER, CONF_PV_POWER,
                     CONF_ROOM, HISTORY_DAYS)
 
 if TYPE_CHECKING:
@@ -70,6 +70,34 @@ async def async_hourly_means(mgr: "RoostManager", entity_ids: list[str], days: i
     stats = await get_instance(mgr.hass).async_add_executor_job(
         statistics.statistics_during_period, mgr.hass, start, end, set(entity_ids), "hour", None, {"mean"})
     return {eid: {_ts(r["start"]): float(r["mean"]) for r in stats.get(eid, []) if r.get("mean") is not None} for eid in entity_ids}
+
+
+async def async_battery(mgr: "RoostManager", days: int = 14) -> battery.BatteryHabits | None:
+    """The home battery's habits (battery.py) from the 5-minute statistics Home Assistant keeps (about ten days, as
+    long as the recorder keeps its history). None without a battery or without statistics."""
+    conf, hass = mgr.conf, mgr.hass
+    ids = {role: conf[key] for role, key in (("battery", CONF_BATTERY_POWER), ("grid", CONF_GRID_POWER), ("pv", CONF_PV_POWER),
+                                             ("soc", CONF_BATTERY_SOC)) if conf.get(key)}
+    if "soc" not in ids and "battery" not in ids:
+        return None
+    end = dt_util.utcnow().replace(second=0, microsecond=0)
+    stats = await get_instance(hass).async_add_executor_job(
+        statistics.statistics_during_period, hass, end - timedelta(days=days), end, set(ids.values()), "5minute", None, {"mean"})
+    k = {role: (1.0 if role == "soc" else _to_kw(hass, eid)) for role, eid in ids.items()}
+    sign = 1.0 if conf.get(CONF_GRID_SIGN, "import_positive") == "import_positive" else -1.0
+    by_t: dict[int, dict] = defaultdict(dict)
+    for role, eid in ids.items():
+        for r in stats.get(eid, []):
+            if r.get("mean") is not None:
+                by_t[_ts(r["start"])][role] = float(r["mean"]) * k[role] * (sign if role == "grid" else 1.0)
+    if not by_t:
+        return None
+    samples = []
+    for t in sorted(by_t):
+        v, loc = by_t[t], dt_util.as_local(datetime.fromtimestamp(t, tz=timezone.utc))
+        samples.append(battery.Sample(t, loc.date().isoformat(), loc.hour, v.get("battery"), v.get("grid"), v.get("pv"), v.get("soc")))
+    cap = conf.get(CONF_BATTERY_KWH)
+    return await hass.async_add_executor_job(battery.learn, samples, float(cap) if cap else None)
 
 
 async def async_rows(mgr: "RoostManager") -> tuple[list, dict]:

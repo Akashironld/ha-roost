@@ -7,6 +7,9 @@ Pure Python. The answer depends on where that kWh would come from:
   a little later, and that energy would have been exported);
 - energy taken from the home battery -> the price at which the battery is refilled: the import price of the hour in
   which the battery would otherwise have run empty, or the export price if solar would have refilled it before that;
+  a battery that charges from the grid (learned in battery.py) is refilled in the cheapest of its charging hours
+  before that, when that is cheaper (the battery's losses included) and the user lets the heat pump use it;
+- an hour in which the battery charges from the grid -> the import price: the battery supplies nothing then;
 - the grid -> the import price of that hour, plus a small preference for using own energy (configurable).
 
 Only real solar counts as own solar: export minus battery discharge, never more than the PV power (a battery
@@ -38,6 +41,9 @@ class EnergyInputs:
     battery_efficiency: float = 0.9               # round trip
     grid_preference: float = 0.0                  # added to grid hours (prefer own energy)
     predbat: list[float | None] | None = None     # optional marginal costs per hour
+    grid_charge: list[bool] | None = None         # per hour: cheap refill hour (charges from the grid, with room)
+    grid_charge_to: list[float | None] | None = None   # per hour: the charge (%) it is usually brought to from the grid
+    soc_usual: list[float | None] | None = None   # per hour: the charge (%) it usually has at the end (a steered battery)
 
 
 @dataclass
@@ -70,18 +76,27 @@ def compute(inp: EnergyInputs) -> EnergyValue:
     spill = [0.0] * n                  # solar exported per hour (battery full or absent)
     full_at = [False] * n              # battery at the top at the end of the hour
     empty_at = [False] * n             # battery at the reserve at the end of the hour
+    to = (list(inp.grid_charge_to or []) + [None] * n)[:n]
+    usual = (list(inp.soc_usual or []) + [None] * n)[:n]
+    charging = [False] * n            # the battery charges this hour: it supplies nothing
     for h in range(n):
         net = pv[h] - load[h]          # >0: surplus, <0: shortage
         if h == 0 and inp.surplus_now_kw > 0:
             net = max(net, inp.surplus_now_kw)
         if has_bat:
+            before = e
             if net > 0:
                 take = min(net, inp.battery_max_kw, cap - e)
                 e += take
                 spill[h] = net - take
-            else:
+            elif to[h] is None:
                 give = min(-net, inp.battery_max_kw, e - e_res)
                 e -= max(0.0, give)
+            if to[h] is not None:      # charging from the grid: up to its usual level, the house from the grid meanwhile
+                e = max(e, min(cap, e + inp.battery_max_kw, cap * to[h] / 100))
+            if usual[h] is not None:   # a steered battery: the charge it usually has then (battery.py)
+                e = cap * min(100.0, max(0.0, usual[h])) / 100
+            charging[h] = to[h] is not None or (usual[h] is not None and e > before + 0.01 * cap)
             full_at[h] = e >= cap - 0.05
             empty_at[h] = e <= e_res + 0.05
             soc_path.append(100 * e / cap)
@@ -104,6 +119,8 @@ def compute(inp: EnergyInputs) -> EnergyValue:
         elif spill[h] > 0:
             f = min(1.0, spill[h])                            # part of the extra kWh is surplus, the rest grid
             v, s = f * exp[h] + (1 - f) * (imp[h] + inp.grid_preference), SOURCE_SOLAR
+        elif has_bat and charging[h]:
+            v, s = imp[h] + inp.grid_preference, SOURCE_GRID      # the battery charges: supplies nothing
         elif has_bat and not empty_at[h] and soc_path[h] is not None and soc_path[h] > inp.battery_reserve + 2:
             v, s = _refill_cost(h, n, imp, exp, spill, empty_at, inp), SOURCE_BATTERY
         else:
@@ -128,15 +145,26 @@ def _fills_later_today(full_at: list[bool], spill: list[float], net: list[float]
 def _refill_cost(h: int, n: int, imp: list[float], exp: list[float], spill: list[float], empty_at: list[bool],
                  inp: EnergyInputs) -> float:
     """A kWh taken from the battery now is missing later: bought when the battery would run empty, or not missed at
-    all when solar refills it to full first (then it would have been exported)."""
+    all when solar refills it to full first (then it would have been exported). A battery that charges from the grid
+    takes it in one of its charging hours before that instead, when that is cheaper."""
+    cost, end = None, n - 1
     for k in range(h + 1, n):
         if spill[k] > 0.05:
-            return exp[k] / inp.battery_efficiency
+            cost, end = exp[k] / inp.battery_efficiency, k
+            break
         if empty_at[k]:
-            return imp[k] / inp.battery_efficiency + inp.grid_preference
-    # nothing happens within the horizon: assume the cheapest import hour ahead
-    rest = imp[h + 1:] or [imp[h]]
-    return min(rest) / inp.battery_efficiency + inp.grid_preference
+            cost, end = imp[k] / inp.battery_efficiency + inp.grid_preference, k
+            break
+    if cost is None:                    # nothing happens within the horizon: assume the cheapest import hour ahead
+        rest = imp[h + 1:] or [imp[h]]
+        cost = min(rest) / inp.battery_efficiency + inp.grid_preference
+    # Charging hours from the next hour on, also before h: whoever charges from the grid plans that charge for the
+    # use it expects (not hour 0: that charge is under way or past).
+    gc = inp.grid_charge or []
+    grid = [imp[k] for k in range(1, end + 1) if k < len(gc) and gc[k] and k != h]
+    if grid:
+        cost = min(cost, min(grid) / inp.battery_efficiency + inp.grid_preference)
+    return cost
 
 
 def cheap_or_solar(ev: EnergyValue, hours_ahead: int = 8, factor: float = 0.9) -> bool:

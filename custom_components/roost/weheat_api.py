@@ -150,16 +150,32 @@ async def async_settings(hass: HomeAssistant, entry_id: str, pump_id: str) -> di
             "curve": curve}
 
 
-async def async_commissioned(hass: HomeAssistant, entry_id: str, pump_id: str) -> datetime | None:
-    """When the heat pump was put into use: no history before it, so no need to ask for it."""
+async def async_pump_info(hass: HomeAssistant, entry_id: str, pump_id: str) -> dict | None:
+    """The heat pump's fixed data from Weheat: model (0 Blackbird P80, 1 Blackbird P60, 2-4 Sparrow P60, 5 Flint P40),
+    boiler_type (0 unknown, 1 none, 2 on/off, 3 OpenTherm), dhw_type (1 hot water tank, 2 none), commissioned (ISO).
+    None on an error."""
     try:
         async with async_get_clientsession(hass).get(f"{API_URL}/api/v1/heat-pumps/{pump_id}", timeout=30,
                                                      headers={"Authorization": f"Bearer {await _access(hass, entry_id)}"}) as r:
             r.raise_for_status()
             data = await r.json()
-    except Exception:  # noqa: BLE001 - then the import just starts at the requested date
+    except Exception as err:  # noqa: BLE001 - an extra: never in the way of the rest
+        _LOGGER.debug("Roost: Weheat heat pump data not available: %s", err)
         return None
-    when = _when({"timeBucket": (data or {}).get("commissionedAt")}) if isinstance(data, dict) else None
+    if not isinstance(data, dict):
+        return None
+
+    def num(k: str) -> int | None:
+        v = data.get(k)
+        return v if isinstance(v, int) and not isinstance(v, bool) else None
+    return {"model": num("model"), "boiler_type": num("boilerType"), "dhw_type": num("dhwType"),
+            "commissioned": data.get("commissionedAt") if isinstance(data.get("commissionedAt"), str) else None}
+
+
+async def async_commissioned(hass: HomeAssistant, entry_id: str, pump_id: str) -> datetime | None:
+    """When the heat pump was put into use: no history before it, so no need to ask for it."""
+    info = await async_pump_info(hass, entry_id, pump_id)
+    when = _when({"timeBucket": info.get("commissioned")}) if info else None
     return when - timedelta(days=1) if when else None
 
 

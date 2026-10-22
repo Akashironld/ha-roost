@@ -154,9 +154,24 @@ class PricesMixin:
         if self.load_profile and len(self.load_profile) == 24:
             h0 = dt_util.as_local(now).hour
             load = [self.load_profile[(h0 + i) % 24] for i in range(hours)]
+        bat = self.battery
+        grid_charge = grid_charge_to = soc_usual = None
+        if bat.charges_from_grid:               # learned: the battery is also charged from the grid, in these hours
+            h0 = dt_util.as_local(now).hour
+            grid_charge_to = [bat.top_soc.get(str((h0 + i) % 24), 100.0) if (h0 + i) % 24 in bat.grid_hours else None
+                              for i in range(hours)]
+            if (self._kw(c.get(CONF_BATTERY_POWER)) or 0.0) > 0.3:
+                grid_charge_to[0] = None        # discharging right now: not charging this hour after all
+            if len(bat.soc_by_hour) == 24:      # its steering decides when it discharges: follow its usual charge
+                soc_usual = [bat.soc_by_hour[str((h0 + i + 1) % 24)] for i in range(hours)]
+            if c.get(CONF_BATTERY_USE) == "cheaper":       # the heat pump may count on its cheap charging hours
+                grid_charge = [(h0 + i) % 24 in bat.charge_hours for i in range(hours)]
         inp = value.EnergyInputs(import_price=imp, export_price=exp, pv_kwh=self._pv_forecast(now.timestamp(), hours), load_kwh=load,
                                  surplus_now_kw=surplus, battery_soc=soc,
                                  battery_kwh=_f(c.get(CONF_BATTERY_KWH)) if soc is not None else None,
-                                 battery_reserve=_f(c.get(CONF_BATTERY_RESERVE)) or 10.0, battery_max_kw=_f(c.get(CONF_BATTERY_KW)) or 5.0,
-                                 grid_preference=_f(c.get(CONF_GRID_PREFERENCE)) or 0.0)
+                                 # the charge it was seen to stop at, else the setting
+                                 battery_reserve=bat.reserve if bat.reserve is not None else _f(c.get(CONF_BATTERY_RESERVE)) or 10.0,
+                                 battery_max_kw=_f(c.get(CONF_BATTERY_KW)) or 5.0,
+                                 grid_preference=_f(c.get(CONF_GRID_PREFERENCE)) or 0.0, grid_charge=grid_charge,
+                                 grid_charge_to=grid_charge_to, soc_usual=soc_usual)
         return inp, value.compute(inp)

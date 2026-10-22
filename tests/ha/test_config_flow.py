@@ -165,6 +165,24 @@ async def test_options_a_field_left_empty_is_gone(hass: HomeAssistant, entry) ->
     assert "house_power" not in conf and conf["battery_soc"] == "sensor.soc" and entry.data["token"] == {"access_token": "x"}
 
 
+async def test_options_battery_use(hass: HomeAssistant, entry) -> None:
+    """The battery is kept for the house unless the user chooses to let the heat pump use it when that is cheaper."""
+    r = await hass.config_entries.options.async_init(entry.entry_id)
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {"next_step_id": "solar"})
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {
+        "solar_section": {"has_solar": False},
+        "battery_section": {"has_battery": True, "battery_soc": "sensor.soc"},
+        "grid_preference": 0.0})
+    assert entry.options["battery_use"] == "house"
+    r = await hass.config_entries.options.async_init(entry.entry_id)
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {"next_step_id": "solar"})
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {
+        "solar_section": {"has_solar": False},
+        "battery_section": {"has_battery": True, "battery_soc": "sensor.soc", "battery_use": "cheaper"},
+        "grid_preference": 0.0})
+    assert entry.options["battery_use"] == "cheaper"
+
+
 async def test_options_an_emptied_field_is_not_filled_in_again(hass: HomeAssistant, entry) -> None:
     """#3, again: a house power sensor Roost can detect by its name, emptied in Configure, is not suggested again
     when Configure is opened later (and so not saved again with the next change)."""

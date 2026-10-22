@@ -161,7 +161,8 @@ Then only the fields for what you ticked (all optional; found entities are fille
 | Solar power | To see real solar surplus right now |
 | Solar forecast today / tomorrow | To plan heating on your own solar (Solcast, Predbat, Forecast.Solar, …) |
 | Grid power + its sign | To tell real solar export from a battery that sells to the grid |
-| Battery state of charge, battery power, capacity, max power, reserve | So energy from the battery is valued at what refilling it costs, and solar that fills the battery anyway is treated as free |
+| Battery state of charge, battery power, capacity, max power, reserve | So energy from the battery is valued at what refilling it costs, and solar that fills the battery anyway is treated as free. Roost also learns how the battery is charged (from the grid or not, in which hours, how full) and the reserve it is seen to stop at, which replaces the setting. In an hour in which the battery usually charges from the grid it supplies nothing: extra use there costs that hour's price. Such a battery is steered by something that also decides when it discharges, so Roost follows its usual charge per hour of the day |
+| The heat pump and the home battery | *Keep the battery for the house* (default): energy the heat pump takes from the battery costs what the house misses later — the hour the battery would run empty — so Roost heats in grid hours and leaves the battery to the house. *Use the battery when that is cheaper*: when Roost has learned that the battery also charges from the grid (whoever steers it: Predbat, evcc, your supplier, a schedule), energy from it costs the cheapest of its usual charging hours ahead (with the battery's losses), as long as it is not full after that hour. For a battery whose steering plans ahead and has room |
 | House power | What your whole house uses, to learn its usage per hour of the day: with solar it tells which coming hours have a surplus. Shown with a battery; leave it empty and Roost works it out from grid power + solar power (+ battery power) |
 | Preference for own energy | Extra cents per kWh from the grid, to prefer your own solar a bit more. 0 is fine |
 
@@ -182,7 +183,7 @@ Filled in from your thermostat's last days when Home Assistant still has them.
 | Field | Default | When to change |
 |---|---|---|
 | Lowest thermostat setting | 19 °C | Roost never sets the thermostat lower. Lower lets a slow heat pump stop sooner, but if Home Assistant is down the thermostat stays where Roost left it |
-| Setpoint at most this above the room | 1 °C | Keeps an OpenTherm thermostat asking for lukewarm water. Raise it if radiators upstairs stay cold. With a hybrid (a gas boiler that ran in Weheat's logs) Roost keeps it at 0.5 °C at most, so a storing step does not call the boiler |
+| Setpoint at most this above the room | 1 °C | Keeps an OpenTherm thermostat asking for lukewarm water. Raise it if radiators upstairs stay cold. With a hybrid (a gas boiler next to the heat pump, as Weheat's heat pump data says; when that is unknown, a boiler asked for in Weheat's logs) Roost keeps it at 0.5 °C at most, so a storing step does not call the boiler |
 | At most one change per | 60 min | Less often if your thermostat or heat pump does not like frequent changes |
 | Pause after a change by hand | 2 h | How long Roost steps aside when you change the thermostat yourself |
 | Night setback of the thermostat to compare with | 0 | Only for the savings figure: the steady thermostat Roost compares with |

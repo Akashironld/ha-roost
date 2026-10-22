@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.7.5 — no hybrid without a gas boiler, a battery charged from the grid
+
+**For everyone without a gas boiler whose unit was taken for a hybrid, and for everyone whose home battery also charges from the grid** — Roost now asks Weheat whether a gas boiler is installed, instead of guessing from the logs. A unit that only *asked* for a boiler a few times (all-electric units do that too) stored heat at most 0.5 °C above the room since v0.7.3, so it hardly heated ahead in cheap hours. And if your home battery is also charged from the grid (by Predbat, evcc, a supplier or a schedule), you can now let the heat pump use it when that is cheaper; by default the battery stays for the house.
+
+### Fixes
+- **Hybrid heat pumps**: whether a gas boiler is there comes from Weheat's heat pump data (*boiler type*: none, on/off or OpenTherm). The hours in which the unit asked for a boiler only decide when Weheat does not say. Without a boiler *Setpoint at most this above the room* counts again; with one Roost keeps it at 0.5 °C, now also before the boiler shows up in the logs
+- **Setpoint at most this above the room** now also holds for a setpoint already set: turning it down (or a room that cooled) brings a setpoint that is too far above the room down, instead of keeping it — an OpenTherm thermostat 1.3 °C above its reading asked the unit for 37 °C water instead of 32. A setpoint may stay a quarter degree past the limit, so a room a tenth cooler does not make it step down and up again
+- The plan sensor shows `hybrid`; diagnostics also show the heat pump's model, boiler type and hot water tank as Weheat knows them, and what Roost learned about the battery
+
+### Improvements
+- **Home battery charged from the grid**: Roost learns from the battery, grid and solar sensors (5-minute statistics of the last two weeks) whether and when the battery charges from the grid — all it charges beyond the solar left over. In such an hour the battery supplies nothing, so extra use costs that hour's price: a cheap midday hour in which the battery charges is no longer taken for an expensive battery hour, and the floor is charged in it. A battery that is charged from the grid is steered by something that also decides when it discharges (selling in the evening peak, keeping a charge for the morning): Roost follows its usual charge per hour of the day instead of working it out from solar and the house alone. The reserve the battery is seen to stop at replaces the *reserve* setting
+- **New choice under the home battery, *The heat pump and the home battery***: *Keep the battery for the house* (default, as before) or *Use the battery when that is cheaper*: energy taken from a battery that charges from the grid then costs the cheapest of its usual charging hours ahead (÷ 0.9 for the losses) when that is cheaper than the hour it would run empty; only hours after which the battery is usually not full count
+
+### After updating
+Update in HACS (or install the new `roost.zip`) and restart Home Assistant, then reload the dashboard (Ctrl+F5).
+
 ## v0.7.4 — settings from the card without a restart, the week's saving recounted
 
 **For everyone** — changing a temperature in the card no longer restarts Roost (the card showed *Not available* for a moment); the saving of the days Roost still keeps is counted again the current way, so this month's figure is fairer; and the table shows electricity for the past days too.

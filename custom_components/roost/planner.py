@@ -227,6 +227,7 @@ def _end_value(sim: Simulator, hours: list[HourIn], comfort: float):
 
 
 SLOW = 0.67             # a unit closing less of a change per hour than this is planned with its delay (polish)
+HOLD_MARGIN = 0.25       # a setpoint already set may stay this much further above the room than max_above_room
 BLOCKS = (1, 2, 4)      # polish: try a setpoint for this many hours at once. Longer blocks and more starting plans
                         # found cheaper plans on the model but not in closed-loop simulations (tools/sim): they exploit model errors
 
@@ -269,8 +270,11 @@ def polish(sim: Simulator, hours: list[HourIn], t_now: float, e_now: float, w_no
         for k in range(k0, H):
             states.append((T, E, w, tot, prev, trs))
             sp = seq[k]
-            if sp > T + hp.th_diff + s.max_above_room + 1e-9 and sp > s.day_min and sp != prev:
-                tot += 10.0                    # not allowed: too far above what the thermostat reads
+            # not allowed: too far above what the thermostat reads (an OpenTherm thermostat then asks for hot water,
+            # 37 °C instead of 32 at 1.3 °C above). Keeping the setpoint already set may go a little further, so a room
+            # a tenth cooler does not make it step down and up again.
+            if sp > T + hp.th_diff + s.max_above_room + (HOLD_MARGIN if sp == prev else 0.0) + 1e-9 and sp > s.day_min:
+                tot += 10.0
             T1, E, c, _e, q, pen = sim.hour(T, E, sp, hours[k], w)
             w = sim.w_end
             if rooms:

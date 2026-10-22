@@ -58,7 +58,7 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: RoostCo
         "models": {"house": m.house.as_dict(), "heat_pump": m.pump.as_dict(),
                    "rooms": {k: v.as_dict() for k, v in m.room_models.items()}, "building": m.building},
         "learning": m.learn_info, "import": m.import_info,
-        "heating_curve": m.curve_advice.as_dict() if m.curve_advice else None, "weheat_settings": m.weheat_settings, "check": m.check, "ready_to_steer": m.ready, "still_missing": m.ready_missing,
+        "heating_curve": m.curve_advice.as_dict() if m.curve_advice else None, "weheat_settings": m.weheat_settings, "weheat_pump": m.weheat_pump, "hybrid": m.hybrid, "check": m.check, "ready_to_steer": m.ready, "still_missing": m.ready_missing,
         "plan": {"settings": vars(m.settings()), "control": vars(m.control_settings()),
                  "inputs": [vars(h) for h in m.plan_hours], "hours": [h.as_dict() for h in p.hours] if p else None,
                  "tariff": m.plan_tariff, "tariff_guessed": m.plan_guess,
@@ -69,6 +69,6 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: RoostCo
         "rooms": [vars(r) for r in m.rooms], "changes_by_hand": m.changes[-40:],
         "suggestion": m.suggestion.as_dict() if m.suggestion else None, "issues": sorted(m.health.issues),
         "events": list(m.events), "log": list(recent_log(hass).records),
-        "weheat_hours_imported": len(m._weheat_hours), "gas_boiler_hours": m.boiler_hours, "pv_k": m.pv_k, "load_profile": m.load_profile,
+        "weheat_hours_imported": len(m._weheat_hours), "gas_boiler_hours": m.boiler_hours, "pv_k": m.pv_k, "load_profile": m.load_profile, "battery": m.battery.as_dict(),
     }
     return async_redact_data(data, REDACT)

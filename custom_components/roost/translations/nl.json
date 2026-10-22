@@ -112,12 +112,14 @@
           "battery_kwh": "Bruikbare accucapaciteit",
           "battery_kw": "Maximaal laadvermogen accu",
           "battery_reserve": "Accureserve",
+          "battery_use": "De warmtepomp en de thuisaccu",
           "house_power": "Huisvermogen (voor het verbruiksprofiel)",
           "grid_preference": "Voorkeur voor eigen energie (bovenop elke kWh uit het net)"
         },
         "data_description": {
           "grid_power": "Allemaal optioneel. Met zonnepanelen ziet Roost echt zon-overschot (teruglevering min accu-ontladen, hooguit het zonnevermogen).",
           "battery_power": "Nodig om zonneteruglevering te onderscheiden van een accu die aan het net verkoopt.",
+          "battery_use": "Bewaren voor het huis: stroom die de warmtepomp uit de accu haalt kost wat het huis later mist (het uur waarin de accu leeg zou raken), dus Roost stookt in neturen en laat de accu aan het huis. Gebruiken als dat goedkoper is: als de accu ook uit het net laadt (dat leert Roost), kost stroom eruit het goedkoopste laaduur dat nog komt — voor een accu met een sturing die vooruit plant en ruimte heeft (Predbat en dergelijke).",
           "house_power": "Optioneel. Wat het hele huis verbruikt, om het verbruik per uur van de dag te leren (welke komende uren zon over hebben, hoe lang de accu het houdt). Leeg gelaten rekent Roost het uit netvermogen + zonnevermogen (+ accuvermogen)."
         }
       },
@@ -350,11 +352,13 @@
               "battery_kwh": "Bruikbare accucapaciteit",
               "battery_kw": "Maximaal laadvermogen accu",
               "battery_reserve": "Accureserve",
+              "battery_use": "De warmtepomp en de thuisaccu",
               "house_power": "Huisvermogen (voor het verbruiksprofiel)"
             },
             "data_description": {
               "has_battery": "Roost rekent stroom uit de accu dan tegen wat bijvullen kost.",
               "battery_power": "Nodig om zonneteruglevering te onderscheiden van een accu die aan het net verkoopt.",
+              "battery_use": "Bewaren voor het huis: stroom die de warmtepomp uit de accu haalt kost wat het huis later mist (het uur waarin de accu leeg zou raken), dus Roost stookt in neturen en laat de accu aan het huis. Gebruiken als dat goedkoper is: als de accu ook uit het net laadt (dat leert Roost), kost stroom eruit het goedkoopste laaduur dat nog komt — voor een accu met een sturing die vooruit plant en ruimte heeft (Predbat en dergelijke).",
               "house_power": "Optioneel. Wat het hele huis verbruikt, om het verbruik per uur van de dag te leren (welke komende uren zon over hebben, hoe lang de accu het houdt). Leeg gelaten rekent Roost het uit netvermogen + zonnevermogen (+ accuvermogen)."
             }
           }
@@ -556,6 +560,12 @@
       "options": {
         "import_positive": "Afname is positief",
         "export_positive": "Teruglevering is positief"
+      }
+    },
+    "battery_use": {
+      "options": {
+        "house": "Accu bewaren voor het huis",
+        "cheaper": "Accu gebruiken als dat goedkoper is"
       }
     },
     "weather_source": {

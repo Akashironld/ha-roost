@@ -4,7 +4,7 @@ from __future__ import annotations
 from .mgr_common import *  # noqa: F401,F403 - the shared imports and constants
 from .mgr_common import _LOGGER, _f, _i, _iso_ts  # noqa: F401
 from . import curve
-from .weheat_api import async_settings
+from .weheat_api import async_pump_info, async_settings
 
 
 class WeheatMixin:
@@ -55,6 +55,7 @@ class WeheatMixin:
         got = await async_settings(self.hass, weheat_entry, pump)          # how it is controlled, its heating curve
         if got is not None:
             self.weheat_settings = {**got, "at": dt_util.now().isoformat(timespec="seconds")}
+        await self._async_pump_info()
         if not self.import_info.get("done") or not self._weheat_hours or self.importing:
             return
         end = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
@@ -72,6 +73,19 @@ class WeheatMixin:
             return
         self._merge_weheat(history.weheat_hours(logs, energy))
         await self._async_save_history()
+
+    async def _async_pump_info(self) -> None:
+        """The unit's fixed data from Weheat (model, gas boiler, hot water tank); kept as it was when Weheat does not
+        answer."""
+        pump, weheat_entry = self._weheat_login()
+        if not pump or not weheat_entry:
+            return
+        got = await async_pump_info(self.hass, weheat_entry, pump)
+        if got is not None:
+            was = self.hybrid
+            self.weheat_pump = {**got, "at": dt_util.now().isoformat(timespec="seconds")}
+            if self.hybrid != was:
+                self.event("hybrid", hybrid=self.hybrid, boiler_type=got.get("boiler_type"), hours=self.boiler_hours)
 
     async def async_import(self, days: int = WEHEAT_IMPORT_DAYS, logs_only: bool = False) -> None:
         """Read the heat pump's history from Weheat (read-only), then learn. logs_only: the hours are there already

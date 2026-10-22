@@ -112,12 +112,14 @@
           "battery_kwh": "Capacité utile de la batterie",
           "battery_kw": "Puissance de charge maximale de la batterie",
           "battery_reserve": "Réserve de la batterie",
+          "battery_use": "La pompe à chaleur et la batterie domestique",
           "house_power": "Puissance de la maison (pour le profil de consommation)",
           "grid_preference": "Préférence pour l'énergie propre (ajoutée par kWh du réseau)"
         },
         "data_description": {
           "grid_power": "Tout est facultatif. Avec le solaire, Roost voit le vrai surplus solaire (injection moins décharge de la batterie, au plus la puissance solaire).",
           "battery_power": "Nécessaire pour distinguer l'injection solaire d'une batterie qui revend au réseau.",
+          "battery_use": "La garder pour la maison : l'énergie que la pompe à chaleur prend à la batterie coûte ce qui manquera plus tard à la maison (l'heure où la batterie serait vide), donc Roost chauffe aux heures réseau et laisse la batterie à la maison. L'utiliser quand c'est moins cher : si la batterie est aussi chargée depuis le réseau (Roost l'apprend), son énergie coûte la moins chère de ses heures de charge à venir — pour une batterie dont le pilotage planifie à l'avance et a de la place (Predbat et similaires).",
           "house_power": "Facultatif. Ce que consomme toute la maison, pour apprendre sa consommation par heure de la journée (quelles heures à venir ont du surplus solaire, combien de temps tient la batterie). Laissé vide, Roost le calcule à partir de la puissance réseau + solaire (+ batterie)."
         }
       },
@@ -350,11 +352,13 @@
               "battery_kwh": "Capacité utile de la batterie",
               "battery_kw": "Puissance de charge maximale de la batterie",
               "battery_reserve": "Réserve de la batterie",
+              "battery_use": "La pompe à chaleur et la batterie domestique",
               "house_power": "Puissance de la maison (pour le profil de consommation)"
             },
             "data_description": {
               "has_battery": "Roost valorise alors l'énergie de la batterie à ce que coûte sa recharge.",
               "battery_power": "Nécessaire pour distinguer l'injection solaire d'une batterie qui revend au réseau.",
+              "battery_use": "La garder pour la maison : l'énergie que la pompe à chaleur prend à la batterie coûte ce qui manquera plus tard à la maison (l'heure où la batterie serait vide), donc Roost chauffe aux heures réseau et laisse la batterie à la maison. L'utiliser quand c'est moins cher : si la batterie est aussi chargée depuis le réseau (Roost l'apprend), son énergie coûte la moins chère de ses heures de charge à venir — pour une batterie dont le pilotage planifie à l'avance et a de la place (Predbat et similaires).",
               "house_power": "Facultatif. Ce que consomme toute la maison, pour apprendre sa consommation par heure de la journée (quelles heures à venir ont du surplus solaire, combien de temps tient la batterie). Laissé vide, Roost le calcule à partir de la puissance réseau + solaire (+ batterie)."
             }
           }
@@ -556,6 +560,12 @@
       "options": {
         "import_positive": "Le soutirage est positif",
         "export_positive": "L'injection est positive"
+      }
+    },
+    "battery_use": {
+      "options": {
+        "house": "Garder la batterie pour la maison",
+        "cheaper": "Utiliser la batterie quand c'est moins cher"
       }
     },
     "weather_source": {

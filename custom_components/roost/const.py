@@ -21,6 +21,7 @@ CONF_BATTERY_POWER = "battery_power"    # + = discharging
 CONF_BATTERY_KWH = "battery_kwh"
 CONF_BATTERY_KW = "battery_kw"
 CONF_BATTERY_RESERVE = "battery_reserve"
+CONF_BATTERY_USE = "battery_use"        # house | cheaper: may the heat pump count on the battery's cheap grid charging
 CONF_HOUSE_POWER = "house_power"
 CONF_WEATHER_SOURCE = "weather_source"  # open_meteo | entity
 CONF_WEATHER = "weather_entity"
@@ -66,7 +67,7 @@ CONF_GRID_PREFERENCE = "grid_preference"
 DEFAULTS = {
     CONF_DAY_FROM: 7, CONF_DAY_TO: 22, CONF_COMFORT: 20.5, CONF_DAY_MIN: 20.0, CONF_NIGHT_MIN: 19.0, CONF_STORE_MAX: 22.5, CONF_SP_MIN: 19.0,
     CONF_MAX_ABOVE: 1.0, CONF_MIN_INTERVAL: 60, CONF_PAUSE_HOURS: 2, CONF_BASELINE_NIGHT: 0, CONF_GRID_PREFERENCE: 0.0,
-    CONF_GRID_SIGN: "import_positive", CONF_WEATHER_SOURCE: "open_meteo", CONF_BATTERY_RESERVE: 10, CONF_IMPORT_ON_SETUP: True,
+    CONF_GRID_SIGN: "import_positive", CONF_WEATHER_SOURCE: "open_meteo", CONF_BATTERY_RESERVE: 10, CONF_BATTERY_USE: "house", CONF_IMPORT_ON_SETUP: True,
     CONF_PRICE_MODE: "sensor", CONF_IMPORT_MULT: 1.21, CONF_IMPORT_ADD: 0.0, CONF_EXPORT_FORMULA: False,
     CONF_EXPORT_MULT: 1.0, CONF_EXPORT_ADD: 0.0, CONF_USE_BAG: False, CONF_EMITTER: "floor", CONF_LOW_FROM: 23, CONF_LOW_TO: 7, CONF_LOW_WEEKEND: True,
 }
@@ -74,6 +75,7 @@ PRICE_MODES = ["sensor", "epex", "fixed"]
 EMITTERS = ["floor", "radiators", "both"]
 MODES = ["off", "shadow", "active"]
 GRID_SIGNS = ["import_positive", "export_positive"]
+BATTERY_USES = ["house", "cheaper"]
 WEATHER_SOURCES = ["open_meteo", "entity"]
 
 # Weheat integration entities by translation_key

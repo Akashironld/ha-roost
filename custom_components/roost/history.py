@@ -95,8 +95,19 @@ HYBRID_HOURS = 3           # ... in this many hours of the year: a hybrid heat p
 
 
 def boiler_hours(hours: dict[int, dict]) -> int:
-    """Hours in which a gas boiler ran (Weheat's hourly logs, controlBridgeStatusGasBoiler): a hybrid heat pump."""
+    """Hours in which the unit asked for a gas boiler (Weheat's hourly logs, controlBridgeStatusGasBoiler). The flag is
+    a request: a unit without a boiler sets it now and then too."""
     return sum(1 for v in hours.values() if (v.get("boiler_s") or 0) >= BOILER_MIN_S)
+
+
+def is_hybrid(boiler_type: int | None, hours_with_boiler: int) -> bool:
+    """A gas boiler next to the heat pump. Weheat's boilerType says it (1 none, 2 on/off, 3 OpenTherm); only when that
+    is unknown (0, or not read yet) the hours the unit asked for a boiler decide."""
+    if boiler_type in (2, 3):
+        return True
+    if boiler_type == 1:
+        return False
+    return hours_with_boiler >= HYBRID_HOURS
 
 
 def merge_hours(have: dict[int, dict], new: dict[int, dict]) -> None:

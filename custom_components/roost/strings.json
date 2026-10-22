@@ -112,12 +112,14 @@
           "battery_kwh": "Usable battery capacity",
           "battery_kw": "Maximum battery charge power",
           "battery_reserve": "Battery reserve",
+          "battery_use": "The heat pump and the home battery",
           "house_power": "House power (for the usage profile)",
           "grid_preference": "Preference for own energy (added per kWh from the grid)"
         },
         "data_description": {
           "grid_power": "All optional. With solar, Roost sees real solar surplus (export minus battery discharge, at most the solar power).",
           "battery_power": "Needed to tell solar export from a battery selling to the grid.",
+          "battery_use": "Keep it for the house: energy the heat pump takes from the battery costs what the house misses later (the hour the battery would run empty), so Roost heats in grid hours and leaves the battery to the house. Use it when cheaper: when the battery is also charged from the grid (Roost learns that), energy from it costs the cheapest of its charging hours ahead — for a battery whose steering plans ahead and has room (Predbat and the like).",
           "house_power": "Optional. What the whole house uses, to learn its usage per hour of the day (which coming hours have solar to spare, how long the battery lasts). Left empty, Roost works it out from grid power + solar power (+ battery power)."
         }
       },
@@ -350,11 +352,13 @@
               "battery_kwh": "Usable battery capacity",
               "battery_kw": "Maximum battery charge power",
               "battery_reserve": "Battery reserve",
+              "battery_use": "The heat pump and the home battery",
               "house_power": "House power (for the usage profile)"
             },
             "data_description": {
               "has_battery": "Roost then values energy from the battery at what refilling it costs.",
               "battery_power": "Needed to tell solar export from a battery selling to the grid.",
+              "battery_use": "Keep it for the house: energy the heat pump takes from the battery costs what the house misses later (the hour the battery would run empty), so Roost heats in grid hours and leaves the battery to the house. Use it when cheaper: when the battery is also charged from the grid (Roost learns that), energy from it costs the cheapest of its charging hours ahead — for a battery whose steering plans ahead and has room (Predbat and the like).",
               "house_power": "Optional. What the whole house uses, to learn its usage per hour of the day (which coming hours have solar to spare, how long the battery lasts). Left empty, Roost works it out from grid power + solar power (+ battery power)."
             }
           }
@@ -556,6 +560,12 @@
       "options": {
         "import_positive": "Import is positive",
         "export_positive": "Export is positive"
+      }
+    },
+    "battery_use": {
+      "options": {
+        "house": "Keep the battery for the house",
+        "cheaper": "Use the battery when that is cheaper"
       }
     },
     "weather_source": {
