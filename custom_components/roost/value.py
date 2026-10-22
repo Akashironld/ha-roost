@@ -10,6 +10,7 @@ Pure Python. The answer depends on where that kWh would come from:
   a battery that charges from the grid (learned in battery.py) is refilled in the cheapest of its charging hours
   before that, when that is cheaper (the battery's losses included) and the user lets the heat pump use it;
 - an hour in which the battery charges from the grid -> the import price: the battery supplies nothing then;
+- an hour in which its steering keeps the charge for later (learned in battery.py) -> the import price as well;
 - the grid -> the import price of that hour, plus a small preference for using own energy (configurable).
 
 Only real solar counts as own solar: export minus battery discharge, never more than the PV power (a battery
@@ -44,6 +45,7 @@ class EnergyInputs:
     grid_charge: list[bool] | None = None         # per hour: cheap refill hour (charges from the grid, with room)
     grid_charge_to: list[float | None] | None = None   # per hour: the charge (%) it is usually brought to from the grid
     soc_usual: list[float | None] | None = None   # per hour: the charge (%) it usually has at the end (a steered battery)
+    battery_holds: list[bool] | None = None       # per hour: it keeps its charge though the house needs it (a steered battery)
 
 
 @dataclass
@@ -78,6 +80,7 @@ def compute(inp: EnergyInputs) -> EnergyValue:
     empty_at = [False] * n             # battery at the reserve at the end of the hour
     to = (list(inp.grid_charge_to or []) + [None] * n)[:n]
     usual = (list(inp.soc_usual or []) + [None] * n)[:n]
+    holds = (list(inp.battery_holds or []) + [False] * n)[:n]
     charging = [False] * n            # the battery charges this hour: it supplies nothing
     for h in range(n):
         net = pv[h] - load[h]          # >0: surplus, <0: shortage
@@ -89,7 +92,7 @@ def compute(inp: EnergyInputs) -> EnergyValue:
                 take = min(net, inp.battery_max_kw, cap - e)
                 e += take
                 spill[h] = net - take
-            elif to[h] is None:
+            elif to[h] is None and not holds[h]:
                 give = min(-net, inp.battery_max_kw, e - e_res)
                 e -= max(0.0, give)
             if to[h] is not None:      # charging from the grid: up to its usual level, the house from the grid meanwhile
@@ -121,7 +124,7 @@ def compute(inp: EnergyInputs) -> EnergyValue:
             v, s = f * exp[h] + (1 - f) * (imp[h] + inp.grid_preference), SOURCE_SOLAR
         elif has_bat and charging[h]:
             v, s = imp[h] + inp.grid_preference, SOURCE_GRID      # the battery charges: supplies nothing
-        elif has_bat and not empty_at[h] and soc_path[h] is not None and soc_path[h] > inp.battery_reserve + 2:
+        elif has_bat and not holds[h] and not empty_at[h] and soc_path[h] is not None and soc_path[h] > inp.battery_reserve + 2:
             v, s = _refill_cost(h, n, imp, exp, spill, empty_at, inp), SOURCE_BATTERY
         else:
             v, s = imp[h] + inp.grid_preference, SOURCE_GRID

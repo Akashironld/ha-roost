@@ -166,6 +166,12 @@ class PricesMixin:
                 soc_usual = [bat.soc_by_hour[str((h0 + i + 1) % 24)] for i in range(hours)]
             if c.get(CONF_BATTERY_USE) == "cheaper":       # the heat pump may count on its cheap charging hours
                 grid_charge = [(h0 + i) % 24 in bat.charge_hours for i in range(hours)]
+        holds = None
+        if bat.hold_hours:                      # learned: hours in which its steering keeps the charge for later
+            h0 = dt_util.as_local(now).hour
+            holds = [(h0 + i) % 24 in bat.hold_hours for i in range(hours)]
+            if (self._kw(c.get(CONF_BATTERY_POWER)) or 0.0) >= battery.SUPPLY_KW:
+                holds[0] = False                # delivering right now after all
         inp = value.EnergyInputs(import_price=imp, export_price=exp, pv_kwh=self._pv_forecast(now.timestamp(), hours), load_kwh=load,
                                  surplus_now_kw=surplus, battery_soc=soc,
                                  battery_kwh=_f(c.get(CONF_BATTERY_KWH)) if soc is not None else None,
@@ -173,5 +179,5 @@ class PricesMixin:
                                  battery_reserve=bat.reserve if bat.reserve is not None else _f(c.get(CONF_BATTERY_RESERVE)) or 10.0,
                                  battery_max_kw=_f(c.get(CONF_BATTERY_KW)) or 5.0,
                                  grid_preference=_f(c.get(CONF_GRID_PREFERENCE)) or 0.0, grid_charge=grid_charge,
-                                 grid_charge_to=grid_charge_to, soc_usual=soc_usual)
+                                 grid_charge_to=grid_charge_to, soc_usual=soc_usual, battery_holds=holds)
         return inp, value.compute(inp)

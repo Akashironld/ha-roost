@@ -70,6 +70,8 @@ def test_habits_round_trip():
     hab = battery.learn(_days(5, _night_charger))
     back = battery.BatteryHabits.from_dict(hab.as_dict())
     assert back == hab and back.charges_from_grid
+    old = {k: v for k, v in hab.as_dict().items() if k != "hold_hours"}      # stored by v0.7.5: none known yet
+    assert battery.BatteryHabits.from_dict(old).hold_hours == []
 
 
 def test_battery_energy_costs_the_cheapest_charging_hour_ahead():
@@ -121,6 +123,48 @@ def test_a_steered_battery_follows_its_usual_charge():
     assert usual.source[3] == value.SOURCE_GRID and usual.value[3] == 0.30
     assert usual.source[4] == value.SOURCE_GRID and usual.value[4] == 0.25      # charging: supplies nothing
 
+
+def _evening_keeper(h, m):
+    """Issue #5 (a Marstek): filled by solar 10-14, keeps its charge by day while the house draws from the grid, covers
+    the house 17-23, empty at night (the house from the grid then, nothing to spare)."""
+    if 10 <= h < 14:
+        return -1.0, 0.0, 1.5, 40 + (h - 10) * 12
+    if 14 <= h < 17:
+        return 0.0, 0.5, 0.2, 88.0                 # the house imports, the battery waits
+    if 17 <= h < 24:
+        return 0.5, 0.0, 0.0, 88 - (h - 17) * 10
+    return 0.0, 0.4, 0.0, 12.0                      # at its reserve
+
+
+def test_hours_a_steered_battery_keeps_its_charge_are_learned():
+    hab = battery.learn(_days(7, _evening_keeper))
+    assert hab.hold_hours == [14, 15, 16], hab.hold_hours      # not the night: empty then, nothing to hold
+    assert not hab.charges_from_grid
+
+    def own_use(h, m):                              # an ordinary battery: covers every need while it has charge
+        if 10 <= h < 14:
+            return -1.0, 0.0, 1.5, 70.0
+        return (0.4, 0.0, 0.0, 60.0) if h % 3 else (1.3, 1.7, 0.0, 60.0)    # at its power limit: still supplying
+    assert battery.learn(_days(7, own_use)).hold_hours == []
+    no_meter = [battery.Sample(x.ts, x.day, x.hour, x.battery_kw, None, x.pv_kw, x.soc) for x in _days(7, _evening_keeper)]
+    assert battery.learn(no_meter).hold_hours == []                  # without a grid meter: not known
+    assert battery.learn(_days(2, _evening_keeper)).hold_hours == []  # too few days
+
+
+def test_an_hour_the_battery_keeps_its_charge_costs_the_grid_price():
+    """Issue #5: the battery keeps its charge in the afternoon (cheap, 25 ct) for the evening peak (45 ct). Extra use in
+    the afternoon comes from the grid at 25 ct, not at the 45 / 0.9 of refilling the battery; and the battery is not
+    drained in the simulation, so it still has the evening's charge."""
+    n = 8
+    imp = [0.25, 0.25, 0.25, 0.45, 0.45, 0.45, 0.45, 0.30]
+    base = dict(import_price=imp, export_price=imp, pv_kwh=[0.0] * n, load_kwh=[0.5] * n, battery_soc=60.0,
+                battery_kwh=5.4, battery_reserve=12.0, battery_max_kw=1.3)
+    old = value.compute(value.EnergyInputs(**base))
+    assert old.source[0] == value.SOURCE_BATTERY and old.value[0] > 0.30
+    new = value.compute(value.EnergyInputs(**base, battery_holds=[True] * 3 + [False] * 5))
+    assert new.source[:3] == [value.SOURCE_GRID] * 3 and new.value[:3] == [0.25] * 3
+    assert abs(new.battery_soc[2] - 60.0) < 1e-6 and new.battery_soc[3] < 59.0     # kept, then supplying the house
+    assert new.source[3] == value.SOURCE_BATTERY
 
 if __name__ == "__main__":
     run_all(dict(globals()))

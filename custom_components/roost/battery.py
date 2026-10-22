@@ -16,6 +16,11 @@ fit.
 A battery whose steering charges it from the grid also discharges it on its own terms (selling in the evening peak, keeping
 a charge for the morning): the solar-and-house simulation in value.py does not know that. Its usual charge per hour of the
 day (median of the days) is followed instead.
+
+Not every battery covers the house whenever it has charge: some are steered to keep it for the evening peak (issue #5: a
+Marstek filled by day, delivering only in the evening). The hours in which it usually keeps its charge while the house
+draws from the grid are learned (needs a grid meter and the battery's power): extra use then comes from the grid, at that
+hour's price. Hours without enough such moments count as hours it supplies, as before.
 """
 from __future__ import annotations
 
@@ -27,6 +32,10 @@ MIN_DAYS = 3               # charging days before Roost counts on it
 HOUR_SHARE = 0.25          # a local hour is a charging hour when the battery charged from the grid in it on this share of the days
 FULL_SOC = 95.0            # charged to this in an hour (median over the days): no room for an extra kWh then
 LOW_SOC = 25.0             # a day whose lowest charge is below this ran down to the battery's reserve
+NEED_KW = 0.3              # the house draws at least this from the grid and the battery together (5-minute mean)
+SUPPLY_KW = 0.1            # the battery delivers at least this: it supplies (also when its power limit is below the need)
+ROOM_SOC = 5.0             # with this much above its reserve (or the 10 % default) it could have supplied
+HOLD_SHARE = 0.5           # a local hour is a holding hour when it delivered in less than this share of those moments
 STEP_H = 5 / 60
 
 
@@ -51,6 +60,7 @@ class BatteryHabits:
     top_soc: dict[str, float] = field(default_factory=dict)  # local hour -> charge reached while charging from the grid (median)
     reserve: float | None = None   # the charge it stops at when it runs down (median), None: not seen
     soc_by_hour: dict[str, float] = field(default_factory=dict)   # local hour -> usual charge at its start (median)
+    hold_hours: list[int] = field(default_factory=list)     # local hours in which it keeps its charge though the house needs it
     at: str | None = None
 
     @property
@@ -133,4 +143,26 @@ def learn(samples: list[Sample], capacity_kwh: float | None = None) -> BatteryHa
     lows = [v for v in low.values() if v < LOW_SOC]
     if len(lows) >= MIN_DAYS:
         out.reserve = round(_median(lows), 1)
+    out.hold_hours = hold_hours(samples, out.reserve)
     return out
+
+
+def hold_hours(samples: list[Sample], reserve: float | None) -> list[int]:
+    """Local hours in which the battery usually keeps its charge although the house draws from the grid: moments with a
+    need (grid import + discharge >= NEED_KW), charge to spare and no grid charging; in an hour it delivered in fewer
+    than HOLD_SHARE of them, on at least MIN_DAYS days. Without a grid meter or the battery's power: none known."""
+    floor = (reserve if reserve is not None else 10.0) + ROOM_SOC
+    need: dict[int, int] = {}
+    gave: dict[int, int] = {}
+    days: dict[int, set[str]] = {}
+    for s in samples:
+        if s.battery_kw is None or s.grid_kw is None or (s.soc is not None and s.soc <= floor):
+            continue
+        if s.battery_kw < 0 and grid_charge_kw(-s.battery_kw, s.grid_kw, s.pv_kw) >= GRID_KW_MIN:
+            continue                                  # charging from the grid: that hour is a grid hour already
+        if max(0.0, s.grid_kw) + max(0.0, s.battery_kw) < NEED_KW:
+            continue
+        need[s.hour] = need.get(s.hour, 0) + 1
+        gave[s.hour] = gave.get(s.hour, 0) + (s.battery_kw >= SUPPLY_KW)
+        days.setdefault(s.hour, set()).add(s.day)
+    return sorted(h for h, n in need.items() if len(days[h]) >= MIN_DAYS and gave[h] < HOLD_SHARE * n)
