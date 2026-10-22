@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.7.6 — a high lowest setpoint, a battery that keeps its charge, the tariff in the look back
+
+**For everyone with a lowest setpoint above the day minimum or a home battery that keeps its charge for the evening** — a planner error with a high lowest setpoint is fixed, and a battery that holds its charge during the day is no longer counted on to cover the house. The look back report shows the tariff beside the price Roost counts with.
+
+### Fixes
+- **Planner**: with a lowest setpoint above the day minimum (for example 20 and 19.5), every plan stopped with an error once the room was cold; the lowest setting is now always allowed
+- **Home battery**: a battery steered to keep its charge during the day for the evening was taken to cover the house whenever it had charge. Roost now learns from the battery's history in which hours it keeps its charge while the house uses the grid, and counts with the tariff in those hours (needs a grid meter and the battery's power, and about three days)
+
+### Improvements
+- **Look back report**: shows the tariff next to the price Roost counts with (*plan uses*). With a home battery these can differ: a kWh from the battery costs what it takes to buy it back later, plus the battery's losses
+
+### After updating
+Update in HACS (or install the new `roost.zip`) and restart Home Assistant, then reload the dashboard (Ctrl+F5).
+
 ## v0.7.5 — no hybrid without a gas boiler, a battery charged from the grid
 
 **For everyone without a gas boiler whose unit was taken for a hybrid, and for everyone whose home battery also charges from the grid** — Roost now asks Weheat whether a gas boiler is installed, instead of guessing from the logs. A unit that only *asked* for a boiler a few times (all-electric units do that too) stored heat at most 0.5 °C above the room since v0.7.3, so it hardly heated ahead in cheap hours. And if your home battery is also charged from the grid (by Predbat, evcc, a supplier or a schedule), you can now let the heat pump use it when that is cheaper; by default the battery stays for the house.
