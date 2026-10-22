@@ -22,6 +22,7 @@ class HourLogMixin:
         self.hour_log.append({"ts": hour, "T": round(room, 2), "E": round(self.storage_e, 2), "sp": sp, "sp_t": self.thermostat_sp(),
                               "t_out": wx[0], "rad": round(self.sun_on_house(hour, wx), 4), "hour": dt_util.as_local(now).hour,
                               "wind": wx[2] if wx[2] is not None else 3.5, "p_grid": h.p_grid, "p_own": h.p_own, "own": h.own_kw,
+                              "p_imp": None if h.p_imp is None else round(h.p_imp, 4),
                               "day": self.is_day(dt_util.as_local(now)),
                               # for looking back: the plan, its reason, what was predicted for this hour, the mode
                               "sp_plan": self.plan.first.sp if self.plan and self.plan.first else None,

@@ -38,6 +38,7 @@ class HourIn:
     dhw: float = 0.0           # share of the hour the unit makes hot water (no space heating then)
     extra_kw: float = 0.0      # correction from the last hours: heat the model missed (+) or had too much (−)
     away: bool = False         # nobody home: only the away minimum counts, no comfort hours
+    p_imp: float | None = None  # the import price itself (price sensor, formula or contract), for showing; None: not known
 
 
 @dataclass
@@ -440,6 +441,8 @@ def breakdown(hours: list[HourIn], roost: list[tuple], steady: dict, end_roost: 
     rows = []
     for k, (h, r, b) in enumerate(zip(hours, roost, steady.get("rows", []))):
         rows.append({"i": k, "hour": h.hour, "t_out": round(h.t_out, 1), "price": round(h.p_grid, 4), "day": h.day,
+                     # the tariff beside what the plan counts (they differ while a home battery supplies the house)
+                     "tariff": None if h.p_imp is None else round(h.p_imp, 4),
                      "sun": h.rad >= SUNNY,
                      "sp": round(r[0], 1), "t": round(r[1], 2), "kwh": round(r[2], 3), "cost": round(r[3], 4),
                      "b_sp": round(b[0], 1), "b_t": round(b[1], 2), "b_kwh": round(b[2], 3), "b_cost": round(b[3], 4),
@@ -543,7 +546,8 @@ def replay_day(house: HouseModel, hp: HeatPumpModel, s: Settings, entries: list[
     if not entries:
         return None
     hours = [HourIn(t_out=e["t_out"], wind=e.get("wind", 3.5), rad=e.get("rad", 0.0), p_grid=e["p_grid"], p_own=e.get("p_own", e["p_grid"]),
-                    own_kw=e.get("own", 0.0), day=e.get("day", True), dhw=e.get("dhw", 0.0), hour=e.get("hour", -1)) for e in entries]
+                    own_kw=e.get("own", 0.0), day=e.get("day", True), dhw=e.get("dhw", 0.0), hour=e.get("hour", -1),
+                    p_imp=e.get("p_imp")) for e in entries]
     sim = Simulator(house, hp, s)
     end = _end_value(sim, hours, s.comfort)
     T0, E0 = entries[0]["T"], entries[0].get("E", 0.0)

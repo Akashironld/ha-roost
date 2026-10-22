@@ -560,7 +560,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         if e:
             self._last_elec = e
 
-    def _hours_ahead(self, now: datetime, prices: list[value.HourPrices]) -> list[planner.HourIn]:
+    def _hours_ahead(self, now: datetime, prices: list[value.HourPrices], tariff: list[float]) -> list[planner.HourIn]:
         base = int(now.timestamp() // 3600 * 3600)
         out = []
         last = None
@@ -579,7 +579,8 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             rad = self.sun_on_house(base + i * 3600, wx)
             out.append(planner.HourIn(t_out=wx[0], wind=wx[2] if wx[2] is not None else 3.5, rad=rad,
                                       p_grid=p.p_grid, p_own=p.p_own, own_kw=p.own_kw, day=self.is_day(loc), hour=loc.hour, dhw=dhw,
-                                      extra_kw=check.extra_at(self.corr_kw, self.corr_sun, rad, i), away=self.is_away(base + i * 3600)))
+                                      extra_kw=check.extra_at(self.corr_kw, self.corr_sun, rad, i), away=self.is_away(base + i * 3600),
+                                      p_imp=tariff[i] if i < len(tariff) else None))
         return out
 
     async def _async_plan(self, now: datetime) -> None:
@@ -594,7 +595,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             inp, ev = e
             prices = value.planner_prices(inp, ev)
             self.corr_kw, self.corr_sun, self.corr_n = check.correction(self.hour_log, self.house, self.pump, now.timestamp())
-            hours = self._hours_ahead(now, prices)
+            hours = self._hours_ahead(now, prices, inp.import_price)
             if not hours:
                 self.reason = Reason("no_weather")
                 self._note_no_plan()

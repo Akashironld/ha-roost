@@ -97,6 +97,21 @@ def test_replay_day_saving():
     assert len(bd["hours"]) == 24
     assert abs(sum(r["save"] for r in bd["hours"]) + bd["b_end"] - bd["end"] - bd["saving"]) < 0.01, bd
     assert abs(bd["saving"] - (steady - roost)) < 0.01, (bd["saving"], steady - roost)
+    assert all(r["tariff"] is None for r in bd["hours"])        # hours logged before the tariff was kept
+
+
+def test_breakdown_shows_tariff_beside_price():
+    """Issue #5: with a home battery the plan counts the price of buying a kWh back later, not the tariff; the
+    breakdown (the look back report) keeps both, for the plan and for a replayed day."""
+    s = planner.Settings()
+    hs = [planner.replace(h, p_grid=0.416, p_own=0.416, p_imp=0.25 + 0.01 * i) for i, h in enumerate(hours(0))]
+    p = planner.plan(HOUSE, PUMP, s, hs, t_now=20.6, e_now=2.0, sp_now=20.5)
+    assert [r["tariff"] for r in p.breakdown["hours"]] == [round(h.p_imp, 4) for h in hs[:len(p.breakdown["hours"])]]
+    assert all(r["price"] == 0.416 for r in p.breakdown["hours"])
+    entries = [{"T": 20.6 if i == 0 else 0, "E": 2.0, "sp": h.sp, "t_out": x.t_out, "rad": x.rad, "wind": x.wind, "p_grid": x.p_grid,
+                "p_own": x.p_own, "own": x.own_kw, "day": x.day, "p_imp": x.p_imp} for i, (h, x) in enumerate(zip(p.hours, hs))]
+    _, _, bd = planner.replay_day(HOUSE, PUMP, s, entries)
+    assert bd["hours"][3]["tariff"] == 0.28 and bd["hours"][3]["price"] == 0.416
 
 
 def test_replay_ending_colder_is_no_saving():
