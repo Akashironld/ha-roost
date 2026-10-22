@@ -100,6 +100,16 @@ def test_replay_day_saving():
     assert all(r["tariff"] is None for r in bd["hours"])        # hours logged before the tariff was kept
 
 
+def test_lowest_setpoint_above_day_minimum():
+    """A lowest setpoint above the day minimum (20 and 19.5) gave no setpoint at all for a cold room in the search
+    (max_above_room ruled out every one): ValueError on every plan. The lowest setting is always allowed."""
+    s = planner.Settings(comfort=20.5, day_min=19.5, night_min=19.0, sp_min=20.0, max_above_room=0.5)
+    p = planner.plan(HOUSE, PUMP, s, hours(5), t_now=18.0, e_now=0.0, sp_now=20.0)
+    assert p.first is not None and min(h.sp for h in p.hours) >= 20.0
+    slow = heatpump.HeatPumpModel.from_dict({**PUMP.as_dict(), "follow": 0.3})      # also through polish()
+    p = planner.plan(HOUSE, slow, s, hours(5), t_now=18.0, e_now=0.0, sp_now=20.0, w_now=0.0)
+    assert p.first is not None and min(h.sp for h in p.hours) >= 20.0
+
 def test_breakdown_shows_tariff_beside_price():
     """Issue #5: with a home battery the plan counts the price of buying a kWh back later, not the tariff; the
     breakdown (the look back report) keeps both, for the plan and for a replayed day."""

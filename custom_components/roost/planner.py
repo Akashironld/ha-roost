@@ -274,7 +274,7 @@ def polish(sim: Simulator, hours: list[HourIn], t_now: float, e_now: float, w_no
             # not allowed: too far above what the thermostat reads (an OpenTherm thermostat then asks for hot water,
             # 37 °C instead of 32 at 1.3 °C above). Keeping the setpoint already set may go a little further, so a room
             # a tenth cooler does not make it step down and up again.
-            if sp > T + hp.th_diff + s.max_above_room + (HOLD_MARGIN if sp == prev else 0.0) + 1e-9 and sp > s.day_min:
+            if sp > T + hp.th_diff + s.max_above_room + (HOLD_MARGIN if sp == prev else 0.0) + 1e-9 and sp > s.day_min and sp > sps[0]:
                 tot += 10.0
             T1, E, c, _e, q, pen = sim.hour(T, E, sp, hours[k], w)
             w = sim.w_end
@@ -359,8 +359,9 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
         ch = [[[0] * NA for _ in range(NE)] for _ in range(NT)]
         for i in range(NT):
             T0 = t_lo + i * dT
-            # at most max_above_room above what the thermostat reads (lukewarm water)
-            allowed = [a for a in range(NA) if sps[a] <= T0 + hp.th_diff + s.max_above_room or sps[a] <= s.day_min]
+            # at most max_above_room above what the thermostat reads (lukewarm water); the lowest setting always (it
+            # may be above the day minimum: in a cold room nothing would be left)
+            allowed = [a for a in range(NA) if sps[a] <= T0 + hp.th_diff + s.max_above_room or sps[a] <= s.day_min or a == 0]
             for j in range(NE):
                 E0 = j * dE
                 base = {}
