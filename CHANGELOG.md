@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.7.7 — a thermostat in half degrees, the correction from hours without sun
+
+**For everyone whose room temperature comes from the thermostat (no room sensor), and for better forecasts for everyone** — many thermostats show the room in half degrees. Roost took that rounding for an open window and for free heat, and then hardly heated. The correction from the last hours now only learns from hours without sun, which makes the forecasts a few hours ahead better.
+
+### Fixes
+- **Window open with a thermostat in half degrees**: a room that cools a tenth past a rounding point shows half a degree less at once, and near that point the reading flips back and forth. Roost took that for airing (0.5 °C within 15 minutes) — three times in one night with every window closed. A drop now also has to be two steps of the reading: 1 °C with a thermostat that shows half degrees, 0.5 °C with a room sensor as before
+- **No correction from a reading in half degrees**: a room that cooled from 20.4 to 20.0 °C read as 20.0 for six hours, which the correction from the last hours took for 0.7 kW of free heat, so the plan hardly heated. A room reading that changes in steps of 0.3 °C or more now gives no correction (a step of 0.5 °C in one hour looks like 7 kW)
+
+### Improvements
+- **Correction from the last hours**: only hours without sun count. What sunny hours missed used to be carried ahead as extra sun for a day; on a year of data that made the forecasts 6 to 24 hours ahead worse. Without it they are about 5 % better, in autumn, winter and spring alike, and cost and comfort in the simulations stay the same. The nightly learning takes over what the sun really does
+- The *Plan accuracy* sensor and the diagnostics no longer show `correction_sun_m2`
+- Tip: a room sensor in the room of the thermostat (*Room temperature sensor* in the settings) gives Roost tenths of a degree instead of halves
+
+### After updating
+Update in HACS (or install the new `roost.zip`) and restart Home Assistant, then reload the dashboard (Ctrl+F5).
+
 ## v0.7.6 — a high lowest setpoint, a battery that keeps its charge, the tariff in the look back
 
 **For everyone with a lowest setpoint above the day minimum or a home battery that keeps its charge for the evening** — a planner error with a high lowest setpoint is fixed, and a battery that holds its charge during the day is no longer counted on to cover the house. The look back report shows the tariff beside the price Roost counts with.
