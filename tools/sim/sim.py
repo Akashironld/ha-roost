@@ -287,8 +287,8 @@ def run(name: str, days: int = 7, seed: int = 1) -> dict:
                     hours.append(planner.HourIn(t_out=t + fc_err, wind=wind, rad=rad * (1 + rnd.gauss(0, 0.2 * min(1, j / 12))),
                                                 p_grid=p, p_own=p, day=7 <= (t2 % 86400 // 3600) < 22, hour=t2 % 86400 // 3600,
                                                 dhw=0.0))
-                corr, sun, _n = check.correction(log, house, pump, ts)
-                hours = [replace(x, extra_kw=check.extra_at(corr, sun, x.rad, j)) for j, x in enumerate(hours)]
+                corr, _n = check.correction(log, house, pump, ts)
+                hours = [replace(x, extra_kw=check.fade(corr, j)) for j, x in enumerate(hours)]
                 room_in = None
                 if sc.room:
                     act = [rooms_mod.active(x.hour, sc.room["from"], sc.room["to"]) for x in hours]

@@ -35,6 +35,20 @@ def test_slow_cooling_is_not_a_window():
     assert not w.hours
 
 
+def test_a_thermostat_in_half_degrees_is_not_a_window_when_it_rounds():
+    """Only the thermostat as room temperature (a Lyric T6 shows 0.5 °C steps): a room cooling a tenth past 20.75
+    shows 21 → 20.5 at once, and near that point it flips back and forth. Seen 22-10-2026 in the author's house: a
+    window three times in one night with everything closed. A real airing drops it two steps (1 °C)."""
+    w = window.WindowWatch()
+    temps = [21.0] * 5 + [20.5, 21.0, 20.5] + [20.5] * 20 + [20.0] * 10
+    assert run(w, temps) == [] and not w.hours
+    assert window.reading_step([21.0, 21.0, 20.5, 21.0]) == 0.5 and window.reading_step([20.4, 20.3, 20.3]) == 0.1
+    assert window.reading_step([20.0, 20.0]) == 0.0
+    w = window.WindowWatch()
+    ev = run(w, [21.0, 20.5, 21.0, 21.0, 20.5, 20.0, 20.0] + [20.0] * 10 + [20.5, 21.0])
+    assert ev[0] == ("open", 10) and ev[-1][0] == "end", ev       # 1 °C within 15 minutes: airing
+
+
 def test_a_window_sensor_starts_and_closes_it():
     w = window.WindowWatch()
     temps = [21.0, 21.0, 20.9, 20.8, 20.8, 20.8, 20.9, 21.0, 21.0, 21.0]

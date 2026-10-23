@@ -99,7 +99,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         self._last_reason_code: str | None = None
         self.ready: bool = False
         self.ready_missing: list[str] = []
-        self.corr_kw, self.corr_sun, self.corr_n = 0.0, 0.0, 0   # correction from the last hours (check.correction)
+        self.corr_kw, self.corr_n = 0.0, 0   # correction from the last hours (check.correction)
         self._acc_hour: int | None = None           # the current hour: seconds on hot water, heat for the house
         self._dhw_acc = 0.0
         self._heat_acc = 0.0
@@ -579,7 +579,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             rad = self.sun_on_house(base + i * 3600, wx)
             out.append(planner.HourIn(t_out=wx[0], wind=wx[2] if wx[2] is not None else 3.5, rad=rad,
                                       p_grid=p.p_grid, p_own=p.p_own, own_kw=p.own_kw, day=self.is_day(loc), hour=loc.hour, dhw=dhw,
-                                      extra_kw=check.extra_at(self.corr_kw, self.corr_sun, rad, i), away=self.is_away(base + i * 3600),
+                                      extra_kw=check.fade(self.corr_kw, i), away=self.is_away(base + i * 3600),
                                       p_imp=tariff[i] if i < len(tariff) else None))
         return out
 
@@ -594,7 +594,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
                 return
             inp, ev = e
             prices = value.planner_prices(inp, ev)
-            self.corr_kw, self.corr_sun, self.corr_n = check.correction(self.hour_log, self.house, self.pump, now.timestamp())
+            self.corr_kw, self.corr_n = check.correction(self.hour_log, self.house, self.pump, now.timestamp())
             hours = self._hours_ahead(now, prices, inp.import_price)
             if not hours:
                 self.reason = Reason("no_weather")

@@ -30,7 +30,7 @@ class HourLogMixin:
                               "p6": pr.get("p6"), "p1": pr.get("p1"), "mode": self.mode, "window": hour in self.window.hours,
                               "paused": bool(self.mem.pause_until and self.mem.pause_until > time.time()),
                               # forecast 6 h before for this hour: [outdoor °C, sun, price, price guessed]
-                              "f6": pr.get("f6"), "corr": [self.corr_kw, self.corr_sun]})
+                              "f6": pr.get("f6"), "corr": [self.corr_kw]})
         self.hour_log = self.hour_log[-HOUR_LOG_KEPT:]
         self._log_plan(hour, room)
         self.pred = {k: v for k, v in self.pred.items() if k > hour - 7200}
@@ -44,7 +44,7 @@ class HourLogMixin:
         self.plan_log.append({
             "ts": hour, "at": round(self.plan_at or 0), "room": round(room, 2), "E": round(self.storage_e, 2),
             "w_now": None if self.plan_w_now is None else round(self.plan_w_now, 2), "sp_now": self.thermostat_sp(),
-            "corr": [self.corr_kw, self.corr_sun, self.corr_n],
+            "corr": [self.corr_kw, self.corr_n],
             "hours": [[round(h.t_out, 1), round(h.rad, 3), round(h.wind, 1), round(h.p_grid, 4), round(h.p_own, 4), round(h.own_kw, 2),
                        round(h.dhw, 2), round(h.extra_kw, 3), guess[i] if i < len(guess) else None] for i, h in enumerate(self.plan_hours)],
             "sp": [x.sp for x in p.hours] if p else None, "neutral": self.plan_on_guess})

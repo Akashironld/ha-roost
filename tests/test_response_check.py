@@ -216,21 +216,22 @@ def test_correction_from_the_last_hours():
         entries.append({"ts": t0 + k * 3600, "T": T, "E": E, "sp_t": 20.5, "t_out": 12.0, "wind": 3.5, "rad": 0.0, "dhw": 0.0})
         T, E = T1 + 0.02, E1                     # the room ends each hour 0.02 °C warmer than the model says
     entries.append({"ts": t0 + 6 * 3600, "T": T, "E": E, "sp_t": 20.5, "t_out": 12.0})
-    kw, sun, n = check.correction(entries, HOUSE, hp, t0 + 6 * 3600)
-    assert n == 6 and 0.25 < kw < 0.4 and sun == 0, (kw, sun, n)  # 0.02 °C × 19 kWh/K = 0.38 kW, shrunk for 6 hours
+    kw, n = check.correction(entries, HOUSE, hp, t0 + 6 * 3600)
+    assert n == 6 and 0.25 < kw < 0.4, (kw, n)   # 0.02 °C × 19 kWh/K = 0.38 kW, shrunk for 6 hours
     assert check.fade(kw, 6) == kw / 2
     for e in entries:
         e.pop("dhw", None)                       # hot water unknown: no correction
-    assert check.correction(entries, HOUSE, hp, t0 + 6 * 3600) == (0.0, 0.0, 0)
+    assert check.correction(entries, HOUSE, hp, t0 + 6 * 3600) == (0.0, 0)
     for e in entries:
         e["dhw"] = 0.0
         e["window"] = True                       # airing: left out as well
-    assert check.correction(entries, HOUSE, hp, t0 + 6 * 3600) == (0.0, 0.0, 0)
+    assert check.correction(entries, HOUSE, hp, t0 + 6 * 3600) == (0.0, 0)
 
 
-def test_a_sunny_afternoon_does_not_warm_the_night():
-    """The room got warmer than predicted in sunny hours (low autumn sun on the facade): that is put down to the sun,
-    so it follows the sun ahead and is gone at night, instead of 1 kW all night (the room hardly cooling)."""
+def test_sunny_hours_are_left_out():
+    """The room got warmer than predicted in sunny hours (low autumn sun on the facade): that is the sun model's, not
+    something to carry ahead. Until v0.7.7 it became extra sun for a day; on a year of the author's data that made the
+    forecasts 6–24 hours ahead worse (and before v0.5.3, as a constant, 1 kW all night)."""
     hp = heatpump.HeatPumpModel()
     sim = planner.Simulator(HOUSE, hp, planner.Settings())
     t0 = 1_800_000_000 - 1_800_000_000 % 3600
@@ -242,10 +243,22 @@ def test_a_sunny_afternoon_does_not_warm_the_night():
         entries.append({"ts": t0 + k * 3600, "T": T, "E": E, "sp_t": 19.0, "t_out": 14.0, "wind": 3.5, "rad": rad, "dhw": 0.0})
         T, E = T1 + 1.5 * rad / HOUSE.C, E1      # 1.5 m² more sun than the model has
     entries.append({"ts": t0 + 8 * 3600, "T": T, "E": E, "sp_t": 19.0, "t_out": 14.0})
-    kw, sun, n = check.correction(entries, HOUSE, hp, t0 + 8 * 3600)
-    assert kw == 0 and 1.0 < sun < 1.6, (kw, sun, n)
-    assert check.extra_at(kw, sun, 0.0, 6) == 0                             # night: nothing
-    assert 0.3 < check.extra_at(kw, sun, 0.3, 1) < 0.5                     # the sun tomorrow: some more
+    assert check.correction(entries, HOUSE, hp, t0 + 8 * 3600) == (0.0, 0)
+
+
+def test_a_thermostat_in_half_degrees_gives_no_correction():
+    """Only the thermostat as room temperature (a Lyric T6 shows 0.5 °C steps): the room held at '20.0' for six hours
+    while a room sensor saw it fall 20.4 → 20.0. The correction made that +0.66 kW of free heat (a sensor would have
+    given −0.5 kW) and the plan hardly heated (author's house, 23-10-2026). A step of 0.5 °C in an hour is 7 kW."""
+    hp = heatpump.HeatPumpModel()
+    t0 = 1_800_000_000 - 1_800_000_000 % 3600
+    temps = [21.0, 21.0, 20.5, 20.5, 20.5, 20.0, 20.0, 20.0, 20.0]
+    entries = [{"ts": t0 + k * 3600, "T": v, "E": 0.0, "sp_t": 20.0, "t_out": 10.0, "wind": 3.5, "rad": 0.0, "dhw": 0.0}
+               for k, v in enumerate(temps)]
+    assert check.correction(entries, HOUSE, hp, t0 + 8 * 3600) == (0.0, 0)
+    for e, v in zip(entries, [21.1, 21.0, 20.8, 20.7, 20.6, 20.5, 20.4, 20.3, 20.3]):
+        e["T"] = v                               # the room sensor: a correction again
+    assert check.correction(entries, HOUSE, hp, t0 + 8 * 3600)[1] == 8
 
 
 

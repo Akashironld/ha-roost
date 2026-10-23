@@ -116,7 +116,7 @@ next screen. Nothing else to fill in — see [The Weheat login](#the-weheat-logi
 
 | Field | What to fill in |
 |---|---|
-| Room temperature sensor | A sensor in the room of the thermostat. Roost proposes one in the same area, or in the living room. Leave empty to use the thermostat's own reading |
+| Room temperature sensor | A sensor in the room of the thermostat. Roost proposes one in the same area, or in the living room. Leave empty to use the thermostat's own reading (many show only half degrees: Roost then sees a cooling room a step at a time) |
 | Heat emitters | Floor heating, radiators, or both. Only the starting values; Roost learns your house from its data |
 | Building data from the Dutch building register (BAG) | Netherlands only, off by default. Sends your Home Assistant home location **once** to PDOK (Kadaster) to look up the construction year, floor area and outside walls: better starting values (useful without the Weheat import) and only the facade directions your house really has. No address is kept |
 | Window and door sensors (optional) | Roost recognises airing by itself (the room falling fast); with sensors it knows at once. See *Airing* in section 8 |
@@ -380,9 +380,11 @@ Back to shadow or off: `select.roost_mode` → *Shadow* / *Off*. In *Off* Roost 
   few days away: a slow, well-insulated house is often kept warm through a single day rather than reheated. Roost
   never sets the thermostat below its lowest setpoint: lower that too if the house may get colder than it.
 - **Holidays and visitors** need nothing: the correction from the last hours notices a warmer or colder house within
-  hours.
+  hours (from the hours without sun; with only a thermostat that shows half degrees there is no correction — a step
+  of 0.5 °C would look like 7 kW).
 - **Airing** needs nothing either. When the room falls fast — 0.5 °C within 15 minutes, which no house does by
-  itself — or a window sensor you chose opens, Roost recognises an open window: the card says *window open: Roost
+  itself; 1 °C when the room temperature comes from a thermostat that shows half degrees, so its rounding is not taken
+  for a window — or a window sensor you chose opens, Roost recognises an open window: the card says *window open: Roost
   waits*, Roost does not touch the thermostat (it would heat the outdoors), and it waits until the room is back (at
   most three hours). Those hours are left out of what Roost learns from — the correction, the self-check, the heat
   pump's response and the house model — so airing never looks like a house that suddenly loses more heat. The look

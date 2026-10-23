@@ -321,7 +321,7 @@ class PlanAccuracySensor(RoostEntity, SensorEntity):
     def extra_state_attributes(self):
         m = self.mgr
         return {**{k: v for k, v in m.check.items()}, "ready_to_steer": m.ready, "still_missing": m.ready_missing,
-                "correction_kw": m.corr_kw, "correction_sun_m2": m.corr_sun, "correction_hours": m.corr_n, **_response(m.pump)}
+                "correction_kw": m.corr_kw, "correction_hours": m.corr_n, **_response(m.pump)}
 
 
 IMPORT_STATES = ["not_yet", "importing", "done", "waiting", "failed", "no_heat_pump"]
