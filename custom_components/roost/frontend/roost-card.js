@@ -1550,6 +1550,9 @@ class RoostCard extends HTMLElement {
       .ts { font-size: 11px; color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .chart { margin-top: 14px; cursor: default; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
       .ch { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+      .ch > span:first-child { flex: none; white-space: nowrap; }
+      .badge { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; vertical-align: top; }
+      @container (max-width: 520px) { .tile .ts { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; } }
       .info { font-weight: 400; color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .info b.o { color: var(--rc-sp); } .info i { font-style: normal; opacity: .8; }
       .chart.on .info i { display: none; }
