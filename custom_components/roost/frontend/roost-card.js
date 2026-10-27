@@ -1,6 +1,6 @@
 /* Roost card - served by the roost integration. */
 (() => {   // own scope: safe if the file is loaded twice as a classic script (legacy frontend + a manual resource)
-const CARD_VERSION = "0.8.0";
+const CARD_VERSION = "0.8.1";
 
 // Plain ES2017 on purpose (no ?. / ??), ASCII only (\u escapes): wall tablets often run an older browser.
 const nn = (a, b) => (a === null || a === undefined ? b : a);
@@ -173,6 +173,7 @@ const fmt = (v, d) => (v === null || v === undefined || isNaN(v)) ? "\u2014" : N
 
 const SAVING_QUALITY = {
   "en": {
+    "partial_hours": "Home Assistant was restarted during an hour, so part of that hour was not measured.",
     "checked": "Model estimate checked against measured heating electricity and room temperatures; not a measured bill saving.",
     "forecast": "Expected model estimate; not a measured saving.",
     "unreliable": "No accepted saving estimate.",
@@ -187,6 +188,7 @@ const SAVING_QUALITY = {
     "settings_changed": "Comfort settings changed during this day."
   },
   "nl": {
+    "partial_hours": "Home Assistant is tijdens een uur herstart, waardoor een deel van dat uur niet is gemeten.",
     "checked": "Modelraming getoetst aan gemeten verwarmingsstroom en kamertemperaturen; geen gemeten besparing op de rekening.",
     "forecast": "Verwachte modelraming; geen gemeten besparing.",
     "unreliable": "Geen voldoende betrouwbare besparingsschatting.",
@@ -201,6 +203,7 @@ const SAVING_QUALITY = {
     "settings_changed": "De comfortinstellingen zijn tijdens deze dag veranderd."
   },
   "de": {
+    "partial_hours": "Home Assistant wurde w\u00e4hrend einer Stunde neu gestartet; ein Teil dieser Stunde wurde nicht gemessen.",
     "incomplete_forecast": "Ein vollst\u00e4ndiger 24-Stunden-Plan ist noch nicht verf\u00fcgbar.",
     "checked": "Modellsch\u00e4tzung mit gemessenem Heizstrom und Raumtemperaturen gepr\u00fcft; keine gemessene Rechnungsersparnis.",
     "forecast": "Erwartete Modellsch\u00e4tzung; keine gemessene Ersparnis.",
@@ -215,6 +218,7 @@ const SAVING_QUALITY = {
     "settings_changed": "Die Komforteinstellungen wurden im Tagesverlauf ge\u00e4ndert."
   },
   "fr": {
+    "partial_hours": "Home Assistant a red\u00e9marr\u00e9 pendant une heure ; une partie de cette heure n'a pas \u00e9t\u00e9 mesur\u00e9e.",
     "incomplete_forecast": "Le plan complet sur 24 heures n'est pas encore disponible.",
     "checked": "Estimation v\u00e9rifi\u00e9e avec la consommation de chauffage et les temp\u00e9ratures mesur\u00e9es ; pas une \u00e9conomie mesur\u00e9e sur la facture.",
     "forecast": "Estimation pr\u00e9vue par le mod\u00e8le ; pas une \u00e9conomie mesur\u00e9e.",
