@@ -12,6 +12,7 @@
 - **Two solar forecasts** (today and tomorrow) that cover the same hours are no longer added up
 - **Solar in the hour in progress** is counted as a rate over the hour, as the house use and the planner count whole hours: with a quarter of an hour left, 2 kW of sun counted as 0.5 kW
 - **A weather entity in its own units** (°F, m/s, mph) is converted by those units instead of Home Assistant's
+- **"Warming the floor" while nothing heats**: with the room above the setpoint the card said *warming the floor ahead of dearer hours* (or *charging the floor now*) while the heat pump stood still. Roost was keeping the setting up so the house does not cool too far before the dear hours; it now says so: *room above the setpoint: keeping 21 °C ahead of dearer hours; the heat pump waits*
 - **A change by hand right after Roost's own change** (within a minute) was taken for Roost's change coming back; a change that carries a user now pauses Roost as any change by hand
 
 ### After updating
