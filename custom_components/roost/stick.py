@@ -19,8 +19,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-MAX_AGE_H = 12          # a plan is made afresh at least this often (the house model and correction move slowly)
-ROOM_K = 0.4            # the room this far from what the plan expected now (°C) ...
+MAX_AGE_H = 6           # a plan is made afresh at least this often (simulations: 12 h let comfort slip in fast houses)
+ROOM_K = 0.25           # the room this far from what the plan expected now (°C; 0.4 in the simulations: +47 % below comfort) ...
 ROOM_K_COARSE = 0.6     # ... with a thermostat that reads in half degrees
 ROOM_TICKS = 2          # ... on this many checks in a row (one reading is not enough)
 WEATHER_H = 6           # the coming hours compared
