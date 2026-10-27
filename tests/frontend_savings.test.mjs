@@ -139,3 +139,18 @@ test("the month's saving is a pill that opens the calendar", () => {
   c._calOpen = true;
   assert.ok(c._status(a).includes("calpill on"));
 });
+
+test("the plan graph is drawn in the card's pixels and empty bits stay hidden", () => {
+  const c = card("nl");
+  c._info = () => ""; c._pwhy = () => "";
+  const a = { start: new Date().toISOString(), comfort: 21, day_min: 19, night_min: 19, store_max: 25, plan, day_hours: [1, 1, 1, 1] };
+  c._chartW = 1032;
+  assert.ok(c._chart(a).includes('viewBox="0 0 1000 172"'));
+  c._chartW = undefined;
+  assert.ok(c._chart(a).includes('viewBox="0 0 440 172"'));
+  const quiet = [[20.5, 21, 0, 25, 25, 0]];
+  assert.ok(!c._chart({ ...a, plan: quiet }).includes("l pump"));
+  assert.equal(c._pumpRow({ pump_runs: { today: { starts: 0 }, yesterday: { starts: 0 }, heating: false } }), "");
+  c._config = { language: "nl", show_status: false };
+  assert.equal(c._status({ plan }), "");
+});
