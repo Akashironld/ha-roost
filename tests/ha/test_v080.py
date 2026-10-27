@@ -245,3 +245,45 @@ def test_diagnostics_scrub_the_location_from_text():
             "log": ["at 52.0912, 5.1214 it failed"]}
     out = diagnostics._scrub(text, ("52.0912", "5.1214"))
     assert "52.0912" not in str(out) and "5.1214" not in str(out) and "hourly=t" in str(out)
+
+
+async def test_the_card_saves_weekly_periods_without_a_reload(hass, entry):
+    """The weekly periods from the card: checked like Configure > Comfort, no reload of Roost."""
+    from homeassistant.exceptions import ServiceValidationError
+    m = entry.runtime_data
+    week = {"monday": [[420, 540], [1050, 1320]], "sunday": "08:30-23:00"}
+    with patch.object(type(m), "_async_tick"):
+        await hass.services.async_call("roost", "set_settings", {"weekly_comfort": True, "comfort_schedule": week}, blocking=True)
+    await hass.async_block_till_done()
+    assert entry.runtime_data is m                                   # not reloaded
+    assert entry.options[schedule.ENABLED] is True
+    assert entry.options[schedule.WEEK]["monday"] == [[420, 540], [1050, 1320]] and entry.options[schedule.WEEK]["tuesday"] == []
+    m.conf.update(entry.options)                                     # the test's fixed conf: as Home Assistant merges it
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call("roost", "set_settings", {"comfort_schedule": {"monday": [[420, 600], [540, 700]]}}, blocking=True)
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call("roost", "set_settings", {"day_from": 6}, blocking=True)
+    with patch.object(type(m), "_async_tick"):
+        await hass.services.async_call("roost", "set_settings", {"weekly_comfort": False}, blocking=True)
+    assert entry.options[schedule.ENABLED] is False and entry.options[schedule.WEEK]["monday"] == [[420, 540], [1050, 1320]]
+
+
+async def test_weekly_on_without_periods_starts_from_the_comfort_hours(hass, entry):
+    m = entry.runtime_data
+    m.conf.pop(schedule.WEEK, None)
+    with patch.object(type(m), "_async_tick"):
+        await m.async_set_settings(weekly_comfort=True)
+    assert entry.options[schedule.WEEK]["friday"] == [[int(m.conf["day_from"]) * 60, int(m.conf["day_to"]) * 60]]
+
+
+async def test_runs_of_the_unit_are_counted_per_day(hass, entry):
+    m = entry.runtime_data
+    t = dt_util.utcnow().timestamp()
+    m.runs = []
+    m._track_runs(t - 3600, True)
+    m._track_runs(t - 1800, False)
+    m._track_runs(t - 600, True)
+    s = m.run_stats(t)
+    assert s["heating"] and s["today"]["starts"] in (1, 2)
+    if s["today"]["starts"] == 2:                                    # not just after midnight
+        assert s["today"]["minutes"] == round((30 + 10) / 2)

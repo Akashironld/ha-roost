@@ -74,7 +74,8 @@ test("weekly settings hide the legacy hour controls and remain available in ever
     const c = card(lang);
     const weekly = c._settingsPanel({ ...a, weekly_comfort: true });
     const daily = c._settingsPanel(a);
-    assert.ok(weekly.includes("week-settings") && daily.includes("week-settings"));
+    // v0.8.0: the weekly periods are edited in the card itself (no button to Configure)
+    assert.ok(weekly.includes("data-wsave") && daily.includes('data-wmode="1"') && !daily.includes("data-wsave"));
     assert.ok(!weekly.includes('data-set="day_from"') && daily.includes('data-set="day_from"'));
     assert.ok(!weekly.includes("undefined") && !daily.includes("undefined"));
   }
@@ -90,4 +91,41 @@ test("partial comfort hours draw only the scheduled quarters", () => {
   const html = c._chart(a);
   assert.equal((html.match(/class="band"/g) || []).length, 2);
   assert.ok(!html.includes("NaN"));
+});
+
+const plan = [[20.5,21.2,0,25,25,0],[20.5,21.1,0,24,24,0],[21.5,21.0,.4,22,22,0],[21.5,21.3,.5,23,23,0]];
+
+test("v0.8.0 status line, tiles and pump row in every language", () => {
+  for (const lang of ["en", "nl", "de", "fr"]) {
+    const c = card(lang);
+    c._siblings = () => ({});
+    const a = { plan, start: new Date().toISOString(), room: 21.2, comfort: 21, thermostat: 20.5, storage_kwh: 1.7,
+      plan_made: new Date().toISOString(), plan_made_why: "prices", price_limited_until: new Date(Date.now() + 9e6).toISOString(),
+      fallback: "no_price", decision_code: "min_run", decision_args: { min: 12 }, room_recent: [[1, 20.8], [2, 21.0], [3, 21.1]],
+      pump_runs: { today: { starts: 2, minutes: 160 }, yesterday: { starts: 7, minutes: 31 }, heating: true } };
+    const html = c._status(a) + c._tiles({ state: "20.5" }, a, "ok", "x") + c._pumpRow(a);
+    assert.ok(html.includes("chip warn") && html.includes("spark") && html.includes("nx up") && html.includes("badge"));
+    assert.ok(!html.includes("undefined") && !html.includes("NaN"), html);
+  }
+});
+
+test("the weekly editor draws overnight periods on the next day and edits by the quarter", () => {
+  const c = card("nl");
+  const week = { monday: [[1320, 120]], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [[420, 1440]] };
+  const a = { weekly_comfort: true, comfort_week: week, day_from: 7, day_to: 22 };
+  c._wkDay = 0;
+  const html = c._weekEditor(a);
+  assert.equal((html.match(/class="blk over"/g) || []).length, 1);         // Monday 22:00 runs on to Tuesday 02:00
+  assert.ok(html.includes("22:00") && html.includes("02:00"));
+  const fresh = card("nl");
+  const draft = fresh._weekDraft({ day_from: 7, day_to: 22 });               // not weekly yet: the daily hours every day
+  assert.equal(JSON.stringify(draft.friday), "[[420,1320]]");
+});
+
+test("the savings calendar marks counted and excluded days", () => {
+  const c = card("nl");
+  const d = new Date(), key = (n) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(n).padStart(2, "0")}`;
+  c._sib = () => ({ state: "1.2", attributes: { included_days: [key(1)], excluded_days: [key(2)], day_reasons: { [key(2)]: ["settings_changed"] } } });
+  const html = c._calendar();
+  assert.ok(html.includes('class="cd ok"') && html.includes('class="cd bad"') && !html.includes("undefined"));
 });
