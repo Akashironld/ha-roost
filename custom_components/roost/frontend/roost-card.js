@@ -368,6 +368,7 @@ class RoostCard extends HTMLElement {
     const ready = this._sib("ready");
     if (mode === "active" && ready && ready.state === "off") html += `<div class="warnline"><ha-icon icon="mdi:alert-outline"></ha-icon>${this._t("warn_notready")}</div>`;
     html += this._status(a);
+    if (this._calOpen) html += this._calendar();
     if (this._modeOpen && canMode) html += this._modeMenu(mode, paused, away, a);
     if (hist && this._view === "curve") {
       html += this._curveView();
@@ -399,7 +400,7 @@ class RoostCard extends HTMLElement {
       html += `<button class="steer">${this._t("steer")}</button>`;
     }
     if (this._show("chart") && a.plan && a.plan.length) html += this._chart(a);
-    if (this._show("footer")) html += this._pumpRow(a) + this._calendar() + this._footer(a);
+    if (this._show("footer")) html += this._pumpRow(a) + this._footer(a);
     this._clickable = true;
     this._shell().innerHTML = html;
     this._wire();
@@ -618,6 +619,12 @@ class RoostCard extends HTMLElement {
       chips.push(`<span class="chip warn">${this._why(dc, a.decision_args, a.decision)}</span>`);
     }
     if (a.pump_runs && a.pump_runs.heating && dc !== "min_run") chips.push(`<span class="chip heat"><ha-icon icon="mdi:fire"></ha-icon>${this._t("pump_on")}</span>`);
+    const sm = this._sib("saving_month");
+    if (sm) {        // the month's saving and how many days count: tap for the calendar
+      const at = sm.attributes || {}, v = parseFloat(sm.state), inc = (at.included_days || []).length;
+      chips.push(`<span class="chip calpill${this._calOpen ? " on" : ""}"><ha-icon icon="mdi:calendar-check"></ha-icon>` +
+        `${isNaN(v) ? "\u2014" : this._money(v)} \u00b7 ${inc}/${nn(at.days_expected, inc)}</span>`);
+    }
     if (!bits.length && !chips.length) return "";
     return `<div class="status"><ha-icon icon="mdi:lock-clock"></ha-icon><span class="stx">${bits.join(" \u00b7 ")}</span>${chips.join("")}</div>`;
   }
@@ -651,25 +658,17 @@ class RoostCard extends HTMLElement {
         <div class="tv">${this._num(parseFloat(st.state), 1)}<span>${DEG}</span></div>${why}<div class="ts">${expect}</div></div>
     </div>`;
   }
-  // Starts and run length of the heat pump today against yesterday, and the month's saving with its coverage
+  // Starts and run length of the heat pump today against yesterday (the month's saving is the pill in the status line)
   _pumpRow(a) {
     const r = a.pump_runs;
     if (!r) return "";
     const t = r.today || {}, y = r.yesterday || {};
     const dur = (m) => (m === null || m === undefined ? "\u2014" : (m >= 60 ? `${Math.floor(m / 60)} u ${String(m % 60).padStart(2, "0")}` : `${m} min`));
     const better = (a1, b1, low) => (a1 === null || b1 === null || a1 === undefined || b1 === undefined ? "" : ((low ? a1 < b1 : a1 > b1) ? "good" : ""));
-    const sm = this._sib("saving_month");
-    let month = "";
-    if (sm) {
-      const at = sm.attributes || {}, v = parseFloat(sm.state);
-      const inc = (at.included_days || []).length, exp = nn(at.days_expected, inc);
-      month = `<div class="mt"><div class="tl">${this._t("pr_month")}</div><div class="mv">${isNaN(v) ? "\u2014" : this._money(v)}</div>` +
-        `<div class="ts">${this._fill("pr_days", { n: inc, m: exp })}</div></div>`;
-    }
     return `<div class="mtiles"><div class="mt"><div class="tl">${this._t("pr_starts")}</div><div class="mv ${better(t.starts, y.starts, true)}">${nn(t.starts, 0)}</div>` +
       `<div class="ts">${this._fill("pr_yday", { n: nn(y.starts, "\u2014") })}</div></div>` +
       `<div class="mt"><div class="tl">${this._t("pr_run")}</div><div class="mv ${better(t.minutes, y.minutes, false)}">${dur(t.minutes)}</div>` +
-      `<div class="ts">${this._fill("pr_was", { m: dur(y.minutes) })}</div></div>${month}</div>`;
+      `<div class="ts">${this._fill("pr_was", { m: dur(y.minutes) })}</div></div></div>`;
   }
   // One dot per day of the month: counted, not counted (tap for why), no data
   _calendar() {
@@ -691,7 +690,7 @@ class RoostCard extends HTMLElement {
     const pick = this._calDay ? `<div class="cwhy"><b>${this._calDay.day.slice(8)}</b> \u00b7 ${this._calDay.why || this._t("cal_bad")}</div>` : "";
     const hint = inc.length ? "" : `<div class="cwhy">${this._t("cal_hint")}</div>`;
     return `<div class="cal"><div class="ch"><span>${this._t("cal_title")}</span></div><div class="cgrid">${cells}</div>` +
-      `<div class="cleg"><span><i class="ok"></i>${this._t("cal_ok")}</span><span><i class="bad"></i>${this._t("cal_bad")}</span>` +
+      `<div class="calleg"><span><i class="ok"></i>${this._t("cal_ok")}</span><span><i class="bad"></i>${this._t("cal_bad")}</span>` +
       `<span><i class="none"></i>${this._t("cal_none")}</span></div>${pick}${hint}</div>`;
   }
   // ---------------------------------------------------------------- the weekly comfort periods, edited in the card
@@ -897,6 +896,9 @@ class RoostCard extends HTMLElement {
       this._modeOpen = false; this._render();
     }));
     this._wireWeek();
+    root.querySelectorAll(".calpill").forEach((c) => c.addEventListener("click", (ev) => {
+      ev.stopPropagation(); this._calOpen = !this._calOpen; this._calDay = null; this._render();
+    }));
     root.querySelectorAll(".cd[data-day]").forEach((c) => c.addEventListener("click", (ev) => {
       ev.stopPropagation();
       if (!c.classList.contains("bad")) return;
@@ -1481,6 +1483,8 @@ class RoostCard extends HTMLElement {
       .chip ha-icon { --mdc-icon-size: 13px; color: inherit; }
       .chip.info { background: color-mix(in srgb, var(--info-color, #3b82f6) 18%, transparent); color: var(--info-color, #3b82f6); }
       .chip.warn { background: color-mix(in srgb, var(--warning-color, #f5a524) 20%, transparent); color: var(--warning-color, #f5a524); }
+      .chip.calpill { cursor: pointer; background: color-mix(in srgb, var(--success-color, #30a46c) 16%, transparent); color: var(--success-color, #30a46c); }
+      .chip.calpill.on { outline: 1px solid var(--success-color, #30a46c); }
       .chip.heat { background: color-mix(in srgb, var(--rc-sp) 20%, transparent); color: var(--rc-sp); }
       .tile.rtile.warm { background: linear-gradient(160deg, color-mix(in srgb, var(--rc-sp) 12%, transparent), transparent 70%); }
       .tile.rtile.cool { background: linear-gradient(160deg, color-mix(in srgb, var(--info-color, #3b82f6) 12%, transparent), transparent 70%); }
@@ -1497,18 +1501,18 @@ class RoostCard extends HTMLElement {
       .mtiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-top: 12px; }
       .mt { border: 1px solid var(--divider-color); border-radius: 12px; padding: 8px 11px; min-width: 0; }
       .mv { font-size: 18px; font-weight: 700; margin-top: 2px; } .mv.good { color: var(--success-color, #30a46c); }
-      .cal { margin-top: 12px; } .cgrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; max-width: 360px; }
+      .cal { margin: -4px 0 10px; padding: 8px 10px; border: 1px solid var(--divider-color); border-radius: 10px; } .cgrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; max-width: 260px; }
       .cwd { font-size: 10.5px; color: var(--secondary-text-color); text-align: center; }
-      .cd { height: 24px; border-radius: 6px; font-size: 11px; display: flex; align-items: center; justify-content: center;
+      .cd { height: 20px; border-radius: 5px; font-size: 10.5px; display: flex; align-items: center; justify-content: center;
         color: var(--secondary-text-color); border: 1px solid var(--divider-color); }
       .cd.ok { background: var(--success-color, #30a46c); border-color: transparent; color: #fff; font-weight: 600; }
       .cd.bad { background: color-mix(in srgb, var(--secondary-text-color) 30%, transparent); border-color: transparent; color: var(--primary-text-color); cursor: pointer; }
       .cd.future { border-style: dashed; opacity: .45; } .cd.sel { outline: 2px solid var(--rc-sp); }
-      .cleg { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 11px; color: var(--secondary-text-color); }
-      .cleg span { display: inline-flex; align-items: center; gap: 5px; }
-      .cleg i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; border: 1px solid var(--divider-color); }
-      .cleg i.ok { background: var(--success-color, #30a46c); border-color: transparent; }
-      .cleg i.bad { background: color-mix(in srgb, var(--secondary-text-color) 30%, transparent); border-color: transparent; }
+      .calleg { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 11px; color: var(--secondary-text-color); }
+      .calleg span { display: inline-flex; align-items: center; gap: 5px; }
+      .calleg i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; border: 1px solid var(--divider-color); }
+      .calleg i.ok { background: var(--success-color, #30a46c); border-color: transparent; }
+      .calleg i.bad { background: color-mix(in srgb, var(--secondary-text-color) 30%, transparent); border-color: transparent; }
       .cwhy { font-size: 11.5px; color: var(--secondary-text-color); margin-top: 4px; }
       .week { flex: 1 1 100%; } .wtog { display: inline-flex; gap: 4px; } .mini.on { border-color: var(--rc-sp); color: var(--rc-sp); }
       .wgrid { margin: 6px 0; } .wrow { display: flex; align-items: center; gap: 8px; margin: 3px 0; cursor: pointer; font-size: 12px; }

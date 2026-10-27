@@ -129,3 +129,13 @@ test("the savings calendar marks counted and excluded days", () => {
   const html = c._calendar();
   assert.ok(html.includes('class="cd ok"') && html.includes('class="cd bad"') && !html.includes("undefined"));
 });
+
+test("the month's saving is a pill that opens the calendar", () => {
+  const c = card("nl");
+  c._sib = (k) => (k === "saving_month" ? { state: "1.5", attributes: { included_days: ["x"], days_expected: 12 } } : null);
+  const a = { plan, start: new Date().toISOString() };
+  const closed = c._status(a);
+  assert.ok(closed.includes("calpill") && closed.includes("1/12"));
+  c._calOpen = true;
+  assert.ok(c._status(a).includes("calpill on"));
+});
