@@ -36,6 +36,10 @@ class HealthMixin:
             "times": ", ".join(f"{s['minute'] // 60:02d}:{s['minute'] % 60:02d} → {s['to']:g} °C" for s in sched)})
         by_schedule = {t for s in sched for t in s["ts"]}
         own = [x for x in self.changes if x["ts"] not in by_schedule]
+        if c.get(schedule.ENABLED):
+            self.suggestion = None
+            self._issue("comfort", False)
+            return
         sug = comfort.suggest(own, local, time.time(), int(c[CONF_DAY_FROM]), int(c[CONF_DAY_TO]),
                               float(c[CONF_COMFORT]), float(c[CONF_DAY_MIN]))
         if self.suggestion is not None and (sug is None or sug.as_dict() != self.suggestion.as_dict()):

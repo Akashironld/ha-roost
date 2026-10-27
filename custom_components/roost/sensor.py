@@ -1,7 +1,7 @@
 """Sensors: the planned setpoint (with the 24-hour plan for the card), cost and saving, the learned models."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.const import EntityCategory, UnitOfEnergy, UnitOfTemperature
@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
-from . import RoostConfigEntry, planner
+from . import RoostConfigEntry, planner, schedule
 from .const import CONF_DAY_FROM, CONF_DAY_TO, CONF_EMITTER, CONF_THERMOSTAT
 from .entity import RoostEntity
 
@@ -61,24 +61,31 @@ class SetpointSensor(RoostEntity, SensorEntity):
                  "away_min": m.settings().away_min if m.is_away() else None,
                  "comfort": s.comfort, "day_min": s.day_min, "night_min": s.night_min, "store_max": s.store_max,
                  "lowest_setpoint": s.sp_min, "day_from": int(m.conf[CONF_DAY_FROM]), "day_to": int(m.conf[CONF_DAY_TO]),
+                 "weekly_comfort": bool(m.conf.get(schedule.ENABLED)),
+                 "comfort_schedule": {day: schedule.format_day(periods) for day, periods in m.conf.get(schedule.WEEK, {}).items()},
                  "max_above_room": s.max_above_room, "gas_boiler_hours": m.boiler_hours, "hybrid": m.hybrid, "rooms": m.room_status}
         if p:
             attrs["start"] = datetime.fromtimestamp(m.plan_at - m.plan_at % 3600, tz=dt_util.UTC).isoformat() if m.plan_at else None
+            attrs["price_horizon_hours"] = len(m.plan_tariff)
+            attrs["price_limited_until"] = (datetime.fromtimestamp(int(m.plan_at // 3600) * 3600 + len(m.plan_tariff) * 3600,
+                                                                  tz=dt_util.UTC).isoformat()
+                                            if m.plan_at is not None and len(m.plan_tariff) < 36 else None)
             # per hour: setpoint, room expected, kWh, price the planner uses (ct; the battery's refill cost when the
-            # battery supplies), import tariff (ct), 1 when that tariff is not known yet and filled in
+            # battery supplies), import tariff (ct), legacy guessed flag (new plans contain only known tariffs)
             tar, gss = m.plan_tariff, m.plan_guess
             attrs["plan"] = [[h.sp, round(h.t_end, 1), round(h.kwh, 2), round(h.price * 100, 1),
                               round(tar[i] * 100, 1) if i < len(tar) else None, 1 if i < len(gss) and gss[i] else 0]
                              for i, h in enumerate(p.hours)]
             attrs["day_hours"] = [1 if h.day else 0 for h in m.plan_hours[:len(p.hours)]]
+            attrs["comfort_masks"] = [h.comfort_mask for h in m.plan_hours[:len(p.hours)]]
             # why each hour is what it is (code + values, worded by the card), from the room the plan expects then
             room = m.room()
             if room is not None:
                 why = planner.explain_hours(p, m.plan_hours, room, s, m.pump, m.house, m.conf.get(CONF_EMITTER, "floor") == "floor")
                 attrs["plan_why"] = [[r.code, r.args] for r in why]
-            attrs["cost_24h"] = round(p.cost, 2)
-            attrs["steady_cost_24h"] = round(p.baseline_cost, 2)
-            attrs["kwh_24h"] = round(p.kwh, 1)
+            attrs["cost_24h"] = round(p.cost, 2) if len(p.hours) >= 24 else None
+            attrs["steady_cost_24h"] = round(p.baseline_cost, 2) if len(p.hours) >= 24 else None
+            attrs["kwh_24h"] = round(p.kwh, 1) if len(p.hours) >= 24 else None
         return attrs
 
 
@@ -100,7 +107,13 @@ class SavingNext24hSensor(_Money):
     @property
     def native_value(self):
         p = self.mgr.plan
-        return round(p.saving, 2) if p else None
+        return round(p.saving, 2) if p and p.breakdown.get("quality", {}).get("valid", True) else None
+
+    @property
+    def extra_state_attributes(self):
+        p = self.mgr.plan
+        return {"basis": "model_estimate", "quality": p.breakdown.get("quality") if p else None,
+                "model_estimate": round(p.saving, 3) if p else None}
 
 
 class SavingYesterdaySensor(_Money):
@@ -111,12 +124,15 @@ class SavingYesterdaySensor(_Money):
 
     @property
     def native_value(self):
-        d = self.mgr.saving_days
-        return d[max(d)] if d else None
+        day = (dt_util.now().date() - timedelta(days=1)).isoformat()
+        return self.mgr.saving_days.get(day)
 
     @property
     def extra_state_attributes(self):
-        return {"day": max(self.mgr.saving_days) if self.mgr.saving_days else None}
+        day = (dt_util.now().date() - timedelta(days=1)).isoformat()
+        stats = self.mgr.day_stats.get(day, {})
+        return {"day": day, "basis": "validated_model_estimate", "quality": stats.get("quality"),
+                "model_estimate": stats.get("model_saving")}
 
 
 class SavingMonthSensor(_Money):
@@ -129,6 +145,14 @@ class SavingMonthSensor(_Money):
     @property
     def native_value(self):
         return self.mgr.saving_month()
+
+    @property
+    def extra_state_attributes(self):
+        month = dt_util.now().date().isoformat()[:7]
+        accepted = sorted(k for k in self.mgr.saving_days if k.startswith(month))
+        excluded = sorted(k for k, v in self.mgr.day_stats.items() if k.startswith(month) and v.get("saving") is None)
+        return {"basis": "validated_model_estimates", "included_days": accepted, "excluded_days": excluded,
+                "partial": bool(excluded)}
 
     @property
     def last_reset(self):

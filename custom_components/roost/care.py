@@ -166,6 +166,9 @@ class CareMixin:
                 "lowest_setpoint": CONF_SP_MIN, "day_from": CONF_DAY_FROM, "day_to": CONF_DAY_TO}
         c = {k: self.conf.get(v) for k, v in keys.items()}
         new = {k: v for k, v in changes.items() if k in keys and v is not None}
+        if self.conf.get(schedule.ENABLED) and ({"day_from", "day_to"} & set(new)):
+            from homeassistant.exceptions import ServiceValidationError
+            raise ServiceValidationError("Edit the weekly comfort periods in Configure > Comfort")
         for k, v in new.items():
             c[k] = int(v) if k in ("day_from", "day_to") else round(float(v) * 2) / 2
         f = comfort.adjust_settings(c, set(new))

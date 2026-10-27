@@ -190,6 +190,16 @@ def _hour_floor(ts: float) -> float:
     return ts - (ts % 3600)
 
 
+def published_prefix(values: list[float | None]) -> list[float]:
+    """Only contiguous known prices from now. Never bridge a gap with a historical or last price."""
+    out = []
+    for v in values:
+        if v is None or not math.isfinite(v):
+            break
+        out.append(v)
+    return out
+
+
 def slots_from_changes(changes: list[tuple[float, float]], end_ts: float) -> list[Slot]:
     """Slots from state changes (epoch s, value), each valid until the next change (the last one until end_ts)."""
     ch = sorted(changes)

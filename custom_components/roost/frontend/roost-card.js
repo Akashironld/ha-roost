@@ -1,6 +1,6 @@
 /* Roost card - served by the roost integration. */
 (() => {   // own scope: safe if the file is loaded twice as a classic script (legacy frontend + a manual resource)
-const CARD_VERSION = "0.7.7";
+const CARD_VERSION = "0.7.8";
 
 // Plain ES2017 on purpose (no ?. / ??), ASCII only (\u escapes): wall tablets often run an older browser.
 const nn = (a, b) => (a === null || a === undefined ? b : a);
@@ -15,8 +15,8 @@ const T = {
         noplan: "no plan yet", heating: "heat pump heating", e_entity: "Sensor", e_title: "Title", e_language: "Language",
         e_time_format: "Time format", e_auto: "Like Home Assistant", e_show_tiles: "Tiles", e_show_chart: "24-hour plan",
         e_show_footer: "Saving", e_show_curve: "Heating curve advice", e_compact: "Compact (e.g. a wall tablet)", e_history: "Look back (button)", e_view: "Opens in",
-        v_plan: "Overview", v_history: "Look back", tab_curve: "Curve", v_curve: "Heating curve advice", go_integration: "Open Roost in Settings", tab_table: "Table", t_time: "Time", t_why: "Why", t_back7: "Last 7 days", t_today: "Today", t_exp: "exp.", t_set: "Setting", t_room: "Room", mo_off: "Off", mo_shadow: "Shadow", mo_active: "Active", mh_off: "Roost does nothing", mh_shadow: "Roost plans, the thermostat is left alone", mh_active: "Roost sets the thermostat", mo_resume: "Resume now", mo_sure: "Sure? Tap again", v_table: "Table", set_btn: "Settings", s_comfort: "Comfort (day)", s_day_min: "Minimum by day", s_night_min: "Minimum at night", s_hours: "Comfort hours", s_lowest: "Lowest setpoint", s_store: "Store heat up to", mo_away: "Away", away_1: "1 day", away_3: "3 days", away_7: "1 week", mh_away: "only the minimum ({min} \u00b0C), warm again on time", mo_home: "Home again", mh_home: "the comfort hours count again", st_away: "AWAY", comfort_lbl: "Comfort", src_title: "Heating electricity", src_sun: "solar", src_bat: "battery", src_grid: "grid", t_loss_store: "{h} h stored that were not needed: the room went up to {max} \u00b0C", t_loss_other: "more heating than a steady thermostat", next_at: "at {t} \u2192 {sp}", mo_pause: "Pause 2 h", mh_pause: "Roost leaves the thermostat alone for 2 hours", warn_notready: "Roost steers with the model it had: the check of the house model has not passed (yet).",
-        ahead: "Overview", back: "Look back", h_cost: "Cost", h_saving: "saving", h_pred: "Forecast 6 h", h_largest: "largest",
+        v_plan: "Overview", v_history: "Look back", tab_curve: "Curve", v_curve: "Heating curve advice", go_integration: "Open Roost in Settings", tab_table: "Table", t_time: "Time", t_why: "Why", t_back7: "Last 7 days", t_today: "Today", t_exp: "exp.", t_set: "Setting", t_room: "Room", mo_off: "Off", mo_shadow: "Shadow", mo_active: "Active", mh_off: "Roost does nothing", mh_shadow: "Roost plans, the thermostat is left alone", mh_active: "Roost sets the thermostat", mo_resume: "Resume now", mo_sure: "Sure? Tap again", v_table: "Table", set_btn: "Settings", s_comfort: "Comfort (day)", s_day_min: "Minimum by day", s_night_min: "Minimum at night", s_hours: "Comfort hours", s_lowest: "Lowest setpoint", s_store: "Store heat up to", mo_away: "Away", away_1: "1 day", away_3: "3 days", away_7: "1 week", mh_away: "only the minimum ({min} \u00b0C), warm again on time", mo_home: "Home again", mh_home: "the comfort hours count again", st_away: "AWAY", comfort_lbl: "Comfort", src_title: "Heating electricity", src_sun: "solar", src_bat: "battery", src_grid: "grid", t_loss_store: "{h} hours labelled as heat storage; highest measured room {max} \u00b0C. This does not establish which hours were unnecessary.", t_loss_other: "The model estimate is negative; its cause has not been established.", next_at: "at {t} \u2192 {sp}", mo_pause: "Pause 2 h", mh_pause: "Roost leaves the thermostat alone for 2 hours", warn_notready: "Roost steers with the model it had: the check of the house model has not passed (yet).",
+        ahead: "Overview", back: "Look back", h_cost: "Cost", h_saving: "Estimated saving", h_pred: "Forecast 6 h", h_largest: "largest",
         h_below: "Below comfort", h_lowest: "lowest", h_changes: "Changes", h_byhand: "by hand", h_byroost: "Roost",
         h_log: "Log", h_report: "Report", h_loading: "Loading the last days\u2026",
         h_nodata: "No history yet: Roost keeps every hour from now on.", h_sp_t: "thermostat setpoint", h_sp_p: "planned",
@@ -24,7 +24,7 @@ const T = {
         h_expected: "expected", h_dev: "deviation", h_room_after: "room", h_set_hand: "by hand, Roost pauses {h} h",
         h_pause_ev: "paused {h} h", h_resume: "resumed", h_mode: "mode", h_learned: "learned the house again",
         h_window: "window open", h_window_end: "window closed, room back", h_win_mark: "W", h_period: "Period", h_day: "Day", h_kwh: "kWh", h_cop: "COP", h_deficit: "\u00b0C\u00b7h below",
-        p_title: "The saving in parts", p_less: "Less electricity (waiting for the sun, no overheating, warmer hours)", p_sun: "of which in hours with sun", p_cheap: "Heating in cheaper hours", p_end: "Heat left at the end", r_sav: "Saving per hour against a steady thermostat", r_yday: "Yesterday", r_next: "Next 24 hours (plan)", r_hour: "Hour", r_out: "Outdoor", r_roost: "Roost", r_steady: "Steady thermostat", r_diff: "Saved", r_sp: "setpoint", r_room: "room", r_cost: "cost", r_sum: "Total", r_end: "What the state at the end still costs (heat short of comfort bought back later, or heat left over)", r_total: "Saving", r_note: "The steady thermostat follows the weather on the same 0.5 \u00b0C steps, as comfortable as Roost (between two steps when one is a little too cold and the next too warm) (below comfort: Roost {a} \u00b0C\u00b7h, steady {b} \u00b0C\u00b7h). Same house model, weather and prices for both.", r_uses_note: "\u201cPlan uses\u201d is what Roost counts per kWh from the grid or the home battery in that hour: the tariff, or, while the home battery supplies the house, the price of buying that kWh back later plus battery losses (plus the preference for own energy, if set).", r_none: "Not available yet: a day is replayed after midnight.", r_changes: "Plan changes", r_ch_sp: "Setpoint this hour", r_ch_sav: "Expected saving 24 h", r_nochg: "No changes in this period.", c_prices_published: "new prices published ({n} h)", c_prices_changed: "prices changed ({n} h)", c_forecast: "weather forecast changed", c_room: "room {r} \u00b0C, expected {e} \u00b0C", c_correction: "correction from the last hours changed", c_settings: "settings changed", c_estimated: "estimated prices (not published yet) left out", c_new_hour: "a new hour: the 24 hours moved on", c_other: "recalculated with the latest readings" },
+        p_title: "The saving in parts", p_less: "Less electricity (waiting for the sun, no overheating, warmer hours)", p_sun: "of which in hours with sun", p_cheap: "Heating in cheaper hours", p_end: "Heat left at the end", r_sav: "Hourly model comparison with a weather-adjusted comfort reference", r_yday: "Yesterday", r_next: "Next 24 hours (plan)", r_hour: "Hour", r_out: "Outdoor", r_roost: "Roost", r_steady: "Comfort reference", r_diff: "Saved", r_sp: "setpoint", r_room: "room", r_cost: "cost", r_sum: "Total", r_end: "What the state at the end still costs (heat short of comfort bought back later, or heat left over)", r_total: "Saving", r_note: "Both costs are simulated with the same house model, weather and prices. The reference changes its setpoint with the weather. Main-room comfort shortfall: Roost {a}, reference {b} degree-hours. See the quality assessment above.", r_uses_note: "\u201cPlan uses\u201d is what Roost counts per kWh from the grid or the home battery in that hour: the tariff, or, while the home battery supplies the house, the price of buying that kWh back later plus battery losses (plus the preference for own energy, if set).", r_none: "Not available yet: a day is replayed after midnight.", r_changes: "Plan changes", r_ch_sp: "Setpoint this hour", r_ch_sav: "Expected saving 24 h", r_nochg: "No changes in this period.", c_prices_published: "new prices published ({n} h)", c_prices_changed: "prices changed ({n} h)", c_forecast: "weather forecast changed", c_room: "room {r} \u00b0C, expected {e} \u00b0C", c_correction: "correction from the last hours changed", c_settings: "settings changed", c_estimated: "estimated prices (not published yet) left out", c_new_hour: "a new hour: the 24 hours moved on", c_other: "recalculated with the latest readings" },
   nl: { title: "Roost", room: "Kamer", thermostat: "Thermostaat", planned: "Gepland", next24: "Komende 24 uur",
         setpoint: "setpoint", expected: "kamer verwacht", price: "tarief", guessed: "geschat", uses: "rekent met", comfort: "comforturen", now: "nu",
         night: "nacht", saving24: "verwachte besparing", month: "deze maand", yesterday: "gisteren", vs: "t.o.v. vast", accuracy: "planfout 6 u", ready: "klaar om te sturen", min: "min", steer: "Laat Roost sturen", sure: "Zeker? Klik nogmaals", importing: "Weheat-import", months: "maanden", done_at: "klaar", eta: { import: "na de import", heating: "na meer stookuren", heating_season: "in het stookseizoen", check: "mogelijk bij de volgende controle", lever: "nog niet (setpoint werkt niet)", following: "nog niet (warmtepomp volgt niet)" },
@@ -33,8 +33,8 @@ const T = {
         noplan: "nog geen plan", heating: "warmtepomp stookt", e_entity: "Sensor", e_title: "Titel", e_language: "Taal",
         e_time_format: "Tijdnotatie", e_auto: "Zoals Home Assistant", e_show_tiles: "Tegels", e_show_chart: "24-uursplan",
         e_show_footer: "Besparing", e_show_curve: "Stooklijnadvies", e_compact: "Compact (bijv. een wandtablet)", e_history: "Terugblik (knop)", e_view: "Opent in",
-        v_plan: "Overzicht", v_history: "Terugblik", tab_curve: "Stooklijn", v_curve: "Stooklijnadvies", go_integration: "Roost openen in Instellingen", tab_table: "Tabel", t_time: "Tijd", t_why: "Waarom", t_back7: "Afgelopen 7 dagen", t_today: "Vandaag", t_exp: "verw.", t_set: "Setpoint", t_room: "Kamer", mo_off: "Uit", mo_shadow: "Meekijken", mo_active: "Actief", mh_off: "Roost doet niets", mh_shadow: "Roost plant, de thermostaat blijft met rust", mh_active: "Roost zet de thermostaat", mo_resume: "Nu hervatten", mo_sure: "Zeker? Tik nogmaals", v_table: "Tabel", set_btn: "Instellingen", s_comfort: "Comfort (overdag)", s_day_min: "Minimum overdag", s_night_min: "Minimum 's nachts", s_hours: "Comforturen", s_lowest: "Laagste setpoint", s_store: "Warmte opslaan tot", mo_away: "Afwezig", away_1: "1 dag", away_3: "3 dagen", away_7: "1 week", mh_away: "alleen het minimum ({min} \u00b0C), op tijd weer warm", mo_home: "Weer thuis", mh_home: "de comforturen tellen weer", st_away: "AFWEZIG", comfort_lbl: "Comfort", src_title: "Stroom voor verwarming", src_sun: "zon", src_bat: "accu", src_grid: "net", t_loss_store: "{h} u voorgeladen die niet nodig waren: de kamer liep op tot {max} \u00b0C", t_loss_other: "meer gestookt dan een vaste thermostaat", next_at: "om {t} \u2192 {sp}", mo_pause: "2 uur pauze", mh_pause: "Roost laat de thermostaat 2 uur met rust", warn_notready: "Roost stuurt met het model dat het had: de controle van het huismodel is (nog) niet geslaagd.",
-        ahead: "Overzicht", back: "Terugblik", h_cost: "Kosten", h_saving: "besparing", h_pred: "Voorspelling 6 u", h_largest: "grootst",
+        v_plan: "Overzicht", v_history: "Terugblik", tab_curve: "Stooklijn", v_curve: "Stooklijnadvies", go_integration: "Roost openen in Instellingen", tab_table: "Tabel", t_time: "Tijd", t_why: "Waarom", t_back7: "Afgelopen 7 dagen", t_today: "Vandaag", t_exp: "verw.", t_set: "Setpoint", t_room: "Kamer", mo_off: "Uit", mo_shadow: "Meekijken", mo_active: "Actief", mh_off: "Roost doet niets", mh_shadow: "Roost plant, de thermostaat blijft met rust", mh_active: "Roost zet de thermostaat", mo_resume: "Nu hervatten", mo_sure: "Zeker? Tik nogmaals", v_table: "Tabel", set_btn: "Instellingen", s_comfort: "Comfort (overdag)", s_day_min: "Minimum overdag", s_night_min: "Minimum 's nachts", s_hours: "Comforturen", s_lowest: "Laagste setpoint", s_store: "Warmte opslaan tot", mo_away: "Afwezig", away_1: "1 dag", away_3: "3 dagen", away_7: "1 week", mh_away: "alleen het minimum ({min} \u00b0C), op tijd weer warm", mo_home: "Weer thuis", mh_home: "de comforturen tellen weer", st_away: "AFWEZIG", comfort_lbl: "Comfort", src_title: "Stroom voor verwarming", src_sun: "zon", src_bat: "accu", src_grid: "net", t_loss_store: "{h} uur met een voorverwarmingslabel; hoogste gemeten kamer {max} \u00b0C. Dit bepaalt niet welke uren onnodig waren.", t_loss_other: "De modelschatting is negatief; de oorzaak is niet vastgesteld.", next_at: "om {t} \u2192 {sp}", mo_pause: "2 uur pauze", mh_pause: "Roost laat de thermostaat 2 uur met rust", warn_notready: "Roost stuurt met het model dat het had: de controle van het huismodel is (nog) niet geslaagd.",
+        ahead: "Overzicht", back: "Terugblik", h_cost: "Kosten", h_saving: "Geschatte besparing", h_pred: "Voorspelling 6 u", h_largest: "grootst",
         h_below: "Onder comfort", h_lowest: "laagst", h_changes: "Wijzigingen", h_byhand: "met de hand", h_byroost: "Roost",
         h_log: "Logboek", h_report: "Rapport", h_loading: "De laatste dagen laden\u2026",
         h_nodata: "Nog geen geschiedenis: Roost bewaart vanaf nu elk uur.", h_sp_t: "setpoint thermostaat", h_sp_p: "gepland",
@@ -42,7 +42,7 @@ const T = {
         h_expected: "verw.", h_dev: "afwijking", h_room_after: "kamer", h_set_hand: "met de hand, Roost pauzeert {h} u",
         h_pause_ev: "gepauzeerd {h} u", h_resume: "hervat", h_mode: "modus", h_learned: "huis opnieuw geleerd",
         h_window: "raam open", h_window_end: "raam dicht, kamer terug", h_win_mark: "R", h_period: "Periode", h_day: "Dag", h_kwh: "kWh", h_cop: "COP", h_deficit: "\u00b0C\u00b7u onder",
-        p_title: "De besparing in delen", p_less: "Minder stroom (wachten op de zon, niet te warm, warmere uren)", p_sun: "waarvan in uren met zon", p_cheap: "Stoken in goedkopere uren", p_end: "Warmte over aan het eind", r_sav: "Besparing per uur t.o.v. een vaste thermostaat", r_yday: "Gisteren", r_next: "Komende 24 uur (plan)", r_hour: "Uur", r_out: "Buiten", r_roost: "Roost", r_steady: "Vaste thermostaat", r_diff: "Bespaard", r_sp: "setpoint", r_room: "kamer", r_cost: "kosten", r_sum: "Totaal", r_end: "Wat de stand aan het eind nog kost (warmte onder comfort later terugkopen, of warmte over)", r_total: "Besparing", r_note: "De vaste thermostaat volgt het weer in dezelfde stappen van 0,5 \u00b0C, even comfortabel als Roost (tussen twee stappen in als de ene net te koud is en de volgende te warm) (onder comfort: Roost {a} \u00b0C\u00b7u, vast {b} \u00b0C\u00b7u). Voor beide hetzelfde huismodel, weer en dezelfde prijzen.", r_uses_note: "\u201cRekent met\u201d is wat Roost per kWh uit het net of de thuisaccu telt in dat uur: het tarief, of, zolang de thuisaccu het huis voedt, de prijs om die kWh later terug te kopen plus accuverlies (plus de voorkeur voor eigen energie, als ingesteld).", r_none: "Nog niet beschikbaar: een dag wordt na middernacht nagespeeld.", r_changes: "Planwijzigingen", r_ch_sp: "Setpoint dit uur", r_ch_sav: "Verwachte besparing 24 u", r_nochg: "Geen wijzigingen in deze periode.", c_prices_published: "nieuwe prijzen gepubliceerd ({n} u)", c_prices_changed: "prijzen gewijzigd ({n} u)", c_forecast: "weersverwachting gewijzigd", c_room: "kamer {r} \u00b0C, verwacht {e} \u00b0C", c_correction: "correctie uit de laatste uren gewijzigd", c_settings: "instellingen gewijzigd", c_estimated: "geschatte prijzen (nog niet gepubliceerd) buiten beschouwing", c_new_hour: "nieuw uur: de 24 uur schuiven door", c_other: "opnieuw berekend met de laatste metingen" },
+        p_title: "De besparing in delen", p_less: "Minder stroom (wachten op de zon, niet te warm, warmere uren)", p_sun: "waarvan in uren met zon", p_cheap: "Stoken in goedkopere uren", p_end: "Warmte over aan het eind", r_sav: "Modelvergelijking per uur met een weersafhankelijke comfortreferentie", r_yday: "Gisteren", r_next: "Komende 24 uur (plan)", r_hour: "Uur", r_out: "Buiten", r_roost: "Roost", r_steady: "Comfortreferentie", r_diff: "Bespaard", r_sp: "setpoint", r_room: "kamer", r_cost: "kosten", r_sum: "Totaal", r_end: "Wat de stand aan het eind nog kost (warmte onder comfort later terugkopen, of warmte over)", r_total: "Besparing", r_note: "Beide kosten zijn gesimuleerd met hetzelfde huismodel, weer en dezelfde prijzen. De referentie past haar setpoint aan het weer aan. Comforttekort hoofdruimte: Roost {a}, referentie {b} graaduren. Zie de kwaliteitsbeoordeling hierboven.", r_uses_note: "\u201cRekent met\u201d is wat Roost per kWh uit het net of de thuisaccu telt in dat uur: het tarief, of, zolang de thuisaccu het huis voedt, de prijs om die kWh later terug te kopen plus accuverlies (plus de voorkeur voor eigen energie, als ingesteld).", r_none: "Nog niet beschikbaar: een dag wordt na middernacht nagespeeld.", r_changes: "Planwijzigingen", r_ch_sp: "Setpoint dit uur", r_ch_sav: "Verwachte besparing 24 u", r_nochg: "Geen wijzigingen in deze periode.", c_prices_published: "nieuwe prijzen gepubliceerd ({n} u)", c_prices_changed: "prijzen gewijzigd ({n} u)", c_forecast: "weersverwachting gewijzigd", c_room: "kamer {r} \u00b0C, verwacht {e} \u00b0C", c_correction: "correctie uit de laatste uren gewijzigd", c_settings: "instellingen gewijzigd", c_estimated: "geschatte prijzen (nog niet gepubliceerd) buiten beschouwing", c_new_hour: "nieuw uur: de 24 uur schuiven door", c_other: "opnieuw berekend met de laatste metingen" },
   de: { title: "Roost", room: "Raum", thermostat: "Thermostat", planned: "Geplant", next24: "N\u00e4chste 24 Stunden",
         setpoint: "Sollwert", expected: "Raum erwartet", price: "Tarif", guessed: "gesch\u00e4tzt", uses: "Plan rechnet mit", comfort: "Komfortstunden", now: "jetzt",
         night: "Nacht", saving24: "erwartete Ersparnis", month: "diesen Monat", yesterday: "gestern", vs: "gg\u00fc. konstant", accuracy: "Planfehler 6 h", ready: "bereit zum Steuern", min: "Min", steer: "Roost steuern lassen", sure: "Sicher? Nochmal klicken", importing: "Weheat-Import", months: "Monate", done_at: "fertig", eta: { import: "nach dem Import", heating: "nach mehr Heizstunden", heating_season: "in der Heizsaison", check: "vielleicht bei der n\u00e4chsten Pr\u00fcfung", lever: "noch nicht (Sollwert wirkt nicht)", following: "noch nicht (W\u00e4rmepumpe folgt nicht)" },
@@ -51,8 +51,8 @@ const T = {
         noplan: "noch kein Plan", heating: "W\u00e4rmepumpe heizt", e_entity: "Sensor", e_title: "Titel", e_language: "Sprache",
         e_time_format: "Zeitformat", e_auto: "Wie Home Assistant", e_show_tiles: "Kacheln", e_show_chart: "24-Stunden-Plan",
         e_show_footer: "Ersparnis", e_show_curve: "Heizkurven-Empfehlung", e_compact: "Kompakt (z. B. ein Wandtablet)", e_history: "R\u00fcckblick (Schalter)", e_view: "\u00d6ffnet in",
-        v_plan: "\u00dcbersicht", v_history: "R\u00fcckblick", tab_curve: "Kurve", v_curve: "Heizkurven-Empfehlung", go_integration: "Roost in den Einstellungen \u00f6ffnen", tab_table: "Tabelle", t_time: "Zeit", t_why: "Warum", t_back7: "Letzte 7 Tage", t_today: "Heute", t_exp: "erw.", t_set: "Sollwert", t_room: "Raum", mo_off: "Aus", mo_shadow: "Mitschauen", mo_active: "Aktiv", mh_off: "Roost tut nichts", mh_shadow: "Roost plant, das Thermostat bleibt unber\u00fchrt", mh_active: "Roost stellt das Thermostat", mo_resume: "Jetzt fortsetzen", mo_sure: "Sicher? Nochmals tippen", v_table: "Tabelle", set_btn: "Einstellungen", s_comfort: "Komfort (tags\u00fcber)", s_day_min: "Minimum tags\u00fcber", s_night_min: "Minimum nachts", s_hours: "Komfortstunden", s_lowest: "Niedrigster Sollwert", s_store: "W\u00e4rme speichern bis", mo_away: "Abwesend", away_1: "1 Tag", away_3: "3 Tage", away_7: "1 Woche", mh_away: "nur das Minimum ({min} \u00b0C), rechtzeitig wieder warm", mo_home: "Wieder zu Hause", mh_home: "die Komfortstunden z\u00e4hlen wieder", st_away: "ABWESEND", comfort_lbl: "Komfort", src_title: "Heizstrom", src_sun: "Sonne", src_bat: "Akku", src_grid: "Netz", t_loss_store: "{h} h vorgeladen, die nicht n\u00f6tig waren: der Raum stieg auf {max} \u00b0C", t_loss_other: "mehr geheizt als ein festes Thermostat", next_at: "um {t} \u2192 {sp}", mo_pause: "2 Std. Pause", mh_pause: "Roost l\u00e4sst das Thermostat 2 Stunden in Ruhe", warn_notready: "Roost steuert mit dem bisherigen Modell: die Pr\u00fcfung des Hausmodells ist (noch) nicht bestanden.",
-        ahead: "\u00dcbersicht", back: "R\u00fcckblick", h_cost: "Kosten", h_saving: "Ersparnis", h_pred: "Vorhersage 6 h", h_largest: "gr\u00f6\u00dfte",
+        v_plan: "\u00dcbersicht", v_history: "R\u00fcckblick", tab_curve: "Kurve", v_curve: "Heizkurven-Empfehlung", go_integration: "Roost in den Einstellungen \u00f6ffnen", tab_table: "Tabelle", t_time: "Zeit", t_why: "Warum", t_back7: "Letzte 7 Tage", t_today: "Heute", t_exp: "erw.", t_set: "Sollwert", t_room: "Raum", mo_off: "Aus", mo_shadow: "Mitschauen", mo_active: "Aktiv", mh_off: "Roost tut nichts", mh_shadow: "Roost plant, das Thermostat bleibt unber\u00fchrt", mh_active: "Roost stellt das Thermostat", mo_resume: "Jetzt fortsetzen", mo_sure: "Sicher? Nochmals tippen", v_table: "Tabelle", set_btn: "Einstellungen", s_comfort: "Komfort (tags\u00fcber)", s_day_min: "Minimum tags\u00fcber", s_night_min: "Minimum nachts", s_hours: "Komfortstunden", s_lowest: "Niedrigster Sollwert", s_store: "W\u00e4rme speichern bis", mo_away: "Abwesend", away_1: "1 Tag", away_3: "3 Tage", away_7: "1 Woche", mh_away: "nur das Minimum ({min} \u00b0C), rechtzeitig wieder warm", mo_home: "Wieder zu Hause", mh_home: "die Komfortstunden z\u00e4hlen wieder", st_away: "ABWESEND", comfort_lbl: "Komfort", src_title: "Heizstrom", src_sun: "Sonne", src_bat: "Akku", src_grid: "Netz", t_loss_store: "{h} Stunden als W\u00e4rmespeicherung markiert; h\u00f6chste Raumtemperatur {max} \u00b0C. Daraus folgt nicht, welche Stunden unn\u00f6tig waren.", t_loss_other: "Die Modellsch\u00e4tzung ist negativ; die Ursache ist nicht ermittelt.", next_at: "um {t} \u2192 {sp}", mo_pause: "2 Std. Pause", mh_pause: "Roost l\u00e4sst das Thermostat 2 Stunden in Ruhe", warn_notready: "Roost steuert mit dem bisherigen Modell: die Pr\u00fcfung des Hausmodells ist (noch) nicht bestanden.",
+        ahead: "\u00dcbersicht", back: "R\u00fcckblick", h_cost: "Kosten", h_saving: "Gesch\u00e4tzte Ersparnis", h_pred: "Vorhersage 6 h", h_largest: "gr\u00f6\u00dfte",
         h_below: "Unter Komfort", h_lowest: "niedrigste", h_changes: "\u00c4nderungen", h_byhand: "von Hand", h_byroost: "Roost",
         h_log: "Protokoll", h_report: "Bericht", h_loading: "Die letzten Tage werden geladen\u2026",
         h_nodata: "Noch kein Verlauf: Roost speichert ab jetzt jede Stunde.", h_sp_t: "Sollwert Thermostat", h_sp_p: "geplant",
@@ -60,7 +60,7 @@ const T = {
         h_expected: "erw.", h_dev: "Abweichung", h_room_after: "Raum", h_set_hand: "von Hand, Roost pausiert {h} h",
         h_pause_ev: "pausiert {h} h", h_resume: "fortgesetzt", h_mode: "Modus", h_learned: "Haus neu gelernt",
         h_window: "Fenster offen", h_window_end: "Fenster zu, Raum zur\u00fcck", h_win_mark: "F", h_period: "Zeitraum", h_day: "Tag", h_kwh: "kWh", h_cop: "COP", h_deficit: "\u00b0C\u00b7h darunter",
-        p_title: "Die Ersparnis in Teilen", p_less: "Weniger Strom (auf die Sonne warten, nicht \u00fcberheizen, w\u00e4rmere Stunden)", p_sun: "davon in Stunden mit Sonne", p_cheap: "Heizen in g\u00fcnstigeren Stunden", p_end: "W\u00e4rme \u00fcbrig am Ende", r_sav: "Ersparnis pro Stunde gegen\u00fcber einem festen Thermostat", r_yday: "Gestern", r_next: "N\u00e4chste 24 Stunden (Plan)", r_hour: "Stunde", r_out: "Au\u00dfen", r_roost: "Roost", r_steady: "Festes Thermostat", r_diff: "Gespart", r_sp: "Sollwert", r_room: "Raum", r_cost: "Kosten", r_sum: "Summe", r_end: "Was der Zustand am Ende noch kostet (W\u00e4rme unter Komfort sp\u00e4ter nachkaufen, oder \u00fcbrige W\u00e4rme)", r_total: "Ersparnis", r_note: "Das feste Thermostat folgt dem Wetter in denselben Schritten von 0,5 \u00b0C, so komfortabel wie Roost (zwischen zwei Schritten, wenn der eine etwas zu kalt und der n\u00e4chste zu warm ist) (unter Komfort: Roost {a} \u00b0C\u00b7h, fest {b} \u00b0C\u00b7h). F\u00fcr beide dasselbe Hausmodell, Wetter und dieselben Preise.", r_uses_note: "\u201ePlan rechnet mit\u201c ist, was Roost pro kWh aus dem Netz oder dem Hausspeicher in dieser Stunde ansetzt: den Tarif oder, solange der Hausspeicher das Haus versorgt, den Preis, diese kWh sp\u00e4ter nachzukaufen, plus Speicherverluste (plus den Vorzug f\u00fcr eigene Energie, falls eingestellt).", r_none: "Noch nicht verf\u00fcgbar: ein Tag wird nach Mitternacht nachgespielt.", r_changes: "Plan\u00e4nderungen", r_ch_sp: "Sollwert diese Stunde", r_ch_sav: "Erwartete Ersparnis 24 h", r_nochg: "Keine \u00c4nderungen in diesem Zeitraum.", c_prices_published: "neue Preise ver\u00f6ffentlicht ({n} h)", c_prices_changed: "Preise ge\u00e4ndert ({n} h)", c_forecast: "Wettervorhersage ge\u00e4ndert", c_room: "Raum {r} \u00b0C, erwartet {e} \u00b0C", c_correction: "Korrektur aus den letzten Stunden ge\u00e4ndert", c_settings: "Einstellungen ge\u00e4ndert", c_estimated: "gesch\u00e4tzte Preise (noch nicht ver\u00f6ffentlicht) au\u00dfer Acht gelassen", c_new_hour: "neue Stunde: die 24 Stunden r\u00fccken weiter", c_other: "neu berechnet mit den letzten Messwerten" },
+        p_title: "Die Ersparnis in Teilen", p_less: "Weniger Strom (auf die Sonne warten, nicht \u00fcberheizen, w\u00e4rmere Stunden)", p_sun: "davon in Stunden mit Sonne", p_cheap: "Heizen in g\u00fcnstigeren Stunden", p_end: "W\u00e4rme \u00fcbrig am Ende", r_sav: "St\u00fcndlicher Modellvergleich mit einer wetterabh\u00e4ngigen Komfortreferenz", r_yday: "Gestern", r_next: "N\u00e4chste 24 Stunden (Plan)", r_hour: "Stunde", r_out: "Au\u00dfen", r_roost: "Roost", r_steady: "Komfortreferenz", r_diff: "Gespart", r_sp: "Sollwert", r_room: "Raum", r_cost: "Kosten", r_sum: "Summe", r_end: "Was der Zustand am Ende noch kostet (W\u00e4rme unter Komfort sp\u00e4ter nachkaufen, oder \u00fcbrige W\u00e4rme)", r_total: "Ersparnis", r_note: "Beide Kosten sind mit demselben Modell, Wetter und Preisen simuliert. Die Referenz passt den Sollwert dem Wetter an. Komfortdefizit im Hauptraum: Roost {a}, Referenz {b} Gradstunden. Siehe Qualit\u00e4tsbewertung oben.", r_uses_note: "\u201ePlan rechnet mit\u201c ist, was Roost pro kWh aus dem Netz oder dem Hausspeicher in dieser Stunde ansetzt: den Tarif oder, solange der Hausspeicher das Haus versorgt, den Preis, diese kWh sp\u00e4ter nachzukaufen, plus Speicherverluste (plus den Vorzug f\u00fcr eigene Energie, falls eingestellt).", r_none: "Noch nicht verf\u00fcgbar: ein Tag wird nach Mitternacht nachgespielt.", r_changes: "Plan\u00e4nderungen", r_ch_sp: "Sollwert diese Stunde", r_ch_sav: "Erwartete Ersparnis 24 h", r_nochg: "Keine \u00c4nderungen in diesem Zeitraum.", c_prices_published: "neue Preise ver\u00f6ffentlicht ({n} h)", c_prices_changed: "Preise ge\u00e4ndert ({n} h)", c_forecast: "Wettervorhersage ge\u00e4ndert", c_room: "Raum {r} \u00b0C, erwartet {e} \u00b0C", c_correction: "Korrektur aus den letzten Stunden ge\u00e4ndert", c_settings: "Einstellungen ge\u00e4ndert", c_estimated: "gesch\u00e4tzte Preise (noch nicht ver\u00f6ffentlicht) au\u00dfer Acht gelassen", c_new_hour: "neue Stunde: die 24 Stunden r\u00fccken weiter", c_other: "neu berechnet mit den letzten Messwerten" },
   fr: { title: "Roost", room: "Pi\u00e8ce", thermostat: "Thermostat", planned: "Pr\u00e9vu", next24: "24 prochaines heures",
         setpoint: "consigne", expected: "pi\u00e8ce pr\u00e9vue", price: "tarif", guessed: "estim\u00e9", uses: "le plan compte", comfort: "heures de confort", now: "maint.",
         night: "nuit", saving24: "\u00e9conomie pr\u00e9vue", month: "ce mois-ci", yesterday: "hier", vs: "vs constant", accuracy: "erreur du plan 6 h", ready: "pr\u00eat \u00e0 piloter", min: "min", steer: "Laisser Roost piloter", sure: "S\u00fbr ? Cliquez encore", importing: "Import Weheat", months: "mois", done_at: "fini", eta: { import: "apr\u00e8s l'import", heating: "apr\u00e8s plus d'heures de chauffe", heating_season: "pendant la saison de chauffe", check: "peut-\u00eatre au prochain contr\u00f4le", lever: "pas encore (la consigne n'a pas d'effet)", following: "pas encore (la pompe ne suit pas)" },
@@ -69,8 +69,8 @@ const T = {
         noplan: "pas encore de plan", heating: "la pompe chauffe", e_entity: "Capteur", e_title: "Titre", e_language: "Langue",
         e_time_format: "Format de l'heure", e_auto: "Comme Home Assistant", e_show_tiles: "Tuiles", e_show_chart: "Plan sur 24 heures",
         e_show_footer: "\u00c9conomie", e_show_curve: "Conseil de courbe de chauffe", e_compact: "Compact (p. ex. une tablette murale)", e_history: "R\u00e9trospective (bouton)", e_view: "S'ouvre sur",
-        v_plan: "Aper\u00e7u", v_history: "R\u00e9trospective", tab_curve: "Courbe", v_curve: "Conseil de courbe", go_integration: "Ouvrir Roost dans les param\u00e8tres", tab_table: "Tableau", t_time: "Heure", t_why: "Pourquoi", t_back7: "7 derniers jours", t_today: "Aujourd'hui", t_exp: "pr\u00e9vu", t_set: "Consigne", t_room: "Pi\u00e8ce", mo_off: "Arr\u00eat", mo_shadow: "Observation", mo_active: "Actif", mh_off: "Roost ne fait rien", mh_shadow: "Roost planifie, le thermostat n'est pas touch\u00e9", mh_active: "Roost r\u00e8gle le thermostat", mo_resume: "Reprendre maintenant", mo_sure: "S\u00fbr ? Touchez encore", v_table: "Tableau", set_btn: "R\u00e9glages", s_comfort: "Confort (jour)", s_day_min: "Minimum le jour", s_night_min: "Minimum la nuit", s_hours: "Heures de confort", s_lowest: "Consigne la plus basse", s_store: "Stocker la chaleur jusqu'\u00e0", mo_away: "Absent", away_1: "1 jour", away_3: "3 jours", away_7: "1 semaine", mh_away: "seulement le minimum ({min} \u00b0C), de nouveau chaud \u00e0 temps", mo_home: "De retour", mh_home: "les heures de confort comptent de nouveau", st_away: "ABSENT", comfort_lbl: "Confort", src_title: "\u00c9lectricit\u00e9 de chauffage", src_sun: "solaire", src_bat: "batterie", src_grid: "r\u00e9seau", t_loss_store: "{h} h stock\u00e9es inutiles : la pi\u00e8ce est mont\u00e9e \u00e0 {max} \u00b0C", t_loss_other: "plus de chauffe qu'un thermostat fixe", next_at: "\u00e0 {t} \u2192 {sp}", mo_pause: "Pause 2 h", mh_pause: "Roost laisse le thermostat tranquille 2 heures", warn_notready: "Roost pilote avec le mod\u00e8le qu'il avait : la v\u00e9rification du mod\u00e8le de la maison n'est pas (encore) r\u00e9ussie.",
-        ahead: "Aper\u00e7u", back: "R\u00e9trospective", h_cost: "Co\u00fbt", h_saving: "\u00e9conomie", h_pred: "Pr\u00e9vision 6 h", h_largest: "max.",
+        v_plan: "Aper\u00e7u", v_history: "R\u00e9trospective", tab_curve: "Courbe", v_curve: "Conseil de courbe", go_integration: "Ouvrir Roost dans les param\u00e8tres", tab_table: "Tableau", t_time: "Heure", t_why: "Pourquoi", t_back7: "7 derniers jours", t_today: "Aujourd'hui", t_exp: "pr\u00e9vu", t_set: "Consigne", t_room: "Pi\u00e8ce", mo_off: "Arr\u00eat", mo_shadow: "Observation", mo_active: "Actif", mh_off: "Roost ne fait rien", mh_shadow: "Roost planifie, le thermostat n'est pas touch\u00e9", mh_active: "Roost r\u00e8gle le thermostat", mo_resume: "Reprendre maintenant", mo_sure: "S\u00fbr ? Touchez encore", v_table: "Tableau", set_btn: "R\u00e9glages", s_comfort: "Confort (jour)", s_day_min: "Minimum le jour", s_night_min: "Minimum la nuit", s_hours: "Heures de confort", s_lowest: "Consigne la plus basse", s_store: "Stocker la chaleur jusqu'\u00e0", mo_away: "Absent", away_1: "1 jour", away_3: "3 jours", away_7: "1 semaine", mh_away: "seulement le minimum ({min} \u00b0C), de nouveau chaud \u00e0 temps", mo_home: "De retour", mh_home: "les heures de confort comptent de nouveau", st_away: "ABSENT", comfort_lbl: "Confort", src_title: "\u00c9lectricit\u00e9 de chauffage", src_sun: "solaire", src_bat: "batterie", src_grid: "r\u00e9seau", t_loss_store: "{h} heures marqu\u00e9es comme stockage ; maximum mesur\u00e9 {max} \u00b0C. Cela ne prouve pas quelles heures \u00e9taient inutiles.", t_loss_other: "L'estimation du mod\u00e8le est n\u00e9gative ; la cause n'est pas \u00e9tablie.", next_at: "\u00e0 {t} \u2192 {sp}", mo_pause: "Pause 2 h", mh_pause: "Roost laisse le thermostat tranquille 2 heures", warn_notready: "Roost pilote avec le mod\u00e8le qu'il avait : la v\u00e9rification du mod\u00e8le de la maison n'est pas (encore) r\u00e9ussie.",
+        ahead: "Aper\u00e7u", back: "R\u00e9trospective", h_cost: "Co\u00fbt", h_saving: "\u00c9conomie estim\u00e9e", h_pred: "Pr\u00e9vision 6 h", h_largest: "max.",
         h_below: "Sous le confort", h_lowest: "minimum", h_changes: "Changements", h_byhand: "\u00e0 la main", h_byroost: "Roost",
         h_log: "Journal", h_report: "Rapport", h_loading: "Chargement des derniers jours\u2026",
         h_nodata: "Pas encore d'historique : Roost garde chaque heure \u00e0 partir de maintenant.", h_sp_t: "consigne thermostat", h_sp_p: "pr\u00e9vue",
@@ -78,8 +78,10 @@ const T = {
         h_expected: "pr\u00e9vu", h_dev: "\u00e9cart", h_room_after: "pi\u00e8ce", h_set_hand: "\u00e0 la main, Roost en pause {h} h",
         h_pause_ev: "en pause {h} h", h_resume: "reprise", h_mode: "mode", h_learned: "maison r\u00e9apprise",
         h_window: "fen\u00eatre ouverte", h_window_end: "fen\u00eatre ferm\u00e9e, pi\u00e8ce revenue", h_win_mark: "F", h_period: "P\u00e9riode", h_day: "Jour", h_kwh: "kWh", h_cop: "COP", h_deficit: "\u00b0C\u00b7h en dessous",
-        p_title: "L'\u00e9conomie en parts", p_less: "Moins d'\u00e9lectricit\u00e9 (attendre le soleil, pas de surchauffe, heures plus douces)", p_sun: "dont dans les heures de soleil", p_cheap: "Chauffer aux heures moins ch\u00e8res", p_end: "Chaleur restante \u00e0 la fin", r_sav: "\u00c9conomie par heure par rapport \u00e0 un thermostat fixe", r_yday: "Hier", r_next: "Prochaines 24 heures (plan)", r_hour: "Heure", r_out: "Ext\u00e9rieur", r_roost: "Roost", r_steady: "Thermostat fixe", r_diff: "\u00c9conomis\u00e9", r_sp: "consigne", r_room: "pi\u00e8ce", r_cost: "co\u00fbt", r_sum: "Total", r_end: "Ce que l'\u00e9tat final co\u00fbte encore (chaleur sous le confort rachet\u00e9e plus tard, ou chaleur en trop)", r_total: "\u00c9conomie", r_note: "Le thermostat fixe suit la m\u00e9t\u00e9o par les m\u00eames pas de 0,5 \u00b0C, aussi confortable que Roost (entre deux pas quand l'un est un peu trop froid et le suivant trop chaud) (sous le confort : Roost {a} \u00b0C\u00b7h, fixe {b} \u00b0C\u00b7h). M\u00eame mod\u00e8le de maison, m\u00eame m\u00e9t\u00e9o et m\u00eames prix pour les deux.", r_uses_note: "\u00ab\u00a0Le plan compte\u00a0\u00bb est ce que Roost compte par kWh du r\u00e9seau ou de la batterie domestique dans cette heure\u00a0: le tarif ou, tant que la batterie alimente la maison, le prix pour racheter ce kWh plus tard, pertes de la batterie comprises (plus la pr\u00e9f\u00e9rence pour l'\u00e9nergie propre, si r\u00e9gl\u00e9e).", r_none: "Pas encore disponible : une journ\u00e9e est rejou\u00e9e apr\u00e8s minuit.", r_changes: "Changements du plan", r_ch_sp: "Consigne cette heure", r_ch_sav: "\u00c9conomie pr\u00e9vue 24 h", r_nochg: "Aucun changement sur cette p\u00e9riode.", c_prices_published: "nouveaux prix publi\u00e9s ({n} h)", c_prices_changed: "prix modifi\u00e9s ({n} h)", c_forecast: "pr\u00e9visions m\u00e9t\u00e9o modifi\u00e9es", c_room: "pi\u00e8ce {r} \u00b0C, attendu {e} \u00b0C", c_correction: "correction des derni\u00e8res heures modifi\u00e9e", c_settings: "r\u00e9glages modifi\u00e9s", c_estimated: "prix estim\u00e9s (pas encore publi\u00e9s) laiss\u00e9s de c\u00f4t\u00e9", c_new_hour: "nouvelle heure : les 24 heures avancent", c_other: "recalcul\u00e9 avec les derni\u00e8res mesures" },
+        p_title: "L'\u00e9conomie en parts", p_less: "Moins d'\u00e9lectricit\u00e9 (attendre le soleil, pas de surchauffe, heures plus douces)", p_sun: "dont dans les heures de soleil", p_cheap: "Chauffer aux heures moins ch\u00e8res", p_end: "Chaleur restante \u00e0 la fin", r_sav: "Comparaison horaire du mod\u00e8le avec une r\u00e9f\u00e9rence de confort selon la m\u00e9t\u00e9o", r_yday: "Hier", r_next: "Prochaines 24 heures (plan)", r_hour: "Heure", r_out: "Ext\u00e9rieur", r_roost: "Roost", r_steady: "R\u00e9f\u00e9rence de confort", r_diff: "\u00c9conomis\u00e9", r_sp: "consigne", r_room: "pi\u00e8ce", r_cost: "co\u00fbt", r_sum: "Total", r_end: "Ce que l'\u00e9tat final co\u00fbte encore (chaleur sous le confort rachet\u00e9e plus tard, ou chaleur en trop)", r_total: "\u00c9conomie", r_note: "Les deux co\u00fbts sont simul\u00e9s avec les m\u00eames mod\u00e8le, m\u00e9t\u00e9o et prix. La r\u00e9f\u00e9rence adapte sa consigne \u00e0 la m\u00e9t\u00e9o. D\u00e9ficit de confort principal : Roost {a}, r\u00e9f\u00e9rence {b} degr\u00e9s-heures. Voir la qualit\u00e9 ci-dessus.", r_uses_note: "\u00ab\u00a0Le plan compte\u00a0\u00bb est ce que Roost compte par kWh du r\u00e9seau ou de la batterie domestique dans cette heure\u00a0: le tarif ou, tant que la batterie alimente la maison, le prix pour racheter ce kWh plus tard, pertes de la batterie comprises (plus la pr\u00e9f\u00e9rence pour l'\u00e9nergie propre, si r\u00e9gl\u00e9e).", r_none: "Pas encore disponible : une journ\u00e9e est rejou\u00e9e apr\u00e8s minuit.", r_changes: "Changements du plan", r_ch_sp: "Consigne cette heure", r_ch_sav: "\u00c9conomie pr\u00e9vue 24 h", r_nochg: "Aucun changement sur cette p\u00e9riode.", c_prices_published: "nouveaux prix publi\u00e9s ({n} h)", c_prices_changed: "prix modifi\u00e9s ({n} h)", c_forecast: "pr\u00e9visions m\u00e9t\u00e9o modifi\u00e9es", c_room: "pi\u00e8ce {r} \u00b0C, attendu {e} \u00b0C", c_correction: "correction des derni\u00e8res heures modifi\u00e9e", c_settings: "r\u00e9glages modifi\u00e9s", c_estimated: "prix estim\u00e9s (pas encore publi\u00e9s) laiss\u00e9s de c\u00f4t\u00e9", c_new_hour: "nouvelle heure : les 24 heures avancent", c_other: "recalcul\u00e9 avec les derni\u00e8res mesures" },
 };
+
+for (const [lang, words] of Object.entries({"en": {"s_weekly": "Weekly schedule active", "s_weekly_edit": "Edit weekly comfort periods"}, "nl": {"s_weekly": "Weekplanning actief", "s_weekly_edit": "Comforttijden per weekdag instellen"}, "de": {"s_weekly": "Wochenplan aktiv", "s_weekly_edit": "Komfortzeiten je Wochentag bearbeiten"}, "fr": {"s_weekly": "Planning hebdomadaire actif", "s_weekly_edit": "Modifier les heures par jour"}})) Object.assign(T[lang], words);
 
 // Why Roost plans or does something: the integration sends a code with values (reason_code/_args,
 // decision_code/_args); the card words it. Unknown codes fall back to the English text of the integration.
@@ -161,6 +163,72 @@ const shows = (config, part) => {
 };
 const lang2 = (hass) => ((hass && ((hass.locale && hass.locale.language) || hass.language)) || "en").slice(0, 2);
 const fmt = (v, d) => (v === null || v === undefined || isNaN(v)) ? "\u2014" : Number(v).toFixed(d === undefined ? 0 : d);
+
+const SAVING_QUALITY = {
+  "en": {
+    "checked": "Model estimate checked against measured heating electricity and room temperatures; not a measured bill saving.",
+    "forecast": "Expected model estimate; not a measured saving.",
+    "unreliable": "No accepted saving estimate.",
+    "extra_rooms": "The reference does not yet account for the extra rooms.",
+    "comfort_mismatch": "The reference and Roost do not meet the same comfort.",
+    "missing_context": "The original daily model and settings are missing.",
+    "incomplete_day": "This local day is incomplete.",
+    "incomplete_forecast": "A complete 24-hour plan is not available yet.",
+    "missing_measurements": "Too few complete measurements.",
+    "energy_mismatch": "Modelled heating electricity differs too much from the meter.",
+    "temperature_mismatch": "The replayed room temperature differs too much from measurements.",
+    "settings_changed": "Comfort settings changed during this day."
+  },
+  "nl": {
+    "checked": "Modelraming getoetst aan gemeten verwarmingsstroom en kamertemperaturen; geen gemeten besparing op de rekening.",
+    "forecast": "Verwachte modelraming; geen gemeten besparing.",
+    "unreliable": "Geen voldoende betrouwbare besparingsschatting.",
+    "extra_rooms": "De referentie houdt nog geen rekening met de extra kamers.",
+    "comfort_mismatch": "De referentie en Roost leveren niet hetzelfde comfort.",
+    "missing_context": "Het oorspronkelijke dagmodel en de instellingen ontbreken.",
+    "incomplete_day": "Deze lokale dag is onvolledig.",
+    "incomplete_forecast": "Er is nog geen volledige planning voor 24 uur.",
+    "missing_measurements": "Er zijn te weinig volledige metingen.",
+    "energy_mismatch": "Het gesimuleerde verwarmingsverbruik wijkt te veel af van de meter.",
+    "temperature_mismatch": "De gesimuleerde kamertemperatuur wijkt te veel af van de metingen.",
+    "settings_changed": "De comfortinstellingen zijn tijdens deze dag veranderd."
+  },
+  "de": {
+    "incomplete_forecast": "Ein vollst\u00e4ndiger 24-Stunden-Plan ist noch nicht verf\u00fcgbar.",
+    "checked": "Modellsch\u00e4tzung mit gemessenem Heizstrom und Raumtemperaturen gepr\u00fcft; keine gemessene Rechnungsersparnis.",
+    "forecast": "Erwartete Modellsch\u00e4tzung; keine gemessene Ersparnis.",
+    "unreliable": "Keine ausreichend zuverl\u00e4ssige Sparsch\u00e4tzung.",
+    "extra_rooms": "Die Referenz ber\u00fccksichtigt die zus\u00e4tzlichen R\u00e4ume noch nicht.",
+    "comfort_mismatch": "Die Referenz und Roost bieten nicht denselben Komfort.",
+    "missing_context": "Das urspr\u00fcngliche Tagesmodell und die Einstellungen fehlen.",
+    "incomplete_day": "Dieser lokale Tag ist unvollst\u00e4ndig.",
+    "missing_measurements": "Zu wenige vollst\u00e4ndige Messungen.",
+    "energy_mismatch": "Der simulierte Heizstrom weicht zu stark vom Z\u00e4hler ab.",
+    "temperature_mismatch": "Die simulierte Raumtemperatur weicht zu stark von Messungen ab.",
+    "settings_changed": "Die Komforteinstellungen wurden im Tagesverlauf ge\u00e4ndert."
+  },
+  "fr": {
+    "incomplete_forecast": "Le plan complet sur 24 heures n'est pas encore disponible.",
+    "checked": "Estimation v\u00e9rifi\u00e9e avec la consommation de chauffage et les temp\u00e9ratures mesur\u00e9es ; pas une \u00e9conomie mesur\u00e9e sur la facture.",
+    "forecast": "Estimation pr\u00e9vue par le mod\u00e8le ; pas une \u00e9conomie mesur\u00e9e.",
+    "unreliable": "Pas d'estimation suffisamment fiable.",
+    "extra_rooms": "La r\u00e9f\u00e9rence ne tient pas encore compte des pi\u00e8ces suppl\u00e9mentaires.",
+    "comfort_mismatch": "La r\u00e9f\u00e9rence et Roost n'offrent pas le m\u00eame confort.",
+    "missing_context": "Le mod\u00e8le initial du jour et ses r\u00e9glages manquent.",
+    "incomplete_day": "Cette journ\u00e9e locale est incompl\u00e8te.",
+    "missing_measurements": "Trop peu de mesures compl\u00e8tes.",
+    "energy_mismatch": "La consommation simul\u00e9e diff\u00e8re trop du compteur.",
+    "temperature_mismatch": "La temp\u00e9rature simul\u00e9e diff\u00e8re trop des mesures.",
+    "settings_changed": "Les r\u00e9glages de confort ont chang\u00e9 pendant cette journ\u00e9e."
+  }
+};
+
+const PRICE_HORIZON = {
+  en: "Tariff planning until {time}; later tariffs are not available yet.",
+  nl: "Tariefplanning tot {time}; latere tarieven zijn nog niet beschikbaar.",
+  de: "Tarifplanung bis {time}; sp\u00e4tere Tarife sind noch nicht verf\u00fcgbar.",
+  fr: "Planification tarifaire jusqu'\u00e0 {time} ; les tarifs suivants ne sont pas encore disponibles."
+};
 
 class RoostCard extends HTMLElement {
   static getConfigElement() { return document.createElement("roost-card-editor"); }
@@ -292,6 +360,8 @@ class RoostCard extends HTMLElement {
       <div class="ht"><div class="tt">${title}</div><div class="sub">${reason}</div></div>${seg}${pill}</div>`;
     const ready = this._sib("ready");
     if (mode === "active" && ready && ready.state === "off") html += `<div class="warnline"><ha-icon icon="mdi:alert-outline"></ha-icon>${this._t("warn_notready")}</div>`;
+    const priceHorizon = this._priceHorizon(a);
+    if (priceHorizon) html += `<div class="sub">${priceHorizon}</div>`;
     if (this._modeOpen && canMode) html += this._modeMenu(mode, paused, away, a);
     if (hist && this._view === "curve") {
       html += this._curveView();
@@ -534,7 +604,12 @@ class RoostCard extends HTMLElement {
     const tone = (p) => { const r = (p - pmin) / Math.max(0.01, pmax - pmin); return r < 0.33 ? "var(--rc-cheap)" : (r < 0.66 ? "var(--rc-mid)" : "var(--rc-dear)"); };
     let g = "";
     const cl = nn(a.day_min, 20), ch = nn(a.comfort, 20.5);
-    for (let i = 0; i < n; i++) if (day[i]) g += `<rect x="${x(i).toFixed(1)}" y="${y(ch).toFixed(1)}" width="${(w + 0.2).toFixed(1)}" height="${Math.max(1, y(cl) - y(ch)).toFixed(1)}" class="band"/>`;
+    for (let i = 0; i < n; i++) {
+      const mask = a.comfort_masks && a.comfort_masks[i];
+      if (mask) {
+        for (let q = 0; q < 4; q++) if (mask[q]) g += `<rect x="${(x(i) + q * w / 4).toFixed(1)}" y="${y(ch).toFixed(1)}" width="${(w / 4 + 0.2).toFixed(1)}" height="${Math.max(1, y(cl) - y(ch)).toFixed(1)}" class="band"/>`;
+      } else if (day[i]) g += `<rect x="${x(i).toFixed(1)}" y="${y(ch).toFixed(1)}" width="${(w + 0.2).toFixed(1)}" height="${Math.max(1, y(cl) - y(ch)).toFixed(1)}" class="band"/>`;
+    }
     for (let v = Math.ceil(lo); v <= hi; v++) {
       g += `<line x1="${L}" x2="${VW - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="grid"/>` +
         `<text x="${L - 5}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" class="axis">${v}\u00b0</text>`;
@@ -603,12 +678,11 @@ class RoostCard extends HTMLElement {
       else this._hass.callService("select", "select_option", { entity_id: this._siblings().mode, option: m });
       this._modeOpen = false; this._armed = null; this._render();
     }));
-    const ico = root.querySelector(".head .ico");
-    if (ico) ico.addEventListener("click", (ev) => {
+    root.querySelectorAll(".head .ico, .week-settings").forEach((ico) => ico.addEventListener("click", (ev) => {
       ev.stopPropagation();
       window.history.pushState(null, "", "/config/integrations/integration/roost");
       window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
-    });
+    }));
     const th = root.querySelector(".tile.therm");
     if (th) th.addEventListener("click", (ev) => {      // the thermostat's own controls (Home Assistant's dialog)
       ev.stopPropagation();
@@ -738,14 +812,32 @@ class RoostCard extends HTMLElement {
       `<button class="mini" data-set="${key}" data-d="${step}">+</button></span></div>`;
     return `<div class="spanel">` +
       row("comfort", "s_comfort", a.comfort, 0.5) + row("day_min", "s_day_min", a.day_min, 0.5) + row("night_min", "s_night_min", a.night_min, 0.5) +
-      `<div class="srow"><span>${this._t("s_hours")}</span><span><button class="mini" data-set="day_from" data-d="-1">\u2212</button>` +
+      (a.weekly_comfort ? `<div class="srow"><span>${this._t("s_weekly")}</span></div>` :
+       (`<div class="srow"><span>${this._t("s_hours")}</span><span><button class="mini" data-set="day_from" data-d="-1">\u2212</button>` +
       `<b class="sv">${a.day_from}:00</b><button class="mini" data-set="day_from" data-d="1">+</button> \u2013 ` +
       `<button class="mini" data-set="day_to" data-d="-1">\u2212</button><b class="sv">${a.day_to}:00</b>` +
-      `<button class="mini" data-set="day_to" data-d="1">+</button></span></div>` +
+      `<button class="mini" data-set="day_to" data-d="1">+</button></span></div>`)) +
+      `<div class="srow"><button class="mini week-settings">${this._t("s_weekly_edit")}</button></div>` +
       row("lowest_setpoint", "s_lowest", a.lowest_setpoint, 0.5) + row("store_max", "s_store", a.store_max, 0.5) + `</div>`;
   }
 
   // ---------------------------------------------------------------- table: the plan ahead and the last 7 days per hour
+  _priceHorizon(a) {
+    if (!a.price_limited_until) return "";
+    const until = new Date(a.price_limited_until);
+    if (isNaN(until.getTime())) return "";
+    const time = until.toLocaleString(this._locale(), { weekday: "short", hour: "2-digit", minute: "2-digit" });
+    return (PRICE_HORIZON[this._lang()] || PRICE_HORIZON.en).replace("{time}", time);
+  }
+
+  _savingQuality(q) {
+    if (!q) return "";
+    const lang = String(this._locale()).split("-")[0];
+    const text = SAVING_QUALITY[lang] || SAVING_QUALITY.en;
+    if (q.valid) return q.status === "validated_estimate" ? text.checked : text.forecast;
+    return text.unreliable + " " + (q.reasons || []).map((r) => text[r] || text.unreliable).join(" ");
+  }
+
   // Hours in a row with the same setting and the same reason are one line, so the table stays short.
   _runs(list, same) {
     const out = [];
@@ -815,7 +907,9 @@ class RoostCard extends HTMLElement {
       const sum = ds ? ` <span>${this._money(ds.cost)}${ds.saving !== undefined && ds.saving !== null ? ` \u00b7 ${this._t("h_saving")} ${this._money(ds.saving)}` : ""}` +
         `${ds.pred_mae !== null && ds.pred_mae !== undefined ? ` \u00b7 ${this._t("h_pred")} \u00b1${this._num(ds.pred_mae, 1)}` : ""}</span>` : "";
       let loss = "";
-      if (ds && ds.saving !== undefined && ds.saving !== null && ds.saving < -0.05) {      // why a day cost more than a steady thermostat
+      if (ds && ds.quality && !ds.quality.valid) {
+        loss = `<div class="tloss">${this._savingQuality(ds.quality)}</div>`;
+      } else if (ds && ds.saving !== undefined && ds.saving !== null && ds.saving < -0.05) {      // why a day cost more than a steady thermostat
         const stored = hs.filter((h) => String(h.reason || "").startsWith("store_")).length;
         const top = Math.max.apply(null, hs.map((h) => h.T));
         loss = `<div class="tloss">${stored ? this._t("t_loss_store").replace("{h}", stored).replace("{max}", this._num(top, 1)) : this._t("t_loss_other")}</div>`;
@@ -885,7 +979,8 @@ class RoostCard extends HTMLElement {
     const mae = errs.length ? errs.reduce((t, x) => t + Math.abs(x.e), 0) / errs.length : null;
     const worst = errs.reduce((m, x) => (!m || Math.abs(x.e) > Math.abs(m.e) ? x : m), null);
     const dayH = s.hours.filter((h) => h.day);
-    const below = dayH.filter((h) => h.T < comfort - 0.3).length * 60;
+    const below = dayH.filter((h) => !h.away && h.T < comfort - 0.3)
+      .reduce((n, h) => n + (h.comfort_mask ? 15 * h.comfort_mask.filter(Boolean).length : 60), 0);
     const low = s.hours.length ? Math.min.apply(null, s.hours.map((h) => h.T)) : null;
     let roost = 0;
     for (let i = 1; i < s.hours.length; i++) {
@@ -1110,7 +1205,7 @@ class RoostCard extends HTMLElement {
         `<td>${this._num(r.sp, 1)}</td><td>${this._num(r.t, 1)}</td><td>${this._num(r.kwh, 2)}</td><td>${m3(r.cost)}</td>` +
         `<td>${this._num(r.b_sp, 1)}</td><td>${this._num(r.b_t, 1)}</td><td>${this._num(r.b_kwh, 2)}</td><td>${m3(r.b_cost)}</td><td><b>${m3(r.save)}</b></td></tr>`).join("");
       const note = this._t("r_note").replace("{a}", this._num(bd.short, 1)).replace("{b}", this._num(bd.b_short, 1));
-      return `<h3>${esc(title)}</h3><table><tr><th></th><th></th><th></th><th></th><th colspan="4">${esc(this._t("r_roost"))}</th><th colspan="4">${esc(this._t("r_steady"))}</th><th></th></tr>` +
+      return `<h3>${esc(title)}</h3><p>${esc(this._savingQuality(bd.quality))}</p><table><tr><th></th><th></th><th></th><th></th><th colspan="4">${esc(this._t("r_roost"))}</th><th colspan="4">${esc(this._t("r_steady"))}</th><th></th></tr>` +
         `<tr>${th("r_hour")}${th("r_out")}${th("price")}${th("uses")}${th("r_sp")}${th("r_room")}${th("h_kwh")}${th("r_cost")}${th("r_sp")}${th("r_room")}${th("h_kwh")}${th("r_cost")}${th("r_diff")}</tr>${rows}` +
         `<tr><td><b>${esc(this._t("r_sum"))}</b></td><td></td><td></td><td></td><td></td><td></td><td>${this._num(bd.kwh, 1)}</td><td>${m3(bd.cost)}</td><td></td><td></td><td>${this._num(bd.b_kwh, 1)}</td><td>${m3(bd.b_cost)}</td><td>${m3(bd.b_cost - bd.cost)}</td></tr>` +
         `<tr><td colspan="7">${esc(this._t("r_end"))}</td><td>${m3(bd.end)}</td><td colspan="3"></td><td>${m3(bd.b_end)}</td><td>${m3(bd.b_end - bd.end)}</td></tr>` +

@@ -130,12 +130,13 @@
           "day_from": "Comfort hours start",
           "day_to": "Comfort hours end",
           "comfort": "Comfort temperature (day)",
-          "day_min": "Never below in the day",
-          "night_min": "Never below at night",
+          "day_min": "Minimum during comfort periods",
+          "night_min": "Minimum outside comfort periods",
           "store_max": "Warmest while storing heat"
         },
         "data_description": {
-          "store_max": "Roost stores heat in the floor (or the house) when an hour is cheap (or solar earns little) and an expensive one follows. Set it equal to the comfort temperature to switch that off."
+          "store_max": "Roost stores heat in the floor (or the house) when an hour is cheap (or solar earns little) and an expensive one follows. Set it equal to the comfort temperature to switch that off.",
+          "day_from": "Daily default (used when weekly schedule is off)"
         },
         "sections": {
           "advanced": {
@@ -156,6 +157,20 @@
               "baseline_night": "The saving is shown against a steady thermostat at the comfort temperature, the usual advice for heat pumps.",
               "weather_source": "Open-Meteo needs no account and gives radiation and wind (the house model uses both)."
             }
+          },
+          "weekly_schedule": {
+            "name": "Weekly comfort periods",
+            "description": "When enabled, these periods replace the daily start/end above. Use quarter-hour times, for example 07:00-09:00, 17:00-22:00. Leave a day empty for minimum temperature only. An overnight period such as 22:00-02:00 continues into the next day. Roost plans preheating ahead of the comfort period.",
+            "data": {
+              "enabled": "Use a different schedule per weekday",
+              "monday": "Monday",
+              "tuesday": "Tuesday",
+              "wednesday": "Wednesday",
+              "thursday": "Thursday",
+              "friday": "Friday",
+              "saturday": "Saturday",
+              "sunday": "Sunday"
+            }
           }
         }
       },
@@ -174,7 +189,8 @@
       "day_order": "The comfort hours must end after they start.",
       "weather_needed": "Choose a weather entity (under Advanced).",
       "lowest_above_comfort": "The lowest thermostat setting must not be above the comfort temperature.",
-      "price_needed": "Choose a price sensor, or choose a fixed price."
+      "price_needed": "Choose a price sensor, or choose a fixed price.",
+      "invalid_schedule": "Check the weekly periods: use HH:MM-HH:MM, separated by commas, in 15-minute steps. Periods must not overlap, including overnight continuations."
     },
     "abort": {
       "already_configured": "This heat pump is already set up.",
@@ -289,12 +305,13 @@
           "day_from": "Comfort hours start",
           "day_to": "Comfort hours end",
           "comfort": "Comfort temperature (day)",
-          "day_min": "Never below in the day",
-          "night_min": "Never below at night",
+          "day_min": "Minimum during comfort periods",
+          "night_min": "Minimum outside comfort periods",
           "store_max": "Warmest while storing heat"
         },
         "data_description": {
-          "store_max": "Roost stores heat in the floor (or the house) when an hour is cheap (or solar earns little) and an expensive one follows. Set it equal to the comfort temperature to switch that off."
+          "store_max": "Roost stores heat in the floor (or the house) when an hour is cheap (or solar earns little) and an expensive one follows. Set it equal to the comfort temperature to switch that off.",
+          "day_from": "Daily default (used when weekly schedule is off)"
         },
         "sections": {
           "advanced": {
@@ -314,6 +331,20 @@
               "max_above_room": "Keeps an OpenTherm thermostat asking for lukewarm water (high COP).",
               "baseline_night": "The saving is shown against a steady thermostat at the comfort temperature, the usual advice for heat pumps.",
               "weather_source": "Open-Meteo needs no account and gives radiation and wind (the house model uses both)."
+            }
+          },
+          "weekly_schedule": {
+            "name": "Weekly comfort periods",
+            "description": "When enabled, these periods replace the daily start/end above. Use quarter-hour times, for example 07:00-09:00, 17:00-22:00. Leave a day empty for minimum temperature only. An overnight period such as 22:00-02:00 continues into the next day. Roost plans preheating ahead of the comfort period.",
+            "data": {
+              "enabled": "Use a different schedule per weekday",
+              "monday": "Monday",
+              "tuesday": "Tuesday",
+              "wednesday": "Wednesday",
+              "thursday": "Thursday",
+              "friday": "Friday",
+              "saturday": "Saturday",
+              "sunday": "Sunday"
             }
           }
         }
@@ -384,7 +415,8 @@
       "day_order": "The comfort hours must end after they start.",
       "weather_needed": "Choose a weather entity (under Advanced).",
       "lowest_above_comfort": "The lowest thermostat setting must not be above the comfort temperature.",
-      "price_needed": "Choose a price sensor, or choose a fixed price."
+      "price_needed": "Choose a price sensor, or choose a fixed price.",
+      "invalid_schedule": "Check the weekly periods: use HH:MM-HH:MM, separated by commas, in 15-minute steps. Periods must not overlap, including overnight continuations."
     },
     "abort": {
       "mode_set": "The mode is set."

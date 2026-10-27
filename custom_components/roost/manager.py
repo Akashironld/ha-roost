@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from .mgr_common import *  # noqa: F401,F403 - the shared imports and constants
 from .mgr_common import _LOGGER, _f, _i, _iso_ts  # noqa: F401
-from . import curve, replan
+from . import curve, replan, savings
 from .care import CareMixin
 from .health import HealthMixin
 from .hourlog import HourLogMixin
@@ -33,13 +33,12 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         self.plan: planner.Plan | None = None
         self.plan_hours: list[planner.HourIn] = []
         self.plan_at: float | None = None
-        self.plan_tariff: list[float] = []          # import price per plan hour (what the price sensor says, or a guess)
-        self.plan_guess: list[bool] = []            # True: no price known yet for that hour, filled in
-        self.plan_on_guess = False                  # the plan in force set guessed prices to the mean (planner.neutral_prices)
+        self.plan_tariff: list[float] = []          # published import price per plan hour
+        self.plan_guess: list[bool] = []            # legacy diagnostic shape; new plans contain only known tariffs
+        self.plan_on_guess = False                  # legacy snapshot field; no guessed prices in new plans
         self.boiler_hours = 0                       # hours a gas boiler ran in the last year: a hybrid (history.boiler_hours)
         self.replayed_with: int | None = None       # planner.REPLAY_VERSION the days kept were replayed with
-        # price entity -> {hour epoch: price per kWh}: known hourly prices of the last days, to fill hours the price
-        # forecast does not reach yet with the same hour a day earlier
+        # price entity -> {hour epoch: price per kWh}: retained history, never a source of unpublished future tariffs
         self.price_seen: dict[str, dict[int, float]] = {}
         self._price_guess: dict[str, list[bool]] = {}
         self.reason = Reason("starting")
@@ -50,6 +49,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         self.hour_log: list[dict] = []              # last ~48 h: state and inputs per hour, for the daily saving
         self.saving_days: dict[str, float] = {}     # date -> saving (currency)
         self.saving_detail: dict[str, dict] = {}    # date -> the saving per hour (planner.breakdown), the last days
+        self.day_contexts: dict[str, dict] = {}      # immutable model/settings used to validate each local day
         self.plan_changes: list[dict] = []          # the plan changed: setpoint / expected saving before -> after, why
         self._plan_snap: dict | None = None         # the plan in force and what it saw (replan.snapshot)
         self.day_stats: dict[str, dict] = {}        # date -> the day in numbers (look back, day report)
@@ -137,8 +137,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         return control.ControlSettings(min_interval_min=float(c[CONF_MIN_INTERVAL]), pause_hours=float(c[CONF_PAUSE_HOURS]))
 
     def is_day(self, local: datetime) -> bool:
-        c = self.conf
-        return int(c[CONF_DAY_FROM]) <= local.hour < int(c[CONF_DAY_TO])
+        return schedule.is_comfort(self.conf, local)
 
     # ------------------------------------------------------------ lifecycle
     async def async_start(self) -> None:
@@ -163,6 +162,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         self.pred = {int(k): v for k, v in (data.get("pred") or {}).items()}
         self.plan_log = data.get("plan_log") or []
         self.saving_detail = data.get("saving_detail") or {}
+        self.day_contexts = data.get("day_contexts") or {}
         self.replayed_with = data.get("replayed_with")
         self.plan_changes = data.get("plan_changes") or []
         self._plan_snap = data.get("plan_snap")
@@ -295,6 +295,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             "pred": {str(k): v for k, v in self.pred.items() if k > time.time() - 7200},
             "plan_log": self.plan_log[-PLAN_LOG_KEPT:], "replayed_with": self.replayed_with,
             "saving_detail": dict(sorted(self.saving_detail.items())[-SAVING_DETAIL_DAYS:]),
+            "day_contexts": dict(sorted(self.day_contexts.items())[-SAVING_DETAIL_DAYS - 1:]),
             "plan_changes": replan.prune(self.plan_changes, time.time()), "plan_snap": self._plan_snap,
             "pv_k": self.pv_k, "load_profile": self.load_profile, "battery": self.battery.as_dict(), "price_seen": self._price_seen_recent(),
             "today": {"day": self._cost_day, "cost": round(self.cost_today, 4), "kwh": round(self.kwh_today, 3)},
@@ -519,11 +520,12 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             self._track_hour(t)
             self._watch_thermostat(t)
             self._count_cost(now)
-            self._log_hour(now)
             self._check_health(t)
-            due = force_plan or self.plan_at is None or t - self.plan_at >= PLAN_MINUTES * 60
+            due = (force_plan or self.plan_at is None or t - self.plan_at >= PLAN_MINUTES * 60
+                   or int(t // 3600) != int(self.plan_at // 3600))
             if due and not self._planning:
                 await self._async_plan(now)
+            self._log_hour(now)
             await self._async_control(t)
         except Exception as err:  # noqa: BLE001 - one bad run must not stop the integration
             _LOGGER.exception("Roost run failed")
@@ -552,13 +554,21 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         e = (self._num(self.ent.get("elec")) or 0.0) + (self._num(self.ent.get("elec_defrost")) or 0.0)
         if e and self._last_elec is not None and 0 <= e - self._last_elec < 5:
             d = e - self._last_elec
-            price = self.plan_hours[0].p_grid if self.plan_hours else 0.0
+            h = self.plan_hour(now)
+            price = h.p_grid if h is not None else 0.0
             self.kwh_today += d
             self.cost_today += d * price
             self._elec_acc += d
             self._cost_acc += d * price
         if e:
             self._last_elec = e
+
+    def plan_hour(self, now: datetime):
+        """Input for this UTC hour, including before a new plan is ready at the hour boundary."""
+        if self.plan_at is None:
+            return None
+        i = int(now.timestamp() // 3600) - int(self.plan_at // 3600)
+        return self.plan_hours[i] if 0 <= i < len(self.plan_hours) else None
 
     def _hours_ahead(self, now: datetime, prices: list[value.HourPrices], tariff: list[float]) -> list[planner.HourIn]:
         base = int(now.timestamp() // 3600 * 3600)
@@ -577,8 +587,13 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             if i == 0 and self.pump_state() in DHW_STATES:
                 dhw = max(dhw, 0.5)                     # making hot water right now
             rad = self.sun_on_house(base + i * 3600, wx)
+            mask = None
+            if self.conf.get(schedule.ENABLED):
+                mask = tuple(self.is_day(dt_util.as_local(datetime.fromtimestamp(base+i*3600+q*900, tz=timezone.utc)))
+                             for q in range(4))
             out.append(planner.HourIn(t_out=wx[0], wind=wx[2] if wx[2] is not None else 3.5, rad=rad,
-                                      p_grid=p.p_grid, p_own=p.p_own, own_kw=p.own_kw, day=self.is_day(loc), hour=loc.hour, dhw=dhw,
+                                      p_grid=p.p_grid, p_own=p.p_own, own_kw=p.own_kw, day=any(mask) if mask else self.is_day(loc),
+                                      comfort_mask=mask, hour=loc.hour, dhw=dhw,
                                       extra_kw=check.fade(self.corr_kw, i), away=self.is_away(base + i * 3600),
                                       p_imp=tariff[i] if i < len(tariff) else None))
         return out
@@ -586,10 +601,11 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
     async def _async_plan(self, now: datetime) -> None:
         self._planning = True
         try:
-            e = self._energy(now, 36)                 # plan 36 h, show 24: the end of the horizon does not distort what is shown
+            e = self._energy(now, 36)                 # up to 36 h, bounded by published tariffs
             room = self.room()
             if e is None or room is None:
                 self.reason = Reason("no_price" if e is None else "no_room")
+                self.plan, self.plan_hours, self.plan_tariff, self.plan_guess = None, [], [], []
                 self._note_no_plan()
                 return
             inp, ev = e
@@ -604,18 +620,16 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             w_now = self._kw(self.ent.get("power_out")) if self.pump_state() == "heating" else 0.0
             room_in, room_meta = self._rooms_ahead(hours)
             mode = self.conf.get(CONF_PRICE_MODE)
-            guess = [] if mode == "fixed" else list(self._price_guess.get("epex_import" if mode == "epex" else self.conf.get(CONF_IMPORT_PRICE)) or [])
+            guess = [] if mode == "fixed" else list(self._price_guess.get("epex_import" if mode == "epex" else self.conf.get(CONF_IMPORT_PRICE)) or [])[:len(hours)]
             sp_now = self.thermostat_sp() if self.thermostat_sp() is not None else self.mem.last_sp
             p = await self.hass.async_add_executor_job(planner.plan, self.house, self.pump, s, hours, room, self.storage_e,
                                                        sp_now, 24, w_now, room_in)
             self.plan_on_guess = False
-            neutral = planner.neutral_prices(hours, guess)
-            if neutral is not None and p.first is not None:
-                q = await self.hass.async_add_executor_job(planner.plan, self.house, self.pump, s, neutral, room, self.storage_e,
-                                                           sp_now, 24, w_now, room_in)
-                if q.first is not None and abs(q.first.sp - p.first.sp) > 0.01:
-                    # this hour only differs through prices that are not published yet: keep to the plan without them
-                    p, hours, self.plan_on_guess = q, neutral, True
+            if len(p.hours) < 24:
+                # A partial tariff horizon is usable for steering, not a complete next-24-hour saving estimate.
+                quality = {**p.breakdown["quality"], "valid": False, "status": "incomplete_forecast",
+                           "reasons": p.breakdown["quality"]["reasons"] + ["incomplete_forecast"]}
+                p.breakdown = savings.publish(p.breakdown, quality)
             self.room_status = [{**meta, "expected": temps[:24]} for meta, temps in zip(room_meta, p.rooms)]
             self.plan, self.plan_hours, self.plan_at, self.plan_w_now = p, hours, now.timestamp(), w_now
             self.plan_tariff = list(inp.import_price)
@@ -623,7 +637,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             self._remember_prediction(now, p)
             try:
                 snap = replan.snapshot(now.timestamp(), int(now.timestamp() // 3600 * 3600), p, hours, inp.import_price, guess, room,
-                                       self.corr_kw, vars(s), self.plan_on_guess)
+                                       self.corr_kw, {**vars(s), "comfort_schedule": schedule.context(self.conf)}, self.plan_on_guess)
                 line = replan.compare(self._plan_snap, snap, room)
                 if line:
                     self.plan_changes = replan.prune(self.plan_changes + [line], now.timestamp())
@@ -648,7 +662,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         if self.mode == "active" and not self.thermostat_reachable():
             self.decision = control.Decision(None, Reason("no_plan"), None)     # unreachable: leave it alone (a notice follows)
             return
-        hard = (self.settings().away_min if self.is_away(t) else float(self.conf[CONF_DAY_MIN]) if self.plan_hours and self.plan_hours[0].day
+        hard = (self.settings().away_min if self.is_away(t) else float(self.conf[CONF_DAY_MIN]) if self.is_day(dt_util.as_local(datetime.fromtimestamp(t, tz=timezone.utc)))
                 else float(self.conf[CONF_NIGHT_MIN]))
         d = control.decide(t, self.plan.first.sp, self.thermostat_sp(), self.room(), hard,
                            self.mem, self.control_settings(), self.mode == "active")
@@ -703,6 +717,9 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
                         e["q"] = round(self._heat_acc, 2)
                         e["e"] = round(self._elec_acc, 3)
                         e["cost"] = round(self._cost_acc, 4)
+                        e["T_end"] = self.room()
+                        if self._sp_acc[1] >= 1800:
+                            e["sp_mean"] = round(self._sp_acc[0] / self._sp_acc[1], 2)
                         self._sources_close(e)
                 a = self._sp_acc
                 if a[1] >= 1800:                      # at least half the hour seen
