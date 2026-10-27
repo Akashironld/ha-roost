@@ -287,3 +287,28 @@ async def test_runs_of_the_unit_are_counted_per_day(hass, entry):
     assert s["heating"] and s["today"]["starts"] in (1, 2)
     if s["today"]["starts"] == 2:                                    # not just after midnight
         assert s["today"]["minutes"] == round((30 + 10) / 2)
+
+
+async def test_an_install_from_v077_starts_and_drops_unchecked_savings(hass, weheat, climate_calls, hass_storage):
+    """Upgrading from v0.7.7: its stored state has none of the new fields (frozen day contexts, the plan held, the
+    unit's runs, saving quality). Roost starts, steers, and no longer counts the old unchecked days in the month."""
+    from homeassistant.setup import async_setup_component
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.roost.const import STORAGE_VERSION
+    from .conftest import PRICE
+    assert await async_setup_component(hass, "websocket_api", {})
+    day = (dt_util.now() - timedelta(days=2)).date().isoformat()
+    hass_storage["roost.old077"] = {"version": STORAGE_VERSION, "key": "roost.old077", "data": {
+        "mode": "active", "saving_days": {day: 0.42}, "day_stats": {day: {"saving": 0.42, "kwh": 3.1}},
+        "saving_detail": {day: {"saving": 0.42}}, "replayed_with": 2, "hour_log": [], "plan_log": [],
+        "control": {"last_write": None, "last_sp": 20.5}, "storage_e": 1.2, "today": {"day": day, "cost": 0.5, "kwh": 2.0}}}
+    entry = MockConfigEntry(domain="roost", entry_id="old077", title="Roost", unique_id=weheat,
+                            data={"heat_pump": weheat, "thermostat": THERMOSTAT, "import_price": PRICE,
+                                  "import_weheat_history": False, "weather_source": "open_meteo"})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    m = entry.runtime_data
+    assert m.mode == "active" and m.commit is not None and m.plan is not None and isinstance(m.runs, list)   # it planned at once
+    assert day not in m.saving_days and m.saving_month() is None
+    assert m.day_stats[day]["quality"]["reasons"] == ["missing_context"]
