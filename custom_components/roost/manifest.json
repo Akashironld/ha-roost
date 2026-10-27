@@ -22,5 +22,5 @@
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/Akashironld/ha-roost/issues",
   "requirements": [],
-  "version": "0.7.7"
+  "version": "0.8.0"
 }
