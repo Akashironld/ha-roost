@@ -786,6 +786,13 @@
         },
         "day_to": {
           "name": "Heures de confort jusqu'à"
+        },
+        "weekly_comfort": {
+          "name": "Heures de confort par jour activées"
+        },
+        "comfort_schedule": {
+          "name": "Heures de confort par jour",
+          "description": "Par jour une liste de périodes, comme \"07:00-09:00, 17:30-22:00\" ou [[420, 540]] en minutes ; quarts d'heure, une période peut passer minuit."
         }
       }
     },

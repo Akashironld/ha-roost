@@ -64,6 +64,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         self._tariff_now: float | None = None       # the import price this hour, from the last tick (cost without a plan)
         self.unpriced_kwh = 0.0                     # heating electricity today without any known price
         self._heating_since: float | None = None    # the unit has been heating since (MIN_RUN_MIN)
+        self.runs: list[list] = []                  # [start, end or None]: the unit's space heating runs, the last days
         self._airing_from: float | None = None      # the setpoint before Roost lowered it for an open window (contact)
         self.window = window.WindowWatch()          # airing: Roost waits and does not learn from those hours
         self.curve_advice = None                    # curve.CurveAdvice: the heating curve the house needs
@@ -177,6 +178,9 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
         self.plan_changes = data.get("plan_changes") or []
         self._plan_snap = data.get("plan_snap")
         self.commit = stick.Commitment.from_dict(data.get("commit"))
+        self.runs = [r for r in (data.get("runs") or []) if isinstance(r, list) and len(r) == 2]
+        if self.runs and self.runs[-1][1] is None:
+            self._heating_since = self.runs[-1][0]  # a run that went on over the restart
         self.window.hours = set(int(h) for h in (data.get("window_hours") or []))
         self.pv_k = data.get("pv_k")
         self.load_profile = data.get("load_profile")
@@ -308,7 +312,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             "saving_detail": dict(sorted(self.saving_detail.items())[-SAVING_DETAIL_DAYS:]),
             "day_contexts": dict(sorted(self.day_contexts.items())[-SAVING_DETAIL_DAYS - 1:]),
             "plan_changes": replan.prune(self.plan_changes, time.time()), "plan_snap": self._plan_snap,
-            "commit": self.commit.as_dict() if self.commit else None,
+            "commit": self.commit.as_dict() if self.commit else None, "runs": self.runs,
             "pv_k": self.pv_k, "load_profile": self.load_profile, "battery": self.battery.as_dict(), "price_seen": self._price_seen_recent(),
             "today": {"day": self._cost_day, "cost": round(self.cost_today, 4), "kwh": round(self.kwh_today, 3)},
             "check": self.check, "changes": [c for c in self.changes if c["ts"] > time.time() - 30 * 86400],
@@ -540,6 +544,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             self._count_cost(now)
             self._check_health(t)
             heating = self.pump_state() == "heating"
+            self._track_runs(t, heating)
             self._heating_since = (self._heating_since or t) if heating else None
             e = self._energy(now, stick.HORIZON_H)
             self._tariff_now = e[0].import_price[0] if e else None
@@ -596,6 +601,25 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
                 self._cost_acc += d * price
         if e:
             self._last_elec = e
+
+    def _track_runs(self, t: float, heating: bool) -> None:
+        """The unit's space heating runs (start, end): how often it starts and how long it runs, for the card."""
+        if heating and (not self.runs or self.runs[-1][1] is not None):
+            self.runs.append([round(t), None])
+        elif not heating and self.runs and self.runs[-1][1] is None:
+            self.runs[-1][1] = round(t)
+        self.runs = [r for r in self.runs if (r[1] or t) > t - 3 * 86400]
+
+    def run_stats(self, t: float) -> dict:
+        """Per local day (today, yesterday): runs started and their mean length in minutes (a run going on counts to now)."""
+        today = dt_util.as_local(datetime.fromtimestamp(t, tz=timezone.utc)).date()
+        out = {}
+        for key, day in (("today", today), ("yesterday", today - timedelta(days=1))):
+            mine = [r for r in self.runs if dt_util.as_local(datetime.fromtimestamp(r[0], tz=timezone.utc)).date() == day]
+            mins = [((r[1] or t) - r[0]) / 60 for r in mine]
+            out[key] = {"starts": len(mine), "minutes": round(sum(mins) / len(mins)) if mins else None}
+        out["heating"] = bool(self.runs and self.runs[-1][1] is None)
+        return out
 
     def plan_hour(self, now: datetime):
         """Input for this UTC hour, including before a new plan is ready at the hour boundary."""

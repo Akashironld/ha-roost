@@ -786,6 +786,13 @@
         },
         "day_to": {
           "name": "Comfort hours until"
+        },
+        "weekly_comfort": {
+          "name": "Weekly comfort periods on"
+        },
+        "comfort_schedule": {
+          "name": "Weekly comfort periods",
+          "description": "Per weekday a list of periods, as \"07:00-09:00, 17:30-22:00\" or [[420, 540]] in minutes; quarter hours, a period may run through midnight."
         }
       }
     },

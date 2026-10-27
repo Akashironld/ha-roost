@@ -83,6 +83,8 @@ const T = {
 
 for (const [lang, words] of Object.entries({"en": {"s_weekly": "Weekly schedule active", "s_weekly_edit": "Edit weekly comfort periods"}, "nl": {"s_weekly": "Weekplanning actief", "s_weekly_edit": "Comforttijden per weekdag instellen"}, "de": {"s_weekly": "Wochenplan aktiv", "s_weekly_edit": "Komfortzeiten je Wochentag bearbeiten"}, "fr": {"s_weekly": "Planning hebdomadaire actif", "s_weekly_edit": "Modifier les heures par jour"}})) Object.assign(T[lang], words);
 
+for (const [lang, words] of Object.entries({"en": {"st_held": "Plan held since {t}", "st_next": "next change {t} \u2192 {sp}", "st_nochange": "no change in the coming hours", "st_prices": "prices until {t}", "fb_no_price": "fallback: no price", "fb_schedule": "fallback: comfort schedule", "pump_on": "heat pump heating", "pr_starts": "Heat pump starts today", "pr_yday": "yesterday {n}", "pr_run": "Mean run today", "pr_was": "yesterday {m}", "pr_month": "Saving this month", "pr_days": "{n} of {m} days", "pr_sun": "own solar", "w_title": "Comfort per weekday", "w_on": "Per weekday", "w_off": "Same every day", "w_add": "+ period", "w_del": "Remove", "w_copy_wd": "Copy to weekdays", "w_copy_we": "Copy to weekend", "w_copy_all": "Copy to all days", "w_save": "Save", "w_saved": "Saved", "w_err": "Not saved: {e}", "w_empty": "no comfort hours", "w_tap": "Tap a day to change its periods", "w_days": "Mo,Tu,We,Th,Fr,Sa,Su", "cal_title": "Saving per day this month", "cal_ok": "counted", "cal_bad": "not counted", "cal_none": "no data", "why_first": "first plan", "why_forced": "planned again", "why_prices": "new prices", "why_room": "room off the plan", "why_weather": "weather changed", "why_sun": "sun changed", "why_solar": "solar changed", "why_age": "plan refreshed", "why_horizon": "plan ran out", "why_window": "window closed", "why_fallback": "fallback"}, "nl": {"st_held": "Vast plan sinds {t}", "st_next": "volgende wijziging {t} \u2192 {sp}", "st_nochange": "geen wijziging de komende uren", "st_prices": "prijzen tot {t}", "fb_no_price": "terugval: geen prijs", "fb_schedule": "terugval: comfortschema", "pump_on": "warmtepomp stookt", "pr_starts": "Pompstarts vandaag", "pr_yday": "gisteren {n}", "pr_run": "Gem. looptijd vandaag", "pr_was": "gisteren {m}", "pr_month": "Besparing deze maand", "pr_days": "{n} van {m} dagen", "pr_sun": "eigen zon", "w_title": "Comfort per weekdag", "w_on": "Per weekdag", "w_off": "Elke dag gelijk", "w_add": "+ periode", "w_del": "Verwijderen", "w_copy_wd": "Kopieer naar werkdagen", "w_copy_we": "Kopieer naar weekend", "w_copy_all": "Kopieer naar alle dagen", "w_save": "Opslaan", "w_saved": "Opgeslagen", "w_err": "Niet opgeslagen: {e}", "w_empty": "geen comforturen", "w_tap": "Tik op een dag om de perioden te wijzigen", "w_days": "ma,di,wo,do,vr,za,zo", "cal_title": "Besparing per dag deze maand", "cal_ok": "geteld", "cal_bad": "niet geteld", "cal_none": "geen gegevens", "why_first": "eerste plan", "why_forced": "opnieuw gepland", "why_prices": "nieuwe prijzen", "why_room": "kamer week af", "why_weather": "weer veranderd", "why_sun": "zon veranderd", "why_solar": "zonnestroom veranderd", "why_age": "plan ververst", "why_horizon": "plan liep af", "why_window": "raam dicht", "why_fallback": "terugval"}, "de": {"st_held": "Plan fest seit {t}", "st_next": "n\u00e4chste \u00c4nderung {t} \u2192 {sp}", "st_nochange": "keine \u00c4nderung in den n\u00e4chsten Stunden", "st_prices": "Preise bis {t}", "fb_no_price": "Ersatz: kein Preis", "fb_schedule": "Ersatz: Komfortplan", "pump_on": "W\u00e4rmepumpe heizt", "pr_starts": "Pumpenstarts heute", "pr_yday": "gestern {n}", "pr_run": "Mittlere Laufzeit heute", "pr_was": "gestern {m}", "pr_month": "Ersparnis diesen Monat", "pr_days": "{n} von {m} Tagen", "pr_sun": "eigene Sonne", "w_title": "Komfort je Wochentag", "w_on": "Je Wochentag", "w_off": "Jeden Tag gleich", "w_add": "+ Zeitraum", "w_del": "Entfernen", "w_copy_wd": "Auf Werktage kopieren", "w_copy_we": "Aufs Wochenende kopieren", "w_copy_all": "Auf alle Tage kopieren", "w_save": "Speichern", "w_saved": "Gespeichert", "w_err": "Nicht gespeichert: {e}", "w_empty": "keine Komfortzeiten", "w_tap": "Tippe auf einen Tag, um seine Zeitr\u00e4ume zu \u00e4ndern", "w_days": "Mo,Di,Mi,Do,Fr,Sa,So", "cal_title": "Ersparnis je Tag diesen Monat", "cal_ok": "gez\u00e4hlt", "cal_bad": "nicht gez\u00e4hlt", "cal_none": "keine Daten", "why_first": "erster Plan", "why_forced": "neu geplant", "why_prices": "neue Preise", "why_room": "Raum wich ab", "why_weather": "Wetter ge\u00e4ndert", "why_sun": "Sonne ge\u00e4ndert", "why_solar": "Solarstrom ge\u00e4ndert", "why_age": "Plan erneuert", "why_horizon": "Plan lief aus", "why_window": "Fenster zu", "why_fallback": "Ersatz"}, "fr": {"st_held": "Plan fixe depuis {t}", "st_next": "prochain changement {t} \u2192 {sp}", "st_nochange": "aucun changement dans les prochaines heures", "st_prices": "prix jusqu'\u00e0 {t}", "fb_no_price": "secours : pas de prix", "fb_schedule": "secours : programme de confort", "pump_on": "la pompe \u00e0 chaleur chauffe", "pr_starts": "D\u00e9marrages aujourd'hui", "pr_yday": "hier {n}", "pr_run": "Dur\u00e9e moyenne aujourd'hui", "pr_was": "hier {m}", "pr_month": "\u00c9conomie ce mois", "pr_days": "{n} sur {m} jours", "pr_sun": "solaire", "w_title": "Confort par jour", "w_on": "Par jour", "w_off": "Chaque jour pareil", "w_add": "+ p\u00e9riode", "w_del": "Supprimer", "w_copy_wd": "Copier vers la semaine", "w_copy_we": "Copier vers le week-end", "w_copy_all": "Copier vers tous les jours", "w_save": "Enregistrer", "w_saved": "Enregistr\u00e9", "w_err": "Non enregistr\u00e9 : {e}", "w_empty": "pas d'heures de confort", "w_tap": "Touchez un jour pour modifier ses p\u00e9riodes", "w_days": "lu,ma,me,je,ve,sa,di", "cal_title": "\u00c9conomie par jour ce mois", "cal_ok": "compt\u00e9", "cal_bad": "non compt\u00e9", "cal_none": "pas de donn\u00e9es", "why_first": "premier plan", "why_forced": "replanifi\u00e9", "why_prices": "nouveaux prix", "why_room": "pi\u00e8ce \u00e9cart\u00e9e", "why_weather": "m\u00e9t\u00e9o chang\u00e9e", "why_sun": "soleil chang\u00e9", "why_solar": "solaire chang\u00e9", "why_age": "plan renouvel\u00e9", "why_horizon": "plan \u00e9puis\u00e9", "why_window": "fen\u00eatre ferm\u00e9e", "why_fallback": "secours"}})) Object.assign(T[lang], words);
+
 // Why Roost plans or does something: the integration sends a code with values (reason_code/_args,
 // decision_code/_args); the card words it. Unknown codes fall back to the English text of the integration.
 const WHY = {
@@ -166,6 +168,7 @@ const shows = (config, part) => {
   return v === undefined || v === null ? showDefault(config, part) : !!v;
 };
 const lang2 = (hass) => ((hass && ((hass.locale && hass.locale.language) || hass.language)) || "en").slice(0, 2);
+const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const fmt = (v, d) => (v === null || v === undefined || isNaN(v)) ? "\u2014" : Number(v).toFixed(d === undefined ? 0 : d);
 
 const SAVING_QUALITY = {
@@ -364,8 +367,7 @@ class RoostCard extends HTMLElement {
       <div class="ht"><div class="tt">${title}</div><div class="sub">${reason}</div></div>${seg}${pill}</div>`;
     const ready = this._sib("ready");
     if (mode === "active" && ready && ready.state === "off") html += `<div class="warnline"><ha-icon icon="mdi:alert-outline"></ha-icon>${this._t("warn_notready")}</div>`;
-    const priceHorizon = this._priceHorizon(a);
-    if (priceHorizon) html += `<div class="sub">${priceHorizon}</div>`;
+    html += this._status(a);
     if (this._modeOpen && canMode) html += this._modeMenu(mode, paused, away, a);
     if (hist && this._view === "curve") {
       html += this._curveView();
@@ -390,20 +392,14 @@ class RoostCard extends HTMLElement {
       this._wire();
       return;
     }
-    if (this._show("tiles")) {
-      html += `<div class="tiles">
-        ${this._tile("mdi:home-thermometer-outline", this._t("room"), a.room, true, `${this._t("stored")} ${fmt(a.storage_kwh, 1)} kWh`)}
-        ${this._tile("mdi:thermostat", this._t("thermostat"), a.thermostat, false, decision, a.thermostat_entity ? "therm" : "")}
-        ${this._tile("mdi:bird", this._t("planned"), parseFloat(st.state), false, expect, "plan")}
-      </div>`;
-    }
+    if (this._show("tiles")) html += this._tiles(st, a, decision, expect);
     if (a.rooms && a.rooms.length) html += this._rooms(a.rooms);
     // ready (nightly self-check) and still in shadow: one button to let Roost steer, clicked twice
     if (ready && ready.state === "on" && mode === "shadow" && this._siblings().mode) {
       html += `<button class="steer">${this._t("steer")}</button>`;
     }
     if (this._show("chart") && a.plan && a.plan.length) html += this._chart(a);
-    if (this._show("footer")) html += this._footer(a);
+    if (this._show("footer")) html += this._pumpRow(a) + this._calendar() + this._footer(a);
     this._clickable = true;
     this._shell().innerHTML = html;
     this._wire();
@@ -587,6 +583,190 @@ class RoostCard extends HTMLElement {
     return `<div class="rooms">${chips.join("")}</div>`;
   }
 
+  // ---------------------------------------------------------------- v0.8.0: status line, tiles, pump runs, calendar
+  _fill(k, args) {
+    let t = this._t(k) || "";
+    Object.keys(args || {}).forEach((a) => { t = t.replace("{" + a + "}", args[a]); });
+    return t;
+  }
+  _clock(min) { return `${String(Math.floor(min / 60) % 24).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`; }
+  _nextChange(a) {
+    const p = a.plan;
+    if (!p || !p.length) return null;
+    const i = p.findIndex((x, j) => j > 0 && Math.abs(x[0] - p[0][0]) >= 0.25);
+    if (i <= 0) return null;
+    const t0 = a.start ? new Date(a.start).getTime() : Date.now();
+    return { t: new Date(t0 + i * 3600000), sp: p[i][0], up: p[i][0] > p[0][0] };
+  }
+  // One line under the header: the plan held and its next change, then chips only for what is going on now
+  _status(a) {
+    const bits = [], chips = [];
+    if (a.plan_made) {
+      const t = new Date(a.plan_made);
+      if (!isNaN(t)) bits.push(this._fill("st_held", { t: this._hm(t) }));
+    }
+    const nx = this._nextChange(a);
+    if (nx) bits.push(this._fill("st_next", { t: this._hm(nx.t), sp: `<b>${this._num(nx.sp, 1)}${DEG}</b>` }));
+    else if (a.plan && a.plan.length) bits.push(this._t("st_nochange"));
+    if (a.price_limited_until) {
+      const u = new Date(a.price_limited_until);
+      if (!isNaN(u)) chips.push(`<span class="chip info">${this._fill("st_prices", { t: this._hm(u) })}</span>`);
+    }
+    if (a.fallback) chips.push(`<span class="chip warn">${this._t(a.fallback === "no_price" ? "fb_no_price" : "fb_schedule")}</span>`);
+    const dc = a.decision_code;
+    if (["min_run", "airing", "window_open", "set_failed", "paused"].indexOf(dc) >= 0) {
+      chips.push(`<span class="chip warn">${this._why(dc, a.decision_args, a.decision)}</span>`);
+    }
+    if (a.pump_runs && a.pump_runs.heating && dc !== "min_run") chips.push(`<span class="chip heat"><ha-icon icon="mdi:fire"></ha-icon>${this._t("pump_on")}</span>`);
+    if (!bits.length && !chips.length) return "";
+    return `<div class="status"><ha-icon icon="mdi:lock-clock"></ha-icon><span class="stx">${bits.join(" \u00b7 ")}</span>${chips.join("")}</div>`;
+  }
+  // The room the last hours (measured) and the next six (expected), a small line in the room tile
+  _spark(a) {
+    const past = (a.room_recent || []).map((r) => r[1]);
+    const ahead = (a.plan || []).slice(0, 6).map((p) => p[1]);
+    const now = nn(a.room, past.length ? past[past.length - 1] : null);
+    if (now === null || (!past.length && !ahead.length)) return "";
+    const pts = past.concat([now]), fut = [now].concat(ahead), all = pts.concat(fut);
+    const lo = Math.min.apply(null, all) - 0.1, hi = Math.max.apply(null, all) + 0.1, W = 120, H = 24, n = pts.length + fut.length - 2;
+    const X = (i) => (i / Math.max(1, n) * W).toFixed(1), Y = (v) => (H - 2 - (v - lo) / Math.max(0.2, hi - lo) * (H - 4)).toFixed(1);
+    const p1 = pts.map((v, i) => `${i ? "L" : "M"}${X(i)} ${Y(v)}`).join(" ");
+    const o = pts.length - 1, p2 = fut.map((v, i) => `${i ? "L" : "M"}${X(o + i)} ${Y(v)}`).join(" ");
+    return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><path d="${p1}" class="sp1"/><path d="${p2}" class="sp2"/>` +
+      `<line x1="${X(o)}" x2="${X(o)}" y1="0" y2="${H}" class="spn"/></svg>`;
+  }
+  _tiles(st, a, decision, expect) {
+    const nx = this._nextChange(a), heat = a.pump_runs && a.pump_runs.heating;
+    const arrow = nx ? `<span class="nx ${nx.up ? "up" : "dn"}"><ha-icon icon="mdi:arrow-${nx.up ? "top-right" : "bottom-right"}"></ha-icon>` +
+      `${this._num(nx.sp, 1)}${DEG} ${this._hour(nx.t)}</span>` : "";
+    const why = a.plan_made_why ? `<span class="badge">${this._t("why_" + a.plan_made_why) || a.plan_made_why}</span>` : "";
+    const warm = a.room !== null && a.room !== undefined && a.comfort !== undefined ? (a.room >= a.comfort ? "warm" : "cool") : "";
+    return `<div class="tiles">
+      <div class="tile room ${warm}"><div class="tl"><ha-icon icon="mdi:home-thermometer-outline"></ha-icon>${this._t("room")}</div>
+        <div class="tv big">${this._num(a.room, 1)}<span>${DEG}</span></div>${this._spark(a) || `<div class="ts">${this._t("stored")} ${fmt(a.storage_kwh, 1)} kWh</div>`}
+        <div class="ts">${this._t("stored")} ${fmt(a.storage_kwh, 1)} kWh</div></div>
+      <div class="tile therm${a.thermostat_entity ? "" : " nolink"}"><div class="tl"><ha-icon icon="mdi:thermostat"></ha-icon>${this._t("thermostat")}${heat ? '<i class="hot" title="' + this._t("pump_on") + '"></i>' : ""}</div>
+        <div class="tv">${this._num(a.thermostat, 1)}<span>${DEG}</span></div>${arrow}<div class="ts">${decision}</div></div>
+      <div class="tile plan"><div class="tl"><ha-icon icon="mdi:bird"></ha-icon>${this._t("planned")}</div>
+        <div class="tv">${this._num(parseFloat(st.state), 1)}<span>${DEG}</span></div>${why}<div class="ts">${expect}</div></div>
+    </div>`;
+  }
+  // Starts and run length of the heat pump today against yesterday, and the month's saving with its coverage
+  _pumpRow(a) {
+    const r = a.pump_runs;
+    if (!r) return "";
+    const t = r.today || {}, y = r.yesterday || {};
+    const dur = (m) => (m === null || m === undefined ? "\u2014" : (m >= 60 ? `${Math.floor(m / 60)} u ${String(m % 60).padStart(2, "0")}` : `${m} min`));
+    const better = (a1, b1, low) => (a1 === null || b1 === null || a1 === undefined || b1 === undefined ? "" : ((low ? a1 < b1 : a1 > b1) ? "good" : ""));
+    const sm = this._sib("saving_month");
+    let month = "";
+    if (sm) {
+      const at = sm.attributes || {}, v = parseFloat(sm.state);
+      const inc = (at.included_days || []).length, exp = nn(at.days_expected, inc);
+      month = `<div class="mt"><div class="tl">${this._t("pr_month")}</div><div class="mv">${isNaN(v) ? "\u2014" : this._money(v)}</div>` +
+        `<div class="ts">${this._fill("pr_days", { n: inc, m: exp })}</div></div>`;
+    }
+    return `<div class="mtiles"><div class="mt"><div class="tl">${this._t("pr_starts")}</div><div class="mv ${better(t.starts, y.starts, true)}">${nn(t.starts, 0)}</div>` +
+      `<div class="ts">${this._fill("pr_yday", { n: nn(y.starts, "\u2014") })}</div></div>` +
+      `<div class="mt"><div class="tl">${this._t("pr_run")}</div><div class="mv ${better(t.minutes, y.minutes, false)}">${dur(t.minutes)}</div>` +
+      `<div class="ts">${this._fill("pr_was", { m: dur(y.minutes) })}</div></div>${month}</div>`;
+  }
+  // One dot per day of the month: counted, not counted (tap for why), no data
+  _calendar() {
+    const sm = this._sib("saving_month");
+    if (!sm) return "";
+    const at = sm.attributes || {}, inc = at.included_days || [], exc = at.excluded_days || [], reasons = at.day_reasons || {};
+    const today = new Date(), y = today.getFullYear(), m = today.getMonth(), days = new Date(y, m + 1, 0).getDate();
+    const lang = String(this._locale()).split("-")[0], q = SAVING_QUALITY[lang] || SAVING_QUALITY.en;
+    let dots = "";
+    for (let d = 1; d <= days; d++) {
+      const key = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const cls = inc.indexOf(key) >= 0 ? "ok" : (exc.indexOf(key) >= 0 ? "bad" : (d >= today.getDate() ? "future" : "none"));
+      const why = cls === "bad" ? (reasons[key] || []).map((r) => q[r] || r).join(" ") : "";
+      dots += `<span class="cd ${cls}" data-day="${key}" data-why="${why.replace(/"/g, "&quot;")}" title="${d}">${d}</span>`;
+    }
+    const sel = this._calDay ? `<div class="cwhy"><b>${this._calDay.day}</b> \u00b7 ${this._calDay.why || this._t("cal_bad")}</div>` : "";
+    return `<div class="cal"><div class="ch"><span>${this._t("cal_title")}</span><span class="cleg"><i class="ok"></i>${this._t("cal_ok")}` +
+      `<i class="bad"></i>${this._t("cal_bad")}<i class="none"></i>${this._t("cal_none")}</span></div><div class="cdots">${dots}</div>${sel}</div>`;
+  }
+  // ---------------------------------------------------------------- the weekly comfort periods, edited in the card
+  _weekDraft(a) {
+    if (!this._wk) {
+      const src = a.comfort_week || {}, from = nn(a.day_from, 7) * 60, to = nn(a.day_to, 22) * 60;
+      this._wk = {};
+      WEEKDAYS.forEach((d) => {
+        const v = src[d];
+        this._wk[d] = Array.isArray(v) ? v.map((p) => [p[0], p[1]]) : (a.comfort_week ? [] : [[from, to]]);
+      });
+      this._wkDay = nn(this._wkDay, (new Date().getDay() + 6) % 7);
+    }
+    return this._wk;
+  }
+  _weekEditor(a) {
+    const on = !!a.weekly_comfort, wk = this._weekDraft(a), names = this._t("w_days").split(",");
+    const seg = (s, e, cls) => `<i class="${cls}" style="left:${(s / 14.4).toFixed(2)}%;width:${((e - s) / 14.4).toFixed(2)}%"></i>`;
+    let rows = "";
+    WEEKDAYS.forEach((d, i) => {
+      let bars = "";
+      wk[d].forEach((p) => { bars += p[1] > p[0] ? seg(p[0], p[1], "blk") : seg(p[0], 1440, "blk"); });
+      wk[WEEKDAYS[(i + 6) % 7]].forEach((p) => { if (p[1] < p[0] && p[1] > 0) bars += seg(0, p[1], "blk over"); });
+      rows += `<div class="wrow${i === this._wkDay ? " sel" : ""}" data-wd="${i}"><span>${names[i]}</span><div class="wbar">${bars}</div></div>`;
+    });
+    const day = WEEKDAYS[this._wkDay], list = wk[day];
+    let edit = list.map((p, j) => `<div class="wper"><button class="mini" data-wp="${j}:0:-15">\u2212</button><b>${this._clock(p[0])}</b>` +
+      `<button class="mini" data-wp="${j}:0:15">+</button> \u2013 <button class="mini" data-wp="${j}:1:-15">\u2212</button><b>${this._clock(p[1] === 1440 ? 1440 : p[1])}</b>` +
+      `<button class="mini" data-wp="${j}:1:15">+</button><button class="mini del" data-wdel="${j}" title="${this._t("w_del")}">\u00d7</button></div>`).join("");
+    if (!list.length) edit = `<div class="ts">${this._t("w_empty")}</div>`;
+    const msg = this._wkMsg ? `<div class="wmsg ${this._wkMsg.ok ? "ok" : "err"}">${this._wkMsg.text}</div>` : "";
+    return `<div class="week"><div class="srow"><span>${this._t("w_title")}</span><span class="wtog">` +
+      `<button class="mini${on ? "" : " on"}" data-wmode="0">${this._t("w_off")}</button><button class="mini${on ? " on" : ""}" data-wmode="1">${this._t("w_on")}</button></span></div>` +
+      (on || this._wkOpen ? `<div class="wgrid">${rows}<div class="waxis"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div></div>` +
+        `<div class="wedit"><div class="ts">${this._t("w_tap")}</div><div class="wday">${names[this._wkDay]}</div>${edit}` +
+        `<div class="wbtns"><button class="mini" data-wadd="1">${this._t("w_add")}</button><button class="mini" data-wcopy="wd">${this._t("w_copy_wd")}</button>` +
+        `<button class="mini" data-wcopy="we">${this._t("w_copy_we")}</button><button class="mini" data-wcopy="all">${this._t("w_copy_all")}</button>` +
+        `<button class="mini save" data-wsave="1">${this._t("w_save")}</button></div>${msg}</div>` : "") + `</div>`;
+  }
+  _wireWeek() {
+    const root = this.shadowRoot, st = this._hass.states[this._config.entity], a = st ? st.attributes : {};
+    const redraw = (ev) => { ev.stopPropagation(); this._render(); };
+    root.querySelectorAll(".wrow[data-wd]").forEach((r) => r.addEventListener("click", (ev) => { this._wkDay = parseInt(r.dataset.wd, 10); redraw(ev); }));
+    root.querySelectorAll("[data-wp]").forEach((b) => b.addEventListener("click", (ev) => {
+      const [j, k, d] = b.dataset.wp.split(":").map((x) => parseInt(x, 10)), p = this._weekDraft(a)[WEEKDAYS[this._wkDay]][j];
+      let v = p[k] + d;
+      if (k === 0) v = (v + 1440) % 1440; else v = v <= 0 ? 1440 : (v > 1440 ? 15 : v);
+      if (v !== p[1 - k] && !(k === 0 && v === p[1] % 1440)) p[k] = v;
+      this._wkMsg = null; redraw(ev);
+    }));
+    root.querySelectorAll("[data-wdel]").forEach((b) => b.addEventListener("click", (ev) => {
+      this._weekDraft(a)[WEEKDAYS[this._wkDay]].splice(parseInt(b.dataset.wdel, 10), 1); this._wkMsg = null; redraw(ev);
+    }));
+    root.querySelectorAll("[data-wadd]").forEach((b) => b.addEventListener("click", (ev) => {
+      const list = this._weekDraft(a)[WEEKDAYS[this._wkDay]], last = list.length ? Math.max.apply(null, list.map((p) => (p[1] > p[0] ? p[1] : 1440))) : 7 * 60;
+      const s = Math.min(1380, last + 60);
+      list.push([s, Math.min(1440, s + 120)]); list.sort((x, y) => x[0] - y[0]); this._wkMsg = null; redraw(ev);
+    }));
+    root.querySelectorAll("[data-wcopy]").forEach((b) => b.addEventListener("click", (ev) => {
+      const wk = this._weekDraft(a), src = wk[WEEKDAYS[this._wkDay]], to = { wd: [0, 1, 2, 3, 4], we: [5, 6], all: [0, 1, 2, 3, 4, 5, 6] }[b.dataset.wcopy];
+      to.forEach((i) => { if (i !== this._wkDay) wk[WEEKDAYS[i]] = src.map((p) => [p[0], p[1]]); });
+      this._wkMsg = null; redraw(ev);
+    }));
+    root.querySelectorAll("[data-wmode]").forEach((b) => b.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const on = b.dataset.wmode === "1";
+      if (on && !a.weekly_comfort) { this._wkOpen = true; this._render(); return; }     // first set the periods, then save
+      if (!on && a.weekly_comfort) this._saveWeek({ weekly_comfort: false });
+      if (!on) { this._wkOpen = false; this._render(); }
+    }));
+    root.querySelectorAll("[data-wsave]").forEach((b) => b.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      this._saveWeek({ weekly_comfort: true, comfort_schedule: this._weekDraft(a) });
+    }));
+  }
+  _saveWeek(data) {
+    const done = (ok, e) => { this._wkMsg = { ok, text: ok ? this._t("w_saved") : this._fill("w_err", { e: (e && e.message) || e || "" }) }; this._render(); };
+    Promise.resolve(this._hass.callService("roost", "set_settings", data)).then(() => { this._wk = null; this._wkOpen = false; done(true); }, (e) => done(false, e));
+  }
+
   _tile(icon, label, v, big, sub, cls) {
     return `<div class="tile ${cls || ""}"><div class="tl"><ha-icon icon="${icon}"></ha-icon>${label}</div>
       <div class="tv${big ? " big" : ""}">${this._num(v, 1)}<span>${DEG}</span></div><div class="ts">${sub}</div></div>`;
@@ -618,6 +798,10 @@ class RoostCard extends HTMLElement {
       g += `<line x1="${L}" x2="${VW - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="grid"/>` +
         `<text x="${L - 5}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" class="axis">${v}\u00b0</text>`;
     }
+    const own = a.own_kw || [], omax = Math.max(1, Math.max.apply(null, own.concat([0])));
+    own.forEach((o, i) => {          // own solar to use: a yellow wash behind the price bars
+      if (o > 0.05 && i < n) g += `<rect x="${x(i).toFixed(1)}" y="${(pb - o / omax * PB).toFixed(1)}" width="${(w + 0.2).toFixed(1)}" height="${(o / omax * PB).toFixed(1)}" class="sun"/>`;
+    });
     pr.forEach((p, i) => {
       const r = (p - pmin) / Math.max(0.01, pmax - pmin), hgt = 4 + r * (PB - 8);
       g += `<rect x="${(x(i) + 1).toFixed(1)}" y="${(pb - hgt).toFixed(1)}" width="${(w - 2).toFixed(1)}" height="${hgt.toFixed(1)}" rx="1.5" style="fill:${tone(p)}" class="price${guess[i] ? " guess" : ""}"/>`;
@@ -637,10 +821,17 @@ class RoostCard extends HTMLElement {
       `<rect class="hit" x="${L}" y="${TOP}" width="${VW - L - R}" height="${pb - TOP}"/>`;
     this._geo = { n, L, w, sp: sp.map((v) => y(v)), kt: kt.map((v) => y(v)), start: start.getTime(), plan, day, why: a.plan_why || [] };
     return `<div class="chart"><div class="ch"><span>${this._t("next24")}</span><span class="info">${this._info(0)} \u00b7 <i>${this._t("scrub")}</i></span></div>
-      <svg viewBox="0 0 ${VW} ${VH}">${g}</svg>${a.plan_why ? `<div class="pwhy">${this._pwhy(0)}</div>` : ""}
+      <svg viewBox="0 0 ${VW} ${VH}">${g}</svg>${this._pumpStrip(plan, L / VW, R / VW)}${a.plan_why ? `<div class="pwhy">${this._pwhy(0)}</div>` : ""}
       <div class="leg"><span><b class="l sp"></b>${this._t("setpoint")}</span><span><b class="l room"></b>${this._t("expected")}</span>
       <span><b class="l price"></b>${this._t("price")}</span>${guess.some((g) => g) ? `<span><b class="l price guess"></b>${this._t("guessed")}</span>` : ""}
-      <span><b class="l band"></b>${this._t("comfort")}</span></div></div>`;
+      <span><b class="l band"></b>${this._t("comfort")}</span>${own.some((o) => o > 0.05) ? `<span><b class="l sun"></b>${this._t("pr_sun")}</span>` : ""}` +
+      `<span><b class="l pump"></b>${this._t("pump_on")}</span></div></div>`;
+  }
+
+  // the hours the heat pump is expected to heat (planned electricity), as a strip under the graph
+  _pumpStrip(plan, l, r) {
+    const cells = plan.map((p) => `<i class="${(p[2] || 0) > 0.05 ? "on" : ""}"></i>`).join("");
+    return `<div class="pstrip" style="margin-left:${(l * 100).toFixed(2)}%;margin-right:${(r * 100).toFixed(2)}%">${cells}</div>`;
   }
 
   _info(i) {
@@ -699,6 +890,12 @@ class RoostCard extends HTMLElement {
       ev.stopPropagation();
       this._hass.callService("roost", "away", { days: parseFloat(b.dataset.away) });
       this._modeOpen = false; this._render();
+    }));
+    this._wireWeek();
+    root.querySelectorAll(".cd[data-day]").forEach((c) => c.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      this._calDay = c.classList.contains("bad") && !(this._calDay && this._calDay.day === c.dataset.day) ? { day: c.dataset.day, why: c.dataset.why } : null;
+      this._render();
     }));
     const sb = root.querySelector(".setbtn");
     if (sb) sb.addEventListener("click", (ev) => { ev.stopPropagation(); this._setOpen = !this._setOpen; this._render(); });
@@ -816,12 +1013,12 @@ class RoostCard extends HTMLElement {
       `<button class="mini" data-set="${key}" data-d="${step}">+</button></span></div>`;
     return `<div class="spanel">` +
       row("comfort", "s_comfort", a.comfort, 0.5) + row("day_min", "s_day_min", a.day_min, 0.5) + row("night_min", "s_night_min", a.night_min, 0.5) +
-      (a.weekly_comfort ? `<div class="srow"><span>${this._t("s_weekly")}</span></div>` :
+      (a.weekly_comfort ? "" :
        (`<div class="srow"><span>${this._t("s_hours")}</span><span><button class="mini" data-set="day_from" data-d="-1">\u2212</button>` +
       `<b class="sv">${a.day_from}:00</b><button class="mini" data-set="day_from" data-d="1">+</button> \u2013 ` +
       `<button class="mini" data-set="day_to" data-d="-1">\u2212</button><b class="sv">${a.day_to}:00</b>` +
       `<button class="mini" data-set="day_to" data-d="1">+</button></span></div>`)) +
-      `<div class="srow"><button class="mini week-settings">${this._t("s_weekly_edit")}</button></div>` +
+      this._weekEditor(a) +
       row("lowest_setpoint", "s_lowest", a.lowest_setpoint, 0.5) + row("store_max", "s_store", a.store_max, 0.5) + `</div>`;
   }
 
@@ -1271,6 +1468,51 @@ class RoostCard extends HTMLElement {
       .pill.shadow, .pill.off { background: color-mix(in srgb, var(--secondary-text-color) 18%, transparent); color: var(--secondary-text-color); }
       .pill.warn { background: color-mix(in srgb, var(--warning-color, #f5a524) 20%, transparent); color: var(--warning-color, #f5a524); }
       .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+      .status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; margin: -4px 0 10px; padding: 7px 10px; border-radius: 10px;
+        background: linear-gradient(90deg, color-mix(in srgb, var(--rc-sp) 14%, transparent), transparent); }
+      .status ha-icon { --mdc-icon-size: 16px; color: var(--rc-sp); } .status .stx { flex: 1 1 auto; } .status b { font-weight: 600; }
+      .chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 3px; }
+      .chip ha-icon { --mdc-icon-size: 13px; color: inherit; }
+      .chip.info { background: color-mix(in srgb, var(--info-color, #3b82f6) 18%, transparent); color: var(--info-color, #3b82f6); }
+      .chip.warn { background: color-mix(in srgb, var(--warning-color, #f5a524) 20%, transparent); color: var(--warning-color, #f5a524); }
+      .chip.heat { background: color-mix(in srgb, var(--rc-sp) 20%, transparent); color: var(--rc-sp); }
+      .tile.room.warm { background: linear-gradient(160deg, color-mix(in srgb, var(--rc-sp) 12%, transparent), transparent 70%); }
+      .tile.room.cool { background: linear-gradient(160deg, color-mix(in srgb, var(--info-color, #3b82f6) 12%, transparent), transparent 70%); }
+      .spark { width: 100%; height: 22px; display: block; margin: 2px 0; } .spark path { fill: none; stroke-width: 1.6; stroke: var(--rc-room); }
+      .spark .sp2 { stroke-dasharray: 3 3; opacity: .7; } .spark .spn { stroke: var(--divider-color); stroke-width: 1; }
+      .nx { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; font-weight: 600; } .nx ha-icon { --mdc-icon-size: 14px; }
+      .nx.up { color: var(--rc-sp); } .nx.dn { color: var(--info-color, #3b82f6); }
+      .tl i.hot { width: 7px; height: 7px; border-radius: 50%; background: var(--rc-sp); margin-left: auto; }
+      .badge { display: inline-block; font-size: 10.5px; padding: 1px 7px; border-radius: 999px; margin-top: 2px;
+        background: color-mix(in srgb, var(--rc-sp) 16%, transparent); color: var(--rc-sp); }
+      rect.sun { fill: #f5c542; opacity: .28; } .l.sun { background: #f5c542; opacity: .6; } .l.pump { background: var(--rc-sp); }
+      .pstrip { display: flex; gap: 1px; height: 5px; margin-top: -2px; } .pstrip i { flex: 1; border-radius: 2px; background: var(--divider-color); }
+      .pstrip i.on { background: var(--rc-sp); }
+      .mtiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-top: 12px; }
+      .mt { border: 1px solid var(--divider-color); border-radius: 12px; padding: 8px 11px; min-width: 0; }
+      .mv { font-size: 18px; font-weight: 700; margin-top: 2px; } .mv.good { color: var(--success-color, #30a46c); }
+      .cal { margin-top: 12px; } .cdots { display: flex; flex-wrap: wrap; gap: 4px; }
+      .cd { width: 18px; height: 18px; border-radius: 50%; font-size: 9px; display: flex; align-items: center; justify-content: center;
+        color: var(--secondary-text-color); border: 1px solid var(--divider-color); cursor: pointer; }
+      .cd.ok { background: var(--success-color, #30a46c); border-color: transparent; color: #fff; }
+      .cd.bad { background: color-mix(in srgb, var(--secondary-text-color) 45%, transparent); border-color: transparent; color: #fff; }
+      .cd.future { border-style: dashed; opacity: .5; cursor: default; }
+      .cleg { font-weight: 400; color: var(--secondary-text-color); font-size: 11px; display: inline-flex; gap: 4px; align-items: center; }
+      .cleg i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-left: 6px; border: 1px solid var(--divider-color); }
+      .cleg i.ok { background: var(--success-color, #30a46c); } .cleg i.bad { background: var(--secondary-text-color); }
+      .cwhy { font-size: 11.5px; color: var(--secondary-text-color); margin-top: 4px; }
+      .week { flex: 1 1 100%; } .wtog { display: inline-flex; gap: 4px; } .mini.on { border-color: var(--rc-sp); color: var(--rc-sp); }
+      .wgrid { margin: 6px 0; } .wrow { display: flex; align-items: center; gap: 8px; margin: 3px 0; cursor: pointer; font-size: 12px; }
+      .wrow > span { width: 22px; color: var(--secondary-text-color); } .wrow.sel > span { color: var(--rc-sp); font-weight: 700; }
+      .wbar { position: relative; flex: 1; height: 16px; border-radius: 4px; background: color-mix(in srgb, var(--secondary-text-color) 12%, transparent); }
+      .wrow.sel .wbar { outline: 1px solid var(--rc-sp); }
+      .wbar i { position: absolute; top: 2px; bottom: 2px; border-radius: 3px; background: linear-gradient(90deg, var(--rc-band), color-mix(in srgb, var(--rc-band) 70%, transparent)); }
+      .wbar i.over { opacity: .55; }
+      .waxis { display: flex; justify-content: space-between; margin-left: 30px; font-size: 10.5px; color: var(--secondary-text-color); }
+      .wedit { border: 1px solid var(--divider-color); border-radius: 10px; padding: 8px 10px; } .wday { font-weight: 700; margin: 4px 0; }
+      .wper { display: flex; align-items: center; gap: 4px; margin: 3px 0; font-size: 13px; } .wper .del { margin-left: auto; }
+      .wbtns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; } .mini.save { border-color: var(--rc-sp); color: var(--rc-sp); font-weight: 700; }
+      .wmsg { font-size: 12px; margin-top: 6px; } .wmsg.ok { color: var(--success-color, #30a46c); } .wmsg.err { color: var(--error-color, #e5484d); }
       .tile { border: 1px solid var(--divider-color); border-radius: 12px; padding: 9px 11px; min-width: 0; }
       .rooms { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
       .room { font-size: 11.5px; color: var(--secondary-text-color); border: 1px solid var(--divider-color); border-radius: 999px; padding: 3px 9px; }

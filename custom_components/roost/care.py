@@ -168,24 +168,37 @@ class CareMixin:
         below comfort, the lowest setpoint never above comfort); comfort hours must end after they start."""
         keys = {"comfort": CONF_COMFORT, "day_min": CONF_DAY_MIN, "night_min": CONF_NIGHT_MIN, "store_max": CONF_STORE_MAX,
                 "lowest_setpoint": CONF_SP_MIN, "day_from": CONF_DAY_FROM, "day_to": CONF_DAY_TO}
+        from homeassistant.exceptions import ServiceValidationError
         c = {k: self.conf.get(v) for k, v in keys.items()}
         new = {k: v for k, v in changes.items() if k in keys and v is not None}
-        if self.conf.get(schedule.ENABLED) and ({"day_from", "day_to"} & set(new)):
-            from homeassistant.exceptions import ServiceValidationError
-            raise ServiceValidationError("Edit the weekly comfort periods in Configure > Comfort")
+        weekly = {}
+        # the weekly comfort periods from the card: checked as in Configure > Comfort (quarter hours, no overlap)
+        if changes.get("comfort_schedule") is not None:
+            try:
+                weekly[schedule.WEEK] = schedule.normalise(changes["comfort_schedule"])
+            except ValueError as err:
+                raise ServiceValidationError(f"Weekly comfort periods: {err}") from err
+        if changes.get("weekly_comfort") is not None:
+            weekly[schedule.ENABLED] = bool(changes["weekly_comfort"])
+            if weekly[schedule.ENABLED] and schedule.WEEK not in weekly and not self.conf.get(schedule.WEEK):
+                # switched on without periods yet: every day the comfort hours it had
+                a, b = int(self.conf[CONF_DAY_FROM]) * 60, int(self.conf[CONF_DAY_TO]) * 60
+                weekly[schedule.WEEK] = schedule.normalise({d: [[a, b]] for d in schedule.DAYS})
+        enabled = weekly.get(schedule.ENABLED, self.conf.get(schedule.ENABLED))
+        if enabled and ({"day_from", "day_to"} & set(new)):
+            raise ServiceValidationError("The weekly comfort periods are on: change those instead of the comfort hours")
         for k, v in new.items():
             c[k] = int(v) if k in ("day_from", "day_to") else round(float(v) * 2) / 2
         f = comfort.adjust_settings(c, set(new))
         if f is None:
-            from homeassistant.exceptions import ServiceValidationError
             raise ServiceValidationError("The comfort hours must end after they start")
-        opts = {**self.entry.options, **{keys[k]: v for k, v in f.items()}}
+        opts = {**self.entry.options, **{keys[k]: v for k, v in f.items()}, **weekly}
         from . import _conf_key
         # settings Roost takes as they are: no reload for them. Known before saving: the update listener may run
         # within async_update_entry (an eager task), and then saw the old key and reloaded Roost (card unavailable)
         self.conf_key = _conf_key(self.entry, opts)
         self.hass.config_entries.async_update_entry(self.entry, options=opts)
-        self.event("settings", **{k: f[k] for k in new})
+        self.event("settings", **{k: f[k] for k in new}, **({"weekly": weekly.get(schedule.ENABLED, enabled)} if weekly else {}))
         await self._async_tick(None, force_plan=True)
 
     # ------------------------------------------------------------ where the heat pump's electricity came from

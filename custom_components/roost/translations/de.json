@@ -786,6 +786,13 @@
         },
         "day_to": {
           "name": "Komfortstunden bis"
+        },
+        "weekly_comfort": {
+          "name": "Komfortzeiten je Wochentag an"
+        },
+        "comfort_schedule": {
+          "name": "Komfortzeiten je Wochentag",
+          "description": "Je Wochentag eine Liste von Zeiträumen, als \"07:00-09:00, 17:30-22:00\" oder [[420, 540]] in Minuten; Viertelstunden, ein Zeitraum darf über Mitternacht gehen."
         }
       }
     },

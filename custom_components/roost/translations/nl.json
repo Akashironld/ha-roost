@@ -786,6 +786,13 @@
         },
         "day_to": {
           "name": "Comforturen tot"
+        },
+        "weekly_comfort": {
+          "name": "Comforttijden per weekdag aan"
+        },
+        "comfort_schedule": {
+          "name": "Comforttijden per weekdag",
+          "description": "Per weekdag een lijst perioden, als \"07:00-09:00, 17:30-22:00\" of [[420, 540]] in minuten; kwartieren, een periode mag over middernacht lopen."
         }
       }
     },

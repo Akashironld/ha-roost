@@ -36,6 +36,7 @@ class SetpointSensor(RoostEntity, SensorEntity):
     _attr_suggested_display_precision = 1
     _attr_icon = "mdi:home-thermometer"
     _unrecorded_attributes = frozenset({"plan", "start", "comfort", "day_min", "night_min", "store_max", "day_hours", "rooms",
+                                         "pump_runs", "room_recent", "comfort_week", "own_kw", "comfort_masks", "comfort_schedule",
                                          "plan_why", "thermostat_entity", "lowest_setpoint",
                                          "day_from", "day_to", "max_above_room", "gas_boiler_hours", "hybrid"})
 
@@ -66,7 +67,11 @@ class SetpointSensor(RoostEntity, SensorEntity):
                  "max_above_room": s.max_above_room, "gas_boiler_hours": m.boiler_hours, "hybrid": m.hybrid, "rooms": m.room_status,
                  # the plan held (stick.py): made afresh at, for this reason; between such moments only worked out again
                  "plan_made": datetime.fromtimestamp(m.commit.at, tz=dt_util.UTC).isoformat() if m.commit is not None else None,
-                 "plan_made_why": m.plan_why, "fallback": m.fallback}
+                 "plan_made_why": m.plan_why, "fallback": m.fallback,
+                 # for the card: the unit's runs, the room the last hours, the weekly periods as minutes
+                 "pump_runs": m.run_stats(time.time()),
+                 "room_recent": [[e["ts"], e["T"]] for e in m.hour_log[-7:] if e.get("T") is not None],
+                 "comfort_week": m.conf.get(schedule.WEEK) or None}
         if p:
             attrs["start"] = datetime.fromtimestamp(m.plan_at - m.plan_at % 3600, tz=dt_util.UTC).isoformat() if m.plan_at else None
             attrs["price_horizon_hours"] = len(m.plan_tariff)
@@ -81,6 +86,7 @@ class SetpointSensor(RoostEntity, SensorEntity):
                              for i, h in enumerate(p.hours)]
             attrs["day_hours"] = [1 if h.day else 0 for h in m.plan_hours[:len(p.hours)]]
             attrs["comfort_masks"] = [h.comfort_mask for h in m.plan_hours[:len(p.hours)]]
+            attrs["own_kw"] = [round(h.own_kw, 2) for h in m.plan_hours[:len(p.hours)]]      # own solar to use, per hour
             # why each hour is what it is (code + values, worded by the card), from the room the plan expects then
             room = m.room()
             if room is not None:
@@ -161,8 +167,10 @@ class SavingMonthSensor(_Money):
         expected = [(today - timedelta(days=n)).isoformat() for n in range(1, today.day)]
         expected = [d for d in expected if d >= first]
         absent = sorted(d for d in expected if d not in accepted and d not in excluded)
+        reasons = {d: (self.mgr.day_stats.get(d, {}).get("quality") or {}).get("reasons", []) for d in excluded}
         return {"basis": "validated_model_estimates", "included_days": accepted, "excluded_days": excluded,
-                "absent_days": absent, "days_expected": len(expected), "partial": bool(excluded or absent)}
+                "absent_days": absent, "days_expected": len(expected), "partial": bool(excluded or absent),
+                "day_reasons": reasons}
 
     @property
     def last_reset(self):
