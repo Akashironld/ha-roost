@@ -26,7 +26,7 @@ def issue(hass, entry, key):
 
 async def test_the_plan_is_held_until_a_reason(hass, entry):
     m = entry.runtime_data
-    now = dt_util.utcnow()
+    now = dt_util.utcnow().replace(minute=5, second=0, microsecond=0)    # +20 min stays in the same hour
     await m._async_plan(now, "first")
     held = list(m.commit.sp)
     m.storage_e += 1.5                                   # a small change: the plan made afresh might differ
