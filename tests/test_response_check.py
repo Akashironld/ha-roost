@@ -81,6 +81,23 @@ def test_a_heat_pump_on_its_own_curve_has_no_lever():
     assert check.readiness({"heating_hours": 100, "rmse_6h": 0.2, "heat_ratio": 1.0}, True, lever=False) == (False, ["lever"])
 
 
+def test_response_follows_a_unit_that_answers_differently_now():
+    """A year of the thermostat's own schedule taught a weak response; since Roost steers, the unit gives far more
+    (a Tado on OpenTherm: 1.6× the heat). A week of that is enough to take it over; a steady unit keeps its response."""
+    def pump(a, k, offset, follow):
+        hp = heatpump.HeatPumpModel()
+        hp.a, hp.k, hp.offset, hp.follow, hp.resp_source = a, k, offset, follow, "learned"
+        return hp
+    old = simulate(pump(0.6, 1.5, 0.2, 1.0), days=90, seed=3)
+    new = simulate(pump(1.0, 5.0, 0.0, 0.5), days=7, seed=4)
+    for r in new:
+        r.ts += 90 * 86400
+    m, note = response.learn(old + new, HOUSE, pump(0.6, 1.5, 0.2, 1.0))
+    assert m.k >= 4.0 and m.a >= 0.8 and m.follow <= 0.7 and "last 7 days" in note, note
+    m, note = response.learn(simulate(pump(0.6, 1.5, 0.2, 1.0), days=97, seed=3), HOUSE, pump(0.6, 1.5, 0.2, 1.0))
+    assert (m.a, m.k, m.offset, m.follow) == (0.6, 1.5, 0.2, 1.0) and "last 7 days" not in note, note
+
+
 def test_response_needs_hours_with_a_setpoint():
     rows = simulate(true_pump(), days=2)
     for r in rows:
