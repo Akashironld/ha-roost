@@ -95,8 +95,46 @@ class PricesMixin:
             fscale = series.slot_scale(slots, unit, cur * scale if cur is not None else None, now.timestamp())
             raw = [None if v is None else v * fscale for v in series.hourly(slots, now.timestamp(), hours, fill_last=False)]
             return self._published(eid, raw, now, cur * scale if cur is not None else None)
-        self._price_guess[eid] = [h > 0 for h in range(hours)]
-        return series.published_prefix([cur * scale]) if cur is not None else None
+        if cur is None:
+            return None
+        return self._without_forecast(eid, cur * scale, now, hours)
+
+    def _without_forecast(self, eid: str, cur: float, now: datetime, hours: int) -> list[float]:
+        """A price sensor with only the current price. Its history tells what it is: one price or a fixed rate per hour
+        of the day (a fixed contract: those prices are known ahead), or a price that changes every hour (a dynamic
+        contract): then the hours ahead are estimated from the day-ahead prices, the way this sensor followed them
+        (sensor ≈ a × day-ahead + b), with a notice; one flat price when that does not fit."""
+        base = int(now.timestamp() // 3600 * 3600)
+        seen = self.price_seen.setdefault(eid, {})
+        seen[base] = cur
+        lh = self.local_hour
+        kind = series.classify_history(seen, lh)
+        out, how = [cur] * hours, kind
+        if kind == "tou":
+            rate = {lh(ts): v for ts, v in sorted(seen.items())}        # the latest price per hour of the day
+            out = [cur] + [rate.get(lh(base + i * 3600), cur) for i in range(1, hours)]
+        elif kind == "dynamic":
+            self._need_epex = True
+            how = "flat"
+            if self._epex:
+                pairs = []
+                for ts, v in sorted(seen.items())[-48:]:
+                    x = series.hourly(self._epex, ts, 1, fill_last=False)[0]
+                    if x is not None:
+                        pairs.append((x, v))
+                fit = series.fit_line(pairs)
+                if fit and fit[2] >= series.FIT_MIN_R2:
+                    a, b, _r2 = fit
+                    ahead = series.hourly(self._epex, base, hours, fill_last=False)
+                    out = series.published_prefix([cur] + [None if x is None else a * x + b for x in ahead[1:]])
+                    how = "estimated"
+        self._price_guess[eid] = [kind in ("dynamic", "unknown") and i > 0 for i in range(len(out))]
+        self.sources[f"price_forecast {eid}"] = how if kind == "dynamic" else kind
+        # one notice per sensor; its wording says whether Roost estimates the hours ahead or plans on one flat price
+        for k in ("estimated", "flat"):
+            self._issue(f"price_no_forecast_{k}_{eid}", kind in ("dynamic", "unknown") and (how == "estimated") == (k == "estimated"),
+                        translation_key=f"price_no_forecast_{k}", placeholders={"entity": eid})
+        return out
 
     def _pv_forecast(self, start: float, hours: int) -> list[float] | None:
         slots = []

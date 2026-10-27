@@ -105,12 +105,76 @@ async def test_plan_extends_when_prices_are_published_and_partial_saving_is_unav
     assert SetpointSensor(m).extra_state_attributes["price_limited_until"] is None
 
 
-async def test_a_sensor_without_forecast_only_publishes_the_current_hour(hass, entry):
+def _issue(hass, entry, kind):
+    from homeassistant.helpers import issue_registry as ir
+    return ir.async_get(hass).async_get_issue("roost", f"{entry.entry_id}_price_no_forecast_{kind}_{PRICE}")
+
+
+async def test_a_sensor_without_forecast_or_history_plans_on_a_flat_price(hass, entry):
+    """v0.8.0: not a 1-hour plan. Nothing known about the sensor yet: its current price for every hour, with a notice."""
     m = entry.runtime_data
     now = dt_util.utcnow()
+    m.price_seen.pop(PRICE, None)
     hass.states.async_set(PRICE, "-0.05", {"unit_of_measurement": "EUR/kWh"})
     inp, _ = m._energy(now, 36)
-    assert inp.import_price == [-.05]
+    assert inp.import_price == [-.05] * 36
+    assert _issue(hass, entry, "flat") is not None and _issue(hass, entry, "estimated") is None
+
+
+def _history(m, now, price):
+    base = int(now.timestamp() // 3600 * 3600)
+    m.price_seen[PRICE] = {base - h * 3600: price(base - h * 3600) for h in range(1, 48)}
+    return base
+
+
+async def test_a_fixed_price_sensor_without_forecast_needs_no_notice(hass, entry):
+    m = entry.runtime_data
+    now = dt_util.utcnow()
+    _history(m, now, lambda ts: 0.27)
+    hass.states.async_set(PRICE, "0.27", {"unit_of_measurement": "EUR/kWh"})
+    inp, _ = m._energy(now, 36)
+    assert inp.import_price == [.27] * 36
+    assert _issue(hass, entry, "flat") is None and _issue(hass, entry, "estimated") is None
+
+
+async def test_a_day_night_rate_sensor_repeats_its_rates(hass, entry):
+    m = entry.runtime_data
+    now = dt_util.utcnow()
+    night = lambda ts: m.local_hour(ts) >= 23 or m.local_hour(ts) < 7
+    base = _history(m, now, lambda ts: 0.20 if night(ts) else 0.30)
+    cur = 0.20 if night(base) else 0.30
+    hass.states.async_set(PRICE, str(cur), {"unit_of_measurement": "EUR/kWh"})
+    inp, _ = m._energy(now, 36)
+    assert len(inp.import_price) == 36
+    assert inp.import_price[1:] == [0.20 if night(base + i * 3600) else 0.30 for i in range(1, 36)]
+    assert _issue(hass, entry, "flat") is None
+
+
+async def test_a_dynamic_sensor_without_forecast_is_estimated_from_day_ahead_prices(hass, entry):
+    """The sensor followed day-ahead × 1.21 + 0.10: the hours ahead come from the published day-ahead prices."""
+    m = entry.runtime_data
+    now = dt_util.utcnow()
+    base = int(now.timestamp() // 3600 * 3600)
+    epex = lambda ts: 0.05 + 0.04 * ((ts // 3600) % 7)
+    m._epex = [(base + h * 3600, base + (h + 1) * 3600, epex(base + h * 3600)) for h in range(-48, 20)]
+    _history(m, now, lambda ts: 1.21 * epex(ts) + 0.10)
+    hass.states.async_set(PRICE, str(round(1.21 * epex(base) + 0.10, 4)), {"unit_of_measurement": "EUR/kWh"})
+    inp, _ = m._energy(now, 36)
+    assert len(inp.import_price) == 20                     # only as far as day-ahead prices are published
+    assert inp.import_price[5] == pytest.approx(1.21 * epex(base + 5 * 3600) + 0.10, abs=1e-6)
+    assert _issue(hass, entry, "estimated") is not None and _issue(hass, entry, "flat") is None
+
+
+async def test_a_dynamic_sensor_that_does_not_follow_day_ahead_stays_flat(hass, entry):
+    m = entry.runtime_data
+    now = dt_util.utcnow()
+    base = int(now.timestamp() // 3600 * 3600)
+    m._epex = [(base + h * 3600, base + (h + 1) * 3600, 0.05 + 0.04 * (h % 7)) for h in range(-48, 20)]
+    _history(m, now, lambda ts: 0.30 if (ts // 3600) % 5 else 0.10)     # unrelated to day-ahead
+    hass.states.async_set(PRICE, "0.30", {"unit_of_measurement": "EUR/kWh"})
+    inp, _ = m._energy(now, 36)
+    assert inp.import_price == [.30] * 36
+    assert _issue(hass, entry, "flat") is not None
 
 
 async def test_fixed_contract_still_has_a_full_horizon(entry):
@@ -120,11 +184,17 @@ async def test_fixed_contract_still_has_a_full_horizon(entry):
     assert inp.import_price == [.3]*36 and inp.export_price == [.05]*36
 
 
-async def test_missing_current_price_drops_an_old_plan(hass, entry):
+async def test_missing_price_keeps_the_plan_for_an_hour_then_plans_on_a_flat_price(hass, entry):
+    """v0.8.0 (R02): a short gap keeps the plan held; after FALLBACK_MIN Roost plans on one flat price instead of
+    leaving the thermostat wherever the last plan put it."""
     m = entry.runtime_data
     now = dt_util.utcnow()
     assert m.plan is not None
+    held = m.planned_sp(now.timestamp())
     hass.states.async_set(PRICE, "unavailable")
     await m._async_plan(now)
-    assert m.plan is None and m.plan_hours == [] and m.plan_tariff == []
-    assert m.reason.code == "no_price"
+    assert m.reason.code == "no_price" and m.plan is not None and m.planned_sp(now.timestamp()) == held
+    later = now + timedelta(minutes=61)
+    await m._async_plan(later)
+    assert m.fallback == "no_price" and m.plan is not None and m.reason.code == "fallback_no_price"
+    assert len(set(m.plan_tariff)) == 1 and m.plan.breakdown["saving"] is None

@@ -74,8 +74,9 @@ def windows(rows: list[HourRow], house: HouseModel, hp: HeatPumpModel) -> list[t
 TRIM = 0.1    # share of the worst windows left out of the error
 
 
-def window_error(wins, a: float, k: float, offset: float, follow: float) -> float | None:
-    """Root mean square error of the mean heat per window (kWh per hour)."""
+def window_error(wins, a: float, k: float, offset: float, follow: float, stops: bool = True) -> float | None:
+    """Root mean square error of the mean heat per window (kWh per hour). stops: no demand at all stops the unit
+    at once, as in the planner's simulator."""
     if not wins:
         return None
     aq = 1 - (1 - min(1.0, max(0.01, follow))) ** 0.25        # per quarter of an hour, as in the planner's simulator
@@ -84,9 +85,10 @@ def window_error(wins, a: float, k: float, offset: float, follow: float) -> floa
         tot = meas = 0.0
         for loss, err, dhw, pmax, q in items:
             d = a * loss + k * (err + offset)
+            stop = stops and d <= 0
             d = (0.0 if d < 0 else (pmax if d > pmax else d)) * (1.0 - dhw)
             for _ in range(4):
-                w += aq * (d - w)
+                w = 0.0 if stop else w + aq * (d - w)
                 tot += w * 0.25
             meas += q
         errs.append(((tot - meas) / WINDOW) ** 2)

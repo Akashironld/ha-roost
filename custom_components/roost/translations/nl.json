@@ -709,6 +709,22 @@
           }
         }
       }
+    },
+    "fallback": {
+      "title": "{name}: sturen zonder volledig plan",
+      "description": "Roost kan al een paar uur geen volledig plan maken (geen stroomprijs, kamertemperatuur of weersverwachting). Het stuurt intussen op een terugval: zonder prijs op één vlakke prijs, anders de comforttemperatuur in de comforturen en het nachtminimum daarbuiten. Controleer de prijs-, kamer- en weersensoren in de instellingen van Roost; de melding verdwijnt zodra er weer een volledig plan is."
+    },
+    "house_cold": {
+      "title": "{name}: het huis blijft onder het minimum",
+      "description": "Roost stuurt de thermostaat, maar de kamer is al een uur {room} °C, ruim onder het minimum van {minimum} °C. Mogelijk kan de warmtepomp het niet bijhouden, geeft de thermostaat het setpoint niet door of zit het huismodel ver ernaast. Controleer warmtepomp en thermostaat; Roost blijft intussen bijsturen."
+    },
+    "price_no_forecast_estimated": {
+      "title": "{name}: de prijssensor heeft geen verwachting",
+      "description": "{entity} geeft alleen de huidige prijs, en die verandert elk uur (een dynamisch contract). Roost schat de komende uren uit de day-ahead-prijzen, zoals deze sensor ze volgde. Een sensor met prijzen voor minstens de komende 24 uur in de attributen, of de ingebouwde day-ahead-prijzen met de formule van je contract, plant nauwkeuriger."
+    },
+    "price_no_forecast_flat": {
+      "title": "{name}: de prijssensor heeft geen verwachting",
+      "description": "{entity} geeft alleen de huidige prijs, en die verandert van uur tot uur. Roost kan daaruit de komende uren (nog) niet afleiden en plant op één vlakke prijs: het verschuift het stoken niet naar goedkopere uren. Kies een sensor met prijzen voor minstens de komende 24 uur in de attributen, of de ingebouwde day-ahead-prijzen met de formule van je contract."
     }
   },
   "services": {

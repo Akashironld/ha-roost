@@ -18,7 +18,7 @@ def observed_day(n=24, actual=4.0, simulated=None, saving=-0.15):
 
 
 def test_actual_0134_kwh_is_not_a_valid_308_kwh_day():
-    """Wouter's 23 October: meter 0.134 kWh, replay 3.08 kWh, displayed saving -0.188 EUR."""
+    """A real 23 October: meter 0.134 kWh, replay 3.08 kWh, displayed saving -0.188 EUR."""
     entries, bd = observed_day(actual=0.134, simulated=3.08, saving=-0.188)
     quality = savings.assess_day(entries, bd, 24, START, True)
     published = savings.publish(bd, quality)

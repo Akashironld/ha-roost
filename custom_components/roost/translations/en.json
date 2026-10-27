@@ -709,6 +709,22 @@
           }
         }
       }
+    },
+    "fallback": {
+      "title": "{name}: steering without a full plan",
+      "description": "For a few hours Roost could not make a full plan (no electricity price, room temperature or weather forecast). It steers on a fallback meanwhile: without a price on one flat price, otherwise the comfort temperature in the comfort hours and the night minimum outside them. Check the price, room and weather sensors in Roost's settings; the notice goes once a full plan can be made."
+    },
+    "house_cold": {
+      "title": "{name}: the house stays below its minimum",
+      "description": "Roost steers the thermostat, but the room has been at {room} °C for an hour, well below its minimum of {minimum} °C. The heat pump may not keep up, the thermostat may not pass the setpoint on, or the house model is far off. Check the heat pump and the thermostat; Roost keeps correcting meanwhile."
+    },
+    "price_no_forecast_estimated": {
+      "title": "{name}: the price sensor has no forecast",
+      "description": "{entity} only gives the current price, and it changes every hour (a dynamic contract). Roost estimates the hours ahead from the day-ahead prices, the way this sensor followed them. A sensor with prices for at least the next 24 hours in its attributes, or the built-in day-ahead prices with your contract's formula, plans more precisely."
+    },
+    "price_no_forecast_flat": {
+      "title": "{name}: the price sensor has no forecast",
+      "description": "{entity} only gives the current price, and it changes from hour to hour. Roost cannot tell the hours ahead from it yet and plans on one flat price: it does not move heating to cheaper hours. Choose a sensor with prices for at least the next 24 hours in its attributes, or the built-in day-ahead prices with your contract's formula."
     }
   },
   "services": {

@@ -1,6 +1,7 @@
 """Sensors: the planned setpoint (with the 24-hour plan for the card), cost and saving, the learned models."""
 from __future__ import annotations
 
+import time
 from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
@@ -43,8 +44,7 @@ class SetpointSensor(RoostEntity, SensorEntity):
 
     @property
     def native_value(self):
-        p = self.mgr.plan
-        return p.first.sp if p and p.first else None
+        return self.mgr.planned_sp(time.time())
 
     @property
     def extra_state_attributes(self):
@@ -63,7 +63,10 @@ class SetpointSensor(RoostEntity, SensorEntity):
                  "lowest_setpoint": s.sp_min, "day_from": int(m.conf[CONF_DAY_FROM]), "day_to": int(m.conf[CONF_DAY_TO]),
                  "weekly_comfort": bool(m.conf.get(schedule.ENABLED)),
                  "comfort_schedule": {day: schedule.format_day(periods) for day, periods in m.conf.get(schedule.WEEK, {}).items()},
-                 "max_above_room": s.max_above_room, "gas_boiler_hours": m.boiler_hours, "hybrid": m.hybrid, "rooms": m.room_status}
+                 "max_above_room": s.max_above_room, "gas_boiler_hours": m.boiler_hours, "hybrid": m.hybrid, "rooms": m.room_status,
+                 # the plan held (stick.py): made afresh at, for this reason; between such moments only worked out again
+                 "plan_made": datetime.fromtimestamp(m.commit.at, tz=dt_util.UTC).isoformat() if m.commit is not None else None,
+                 "plan_made_why": m.plan_why, "fallback": m.fallback}
         if p:
             attrs["start"] = datetime.fromtimestamp(m.plan_at - m.plan_at % 3600, tz=dt_util.UTC).isoformat() if m.plan_at else None
             attrs["price_horizon_hours"] = len(m.plan_tariff)
@@ -148,11 +151,18 @@ class SavingMonthSensor(_Money):
 
     @property
     def extra_state_attributes(self):
-        month = dt_util.now().date().isoformat()[:7]
+        today = dt_util.now().date()
+        month = today.isoformat()[:7]
         accepted = sorted(k for k in self.mgr.saving_days if k.startswith(month))
-        excluded = sorted(k for k, v in self.mgr.day_stats.items() if k.startswith(month) and v.get("saving") is None)
+        excluded = sorted(k for k, v in self.mgr.day_stats.items() if k.startswith(month) and v.get("saving") is None
+                          and k not in accepted)
+        # the completed days of this month, from the first day Roost kept anything (not before it was installed)
+        first = min(list(self.mgr.day_stats) + list(self.mgr.saving_days) + [today.isoformat()])
+        expected = [(today - timedelta(days=n)).isoformat() for n in range(1, today.day)]
+        expected = [d for d in expected if d >= first]
+        absent = sorted(d for d in expected if d not in accepted and d not in excluded)
         return {"basis": "validated_model_estimates", "included_days": accepted, "excluded_days": excluded,
-                "partial": bool(excluded)}
+                "absent_days": absent, "days_expected": len(expected), "partial": bool(excluded or absent)}
 
     @property
     def last_reset(self):
@@ -170,6 +180,11 @@ class CostTodaySensor(_Money):
     @property
     def native_value(self):
         return round(self.mgr.cost_today, 2)
+
+    @property
+    def extra_state_attributes(self):
+        # heating electricity without any known price is left out of the cost, not counted as free
+        return {"unpriced_kwh": round(self.mgr.unpriced_kwh, 3)}
 
     @property
     def last_reset(self):

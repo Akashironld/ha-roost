@@ -27,7 +27,7 @@ async def test_hour_boundary_forces_plan_before_logging(entry):
     m.plan_hours = [planner.HourIn(5, 3.5, 0, 0.1, 0.1), planner.HourIn(5, 3.5, 0, 0.7, 0.7)]
     assert m.plan_hour(now).p_grid == 0.7
 
-    async def new_plan(_now):
+    async def new_plan(_now, *_args):
         m.plan_at = _now.timestamp()
         m.plan_hours = [planner.HourIn(5, 3.5, 0, 0.7, 0.7)]
 

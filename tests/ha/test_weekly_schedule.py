@@ -71,7 +71,7 @@ async def test_runtime_quarters_follow_local_weekday_and_current_control_minimum
         assert hours[2].comfort_mask==(False,)*4
         assert not m.is_day(dt_util.as_local(now))
         assert m.is_day(dt_util.as_local(now.replace(minute=30)))
-        m.mode="shadow";m.plan_hours=hours
+        m.mode="shadow";m.plan_hours=hours;m.plan_at=now.timestamp()   # v0.8.0: the plan for this hour
         with patch("custom_components.roost.manager.control.decide",wraps=__import__("custom_components.roost.control",fromlist=["decide"]).decide) as decide:
             await m._async_control(now.timestamp())
             assert decide.call_args.args[4]==18.5

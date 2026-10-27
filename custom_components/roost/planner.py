@@ -111,6 +111,7 @@ class Simulator:
         self.rel = 1.0 if lag < 1e-6 else 1 - (1 - 1 / (1 + lag)) ** 0.25
         follow = min(1.0, max(0.01, hp.follow))
         self.aq = 1 - (1 - follow) ** 0.25          # the unit's delay per quarter of an hour
+        self.stops = getattr(hp, "stops", True)     # no demand at all: the unit stops at once
         self.w_end = 0.0
         self.comfort_deficit = 0.0
         # the thermostat's demand (heatpump.HeatPumpModel.demand), unpacked: this runs millions of times per plan
@@ -137,8 +138,11 @@ class Simulator:
             hard = s.away_min if h.away else (s.day_min if day else s.night_min)
             loss = He * (T - h.t_out) - internal - h.extra_kw
             d = self.da * (loss - sun) + self.dk * (sp - T) + self.d0
-            d = (0.0 if d < 0 else (pmax if d > pmax else d)) * share
-            w = w + self.aq * (d - w) if lagged else d
+            if d <= 0 and self.stops:
+                w = d = 0.0
+            else:
+                d = (0.0 if d < 0 else (pmax if d > pmax else d)) * share
+                w = w + self.aq * (d - w) if lagged else d
             E += w * 0.25
             r = E * self.rel
             E -= r
@@ -327,11 +331,16 @@ def polish(sim: Simulator, hours: list[HourIn], t_now: float, e_now: float, w_no
 
 
 def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn], t_now: float, e_now: float,
-         sp_now: float | None, report: int = 24, w_now: float | None = None, rooms: list[dict] | None = None) -> Plan:
+         sp_now: float | None, report: int = 24, w_now: float | None = None, rooms: list[dict] | None = None,
+         fixed: list[float] | None = None, extra_rooms: int | None = None) -> Plan:
     """Plan over all `hours` (give ~36 so the last shown hours are not distorted by the horizon), report the first
     `report` hours (plan, cost, kWh, saving with the state after `report` hours levelled). w_now: the unit's heat
-    output now (kW); the reported hours then follow the unit's delay."""
+    output now (kW); the reported hours then follow the unit's delay. fixed: keep these setpoints (a plan held,
+    stick.py) and only work out what they give now. extra_rooms: the rooms configured (some may be unread now)."""
     sim = Simulator(house, hp, s)
+    if fixed:
+        return _report(sim, house, hp, s, hours, t_now, e_now, report, w_now, rooms, list(fixed[:len(hours)]) +
+                       [fixed[-1]] * max(0, len(hours) - len(fixed)), extra_rooms)
     sps = s.setpoints()
     NA = len(sps)
     t_lo = min(s.night_min, t_now) - 3.0
@@ -413,7 +422,17 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
         steady = [round(baseline_sp(s, hp, house, h) * 2) / 2 for h in hours]
         seq = polish(sim, hours, t_now, e_now, w0, sp_now, [seq, steady], sps, end, t_lo, rooms)
         w_now = w0
+    return _report(sim, house, hp, s, hours, t_now, e_now, report, w_now, rooms, seq, extra_rooms)
 
+
+def _report(sim: Simulator, house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn], t_now: float,
+            e_now: float, report: int, w_now: float | None, rooms: list[dict] | None, seq: list[float],
+            extra_rooms: int | None) -> Plan:
+    """The plan for a chosen sequence of setpoints: forward from the real state, against the steady thermostat."""
+    H = len(hours)
+    end_r = _end_value(sim, hours[:min(report, H)], s.comfort)
+    if w_now is None and hp.follow < SLOW and hours:
+        w_now = start_output(sim, t_now, seq[0], hours[0])
     # forward from the real state
     T, E = t_now, e_now
     out: list[HourPlan] = []
@@ -439,7 +458,8 @@ def plan(house: HouseModel, hp: HeatPumpModel, s: Settings, hours: list[HourIn],
     saving = base_cost - total + end_r(Tb, Eb) - end_r(T, E)
     room_t = room_temps(sim, hours[:R], t_now, e_now, w_now, seq[:R], rooms) if rooms else []
     bd = breakdown(hours[:R], [(x.sp, x.t_end, x.kwh, x.cost) for x in out], trace, end_r(T, E), end_r(Tb, Eb), deficit)
-    bd = savings.publish(bd, savings.comparison(deficit, trace.get("deficit", 0), len(rooms or [])))
+    bd = savings.publish(bd, savings.comparison(deficit, trace.get("deficit", 0),
+                                                extra_rooms if extra_rooms is not None else len(rooms or [])))
     return Plan(out, total, kwh_tot, base_cost, base_kwh, saving, min_day, rooms=room_t, breakdown=bd)
 
 

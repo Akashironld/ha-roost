@@ -10,6 +10,11 @@ class HourLogMixin:
     def _log_hour(self, now: datetime) -> None:
         """Once per hour: what the thermostat had and the inputs, so the day can be replayed for the saving."""
         hour = int(now.timestamp() // 3600 * 3600)
+        day = dt_util.as_local(now).date().isoformat()
+        context = self.day_contexts.get(day)
+        # every tick, not once an hour: a change made and undone within an hour also makes the day's saving unsure
+        if context is not None and not context.get("settings_changed") and self._policy_changed(context):
+            context["settings_changed"] = True
         if self.hour_log and self.hour_log[-1]["ts"] == hour:
             return
         room = self.room()
@@ -18,7 +23,6 @@ class HourLogMixin:
         h = self.plan_hour(now)
         if room is None or sp is None or wx is None or h is None:
             return
-        day = dt_util.as_local(now).date().isoformat()
         if day not in self.day_contexts:
             self.day_contexts[day] = {"house": self.house.as_dict(), "pump": self.pump.as_dict(),
                                       "settings": vars(self.settings()), "extra_rooms": len(self.rooms),
@@ -27,8 +31,7 @@ class HourLogMixin:
                                       "at": hour, "replay_version": planner.REPLAY_VERSION}
             self.day_contexts = dict(sorted(self.day_contexts.items())[-SAVING_DETAIL_DAYS - 1:])
         context = self.day_contexts[day]
-        if (context["settings"] != vars(self.settings()) or context.get("room_settings", []) != [vars(r) for r in self.rooms]
-                or context.get("comfort_schedule") != schedule.context(self.conf)):
+        if self._policy_changed(context):
             context["settings_changed"] = True
         pr = self.pred.get(hour, {})
         self.hour_log.append({"ts": hour, "T": round(room, 2), "E": round(self.storage_e, 2), "sp": sp, "sp_t": self.thermostat_sp(),
@@ -49,6 +52,10 @@ class HourLogMixin:
         self._log_plan(hour, room)
         self.pred = {k: v for k, v in self.pred.items() if k > hour - 7200}
         self.spawn(self.async_save(), "save the hour", background=False)   # a crash or power cut loses at most an hour
+
+    def _policy_changed(self, context: dict) -> bool:
+        return (context["settings"] != vars(self.settings()) or context.get("room_settings", []) != [vars(r) for r in self.rooms]
+                or context.get("comfort_schedule") != schedule.context(self.conf))
 
     def _log_plan(self, hour: int, room: float) -> None:
         """Everything the plan in force saw, so a decision can be replayed exactly (planner.plan with these hours, room,

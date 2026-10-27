@@ -709,6 +709,22 @@
           }
         }
       }
+    },
+    "fallback": {
+      "title": "{name}: Steuerung ohne vollständigen Plan",
+      "description": "Roost kann seit einigen Stunden keinen vollständigen Plan erstellen (kein Strompreis, keine Raumtemperatur oder Wettervorhersage). Bis dahin steuert es mit einem Ersatz: ohne Preis mit einem festen Preis, sonst Komforttemperatur in den Komfortstunden und Nachtminimum außerhalb. Prüfe die Preis-, Raum- und Wettersensoren in den Einstellungen von Roost; der Hinweis verschwindet, sobald wieder ein vollständiger Plan möglich ist."
+    },
+    "house_cold": {
+      "title": "{name}: das Haus bleibt unter dem Minimum",
+      "description": "Roost steuert das Thermostat, aber der Raum hat seit einer Stunde {room} °C, deutlich unter dem Minimum von {minimum} °C. Vielleicht kommt die Wärmepumpe nicht nach, das Thermostat gibt den Sollwert nicht weiter oder das Hausmodell liegt weit daneben. Prüfe Wärmepumpe und Thermostat; Roost korrigiert weiter."
+    },
+    "price_no_forecast_estimated": {
+      "title": "{name}: der Preissensor hat keine Vorhersage",
+      "description": "{entity} liefert nur den aktuellen Preis, und der ändert sich jede Stunde (ein dynamischer Tarif). Roost schätzt die kommenden Stunden aus den Day-Ahead-Preisen, so wie dieser Sensor ihnen folgte. Ein Sensor mit Preisen für mindestens die nächsten 24 Stunden in den Attributen oder die eingebauten Day-Ahead-Preise mit der Formel deines Tarifs plant genauer."
+    },
+    "price_no_forecast_flat": {
+      "title": "{name}: der Preissensor hat keine Vorhersage",
+      "description": "{entity} liefert nur den aktuellen Preis, und der ändert sich von Stunde zu Stunde. Roost kann daraus die kommenden Stunden (noch) nicht ableiten und plant mit einem festen Preis: es verschiebt das Heizen nicht in günstigere Stunden. Wähle einen Sensor mit Preisen für mindestens die nächsten 24 Stunden in den Attributen oder die eingebauten Day-Ahead-Preise mit der Formel deines Tarifs."
     }
   },
   "services": {
