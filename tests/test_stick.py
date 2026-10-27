@@ -49,6 +49,8 @@ def test_reasons_to_plan_afresh():
     assert why(c, H0 + 12 * 3600 + 5) == "horizon"
     assert why(commitment(sp=[21.5] * 24, t_end=[21.0] * 24), H0 + 600 + stick.MAX_AGE_H * 3600) == "age"
     assert why(c, t, tariff=[0.30] * 10 + [0.25] * 3) == "prices"          # tomorrow's prices are in
+    full = commitment(sp=[21.5] * 24, t_end=[21.0] * 24, tariff=[0.30] * 36)
+    assert why(full, H0 + 5 * 3600, tariff=[0.30] * 36) is None           # a full horizon (a fixed contract) moves on
     assert why(c, t, tariff=[0.30, 0.45] + [0.30] * 8) == "prices"         # a price in the plan changed
     assert why(c, t, t_out=[10.5] * 6) == "weather"
     assert why(c, t, rad=[0.3] * 6) == "sun"

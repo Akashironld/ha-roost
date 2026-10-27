@@ -568,7 +568,7 @@ def explain_hours(p: Plan, hours: list[HourIn], room: float, s: Settings, hp: He
     return [explain(p, hours, rooms[i], s, hp, house, floor, i) for i in range(min(len(p.hours), len(hours)))]
 
 
-REPLAY_VERSION = 4      # v0.7.8: quarter-hour weekly comfort; legacy entries retain their recorded day flag
+REPLAY_VERSION = 5      # v0.8.0: the unit stops at once without demand; v0.7.8: quarter-hour weekly comfort
 
 
 def replay_day(house: HouseModel, hp: HeatPumpModel, s: Settings, entries: list[dict]) -> tuple[float, float, dict] | None:

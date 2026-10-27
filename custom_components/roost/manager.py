@@ -541,7 +541,7 @@ class RoostManager(PricesMixin, WeheatMixin, HourLogMixin, HealthMixin, CareMixi
             self._check_health(t)
             heating = self.pump_state() == "heating"
             self._heating_since = (self._heating_since or t) if heating else None
-            e = self._energy(now, 36)
+            e = self._energy(now, stick.HORIZON_H)
             self._tariff_now = e[0].import_price[0] if e else None
             why = self._why_plan(now, e, "forced" if force_plan is True else (force_plan or None))
             # a plan made afresh only for a reason (stick.py); otherwise the plan held is worked out again for the new

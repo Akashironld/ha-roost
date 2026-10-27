@@ -30,7 +30,8 @@ PV_KWH = 1.5            # own solar forecast over the coming WEATHER_H hours (kW
 PV_NOW_KW = 1.5         # the panels now (mean over PV_MIN) against the forecast for this hour (kW)
 PV_MIN = 15
 PRICE_EPS = 0.01        # currency per kWh: a price in the plan that changed
-NEW_PRICES_H = 2        # published prices reach this many hours further than the plan: new prices
+NEW_PRICES_H = 2        # published prices reach this many hours further than the plan: new prices ...
+HORIZON_H = 36          # ... when the plan was cut short by the prices published (a full horizon just moves on)
 
 
 @dataclass
@@ -119,7 +120,7 @@ def why_plan(c: Commitment | None, now: float, *, room: float | None, coarse: bo
         return "prices"
     if tariff:
         mine = c.tariff[i:]
-        if len(tariff) >= len(mine) + NEW_PRICES_H:
+        if len(c.tariff) < HORIZON_H and len(tariff) >= len(mine) + NEW_PRICES_H:
             return "prices"
         if any(abs(a - b) > PRICE_EPS for a, b in zip(mine, tariff)):
             return "prices"

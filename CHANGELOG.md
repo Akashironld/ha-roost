@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.8.0 — a plan that holds, weekly comfort, savings checked against the day
+
+**For everyone: Roost steers more calmly, and the heat pump no longer runs in short bursts** — the plan now holds until something real changes, the planner knows the unit stops as soon as the thermostat asks nothing, and when prices, the room or the weather are missing Roost falls back to something sensible instead of leaving the thermostat wherever it was. Comfort can be set per weekday, and a saving is only shown when the replayed day matches what was measured.
+
+### Fixes
+- **Short bursts of the heat pump**: the planner counted on the unit's output fading slowly after the setpoint went down, but a unit whose thermostat asks nothing stops within minutes. Each time the unit ran, the next plan lowered the setpoint, the unit stopped, and the plan after that raised it again — on a mild night six runs of 14 to 42 minutes. The planner now has the unit stop at once when the thermostat asks for nothing (and still follow its learned delay otherwise); on a year of a Blackbird P80's hourly logs that predicts the heat 5 % better. As a safety net, Roost does not lower the setpoint within 40 minutes after the unit started
+- **No price, room temperature or weather**: the thermostat stayed wherever the last plan left it, possibly a high setpoint to store heat. The plan held is kept for up to an hour; after that, without a price Roost plans on one flat price (comfort and weather, no moving to cheaper hours), and without a room temperature or weather it follows the comfort schedule. A notice comes when this lasts three hours
+- **A price sensor without a forecast** planned only one hour ahead. Roost now tells from the sensor's history what it is: one price or a fixed rate per hour of the day is simply repeated; a price that changes every hour is estimated from the day-ahead prices, the way the sensor followed them, with a notice; when that does not fit, one flat price with a notice
+- **Unpublished prices no longer steer the plan**: yesterday's prices are not copied into tomorrow. The plan reaches as far as prices are published and grows when tomorrow's prices come in; until then the next 24 hours' saving, cost and use are not shown
+- **A thermostat change that fails** is tried again after 5 minutes (then 10, 20, …) instead of waiting the full change interval
+- **Learning that fails** keeps the models, check and readiness Roost had, as its notice says
+- **A heat pump meter that is briefly unavailable** no longer adds its whole reading as new use when it returns; energy without any known price is counted apart (`unpriced_kwh`) instead of as free
+- **Diagnostics** no longer contain the home location inside error texts (a weather service URL)
+- **Small solar surpluses** were counted as 1 kW of free solar even without a battery that fills later; now only the surplus that is really there counts (matters once export earns less than import)
+- **Yesterday's saving** is yesterday's, not the last older day with one
+
+### Improvements
+- **A plan that holds**: Roost makes the plan afresh when new prices are published, when the room is clearly off what the plan expected (0.4 °C, 0.6 °C with a thermostat in half degrees), when the weather forecast or the sun for the coming hours changed clearly, when own solar clearly differs from the forecast, when you change settings, away or mode, after airing, after the nightly learning, and at least every 12 hours. In between it keeps its setpoints and only works out again what they give. The plan sensor shows when and why the plan was made (`plan_made`, `plan_made_why`)
+- **Weekly comfort periods** (Configure → Comfort → Weekly periods): several periods per weekday on quarter hours, also through midnight; off by default, the daily comfort hours stay as they were. Extra rooms that keep the house's comfort hours follow them too
+- **Savings checked against the day**: a day's saving is only accepted when the replay matches the measured heating electricity (0.5 kWh and 25 %) and room temperatures (0.5 °C), the day is complete and its settings did not change; otherwise it is unavailable with the reason. The month total says which days count, which were excluded and which are missing
+- **A window sensor open**: the thermostat goes to the lowest setpoint so the unit does not heat the outdoors, and back to the plan when it closes. A fall of the room alone (without a sensor) still only pauses Roost, as it can be a false alarm
+- **A notice when the house stays below its minimum** for an hour while Roost steers
+- **Extra rooms** whose sensor cannot be read stay in the card's status, and the saving is then not claimed for the whole house
+
+### After updating
+Update in HACS (or install the new `roost.zip`) and restart Home Assistant, then reload the dashboard (Ctrl+F5). Savings of days before the update have no frozen settings and are no longer counted in the month total, so this month starts again from the first complete day after the update. The next 24 hours' saving is empty in the morning until tomorrow's prices are published (around 13:00). The nightly learning refits the heat pump's response with the new stopping behaviour.
+
 ## v0.7.7 — a thermostat in half degrees, the correction from hours without sun
 
 **For everyone whose room temperature comes from the thermostat (no room sensor), and for better forecasts for everyone** — many thermostats show the room in half degrees. Roost took that rounding for an open window and for free heat, and then hardly heated. The correction from the last hours now only learns from hours without sun, which makes the forecasts a few hours ahead better.
