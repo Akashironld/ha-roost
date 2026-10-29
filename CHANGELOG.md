@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.8.2 — the limit above the room always holds, the report on iPhone and iPad
+
+**For everyone with a hybrid (a gas boiler next to the heat pump), and for everyone with a slowly following heat pump or extra rooms** — Roost could set the thermostat well above *Setpoint at most this above the room* for an hour, which on a hybrid calls the gas boiler. And the report now works in Safari on iPhone and iPad.
+
+### Fixes
+- **Setpoint far above the room** (#9): with the unit standing still and the room expected to drop below its minimum, a hybrid with a limit of 0.5 °C got 22.5 °C at a room of 20.3 °C for an hour, and its gas boiler came on. The step that refines the plan with the unit's delay (used for a slowly following unit and for extra rooms) counted going over the limit only as a cost, and a room heading below its minimum could outweigh it. The limit now holds there as it does in the rest of the planner. In closed-loop simulations this costs nothing (the cost is slightly lower) and no hour falls below a minimum more often; with a limit of 0.5 °C the room is a little more often just under the comfort temperature
+- **Report in Safari on iPhone and iPad** (#7): tapping *Report* did nothing. On a phone or tablet the report now opens the share sheet (save to Files, mail, AirDrop); a computer keeps the download, now as a file Safari also saves
+
+### After updating
+Update in HACS (or install the new `roost.zip`) and restart Home Assistant, then reload the dashboard (Ctrl+F5).
+
 ## v0.8.1 — restarts, daylight saving time and the smaller review points
 
 **For everyone who restarts Home Assistant now and then, or has a price or solar sensor with lists per day** — a restart no longer loses the hour in progress, the twice-a-year change of daylight saving time no longer shifts prices, house use or the battery's habits by an hour, and a few rare input cases are handled properly.
