@@ -26,12 +26,14 @@
           "room_temperature": "Capteur de température de pièce (facultatif, meilleur que celui du thermostat)",
           "emitter": "Émetteurs de chaleur",
           "use_bag": "Données du registre néerlandais des bâtiments (BAG)",
-          "window_sensors": "Capteurs de fenêtres et de portes (facultatif)"
+          "window_sensors": "Capteurs de fenêtres et de portes (facultatif)",
+          "emitters": "Ce qui chauffe la maison"
         },
         "data_description": {
           "emitter": "Un plancher chauffant stocke beaucoup de chaleur et atteint la pièce lentement ; les radiateurs réagissent en quelques minutes et la maison elle-même sert de tampon. Seulement les valeurs de départ : Roost apprend votre maison à partir de ses données.",
           "use_bag": "Pays-Bas uniquement. Envoie une fois l'emplacement de votre Home Assistant à PDOK (Kadaster) pour trouver l'année de construction, la surface et les murs extérieurs de votre maison : de meilleures valeurs de départ et seulement les orientations de façade de votre maison. Roost ne garde aucune adresse. Désactiver supprime les données.",
-          "window_sensors": "Roost reconnaît aussi l'aération à une baisse rapide de la température de la pièce ; avec des capteurs il le sait tout de suite. Tant qu'une fenêtre est ouverte, Roost attend et n'en apprend rien."
+          "window_sensors": "Roost reconnaît aussi l'aération à une baisse rapide de la température de la pièce ; avec des capteurs il le sait tout de suite. Tant qu'une fenêtre est ouverte, Roost attend et n'en apprend rien.",
+          "emitters": "Cochez tout ce que la maison possède. Roost part de là (la température de l'eau nécessaire, la réaction de la maison) et apprend le reste."
         }
       },
       "price": {
@@ -54,18 +56,27 @@
         "data": {
           "epex_zone": "Zone de prix",
           "import_mult": "Multiplicateur",
-          "import_add": "Montant fixe par kWh",
-          "export_formula": "L'injection a son propre prix (pas de compensation)",
-          "export_mult": "Injection : multiplicateur",
-          "export_add": "Injection : montant fixe par kWh"
+          "import_add": "Montant fixe par kWh"
         },
         "data_description": {
           "epex_zone": "Le marché day-ahead de votre pays (p. ex. FR, BE, NL) ; rempli à partir du pays de votre Home Assistant.",
           "import_mult": "Généralement 1 + TVA, p. ex. 1,21 aux Pays-Bas, 1,06 en Belgique.",
-          "import_add": "La marge de votre fournisseur plus les taxes, TVA comprise. Exemple : (marge + taxes) × 1,21.",
-          "export_formula": "Désactivé : compensation — l'injection vaut le prix d'achat. Activé : la formule ci-dessous.",
-          "export_mult": "Souvent 1 (pas de TVA ni de taxe sur l'injection sans compensation).",
-          "export_add": "La rémunération d'injection de votre fournisseur, négative si elle vous coûte, p. ex. -0,02."
+          "import_add": "La marge de votre fournisseur plus les taxes, TVA comprise. Exemple : (marge + taxes) × 1,21."
+        },
+        "sections": {
+          "export_formula_section": {
+            "name": "Réinjection à son propre prix (pas de compensation)",
+            "data": {
+              "export_formula": "L'injection a son propre prix (pas de compensation)",
+              "export_mult": "Injection : multiplicateur",
+              "export_add": "Injection : montant fixe par kWh"
+            },
+            "data_description": {
+              "export_formula": "Désactivé : compensation — l'injection vaut le prix d'achat. Activé : la formule ci-dessous.",
+              "export_mult": "Souvent 1 (pas de TVA ni de taxe sur l'injection sans compensation).",
+              "export_add": "La rémunération d'injection de votre fournisseur, négative si elle vous coûte, p. ex. -0,02."
+            }
+          }
         }
       },
       "price_fixed": {
@@ -73,17 +84,26 @@
         "description": "Comme sur votre facture, tout compris.",
         "data": {
           "fixed_price": "Prix par kWh (tarif normal)",
-          "fixed_low_price": "Tarif heures creuses par kWh (facultatif)",
-          "low_from": "Heures creuses à partir de",
-          "low_to": "Heures creuses jusqu'à",
-          "low_weekend": "Heures creuses tout le week-end",
           "fixed_export_price": "Prix d'injection par kWh (facultatif)"
         },
         "data_description": {
           "fixed_price": "Tout compris : énergie, taxes et TVA, comme sur votre facture.",
-          "fixed_low_price": "Laisser vide avec un tarif unique.",
-          "low_weekend": "Beaucoup de compteurs bihoraires comptent tout le week-end en heures creuses.",
           "fixed_export_price": "Laisser vide avec la compensation : l'injection vaut alors le prix d'achat."
+        },
+        "sections": {
+          "low_tariff": {
+            "name": "Heures creuses (optionnel)",
+            "data": {
+              "fixed_low_price": "Tarif heures creuses par kWh (facultatif)",
+              "low_from": "Heures creuses à partir de",
+              "low_to": "Heures creuses jusqu'à",
+              "low_weekend": "Heures creuses tout le week-end"
+            },
+            "data_description": {
+              "fixed_low_price": "Laisser vide avec un tarif unique.",
+              "low_weekend": "Beaucoup de compteurs bihoraires comptent tout le week-end en heures creuses."
+            }
+          }
         }
       },
       "solar": {
@@ -106,43 +126,50 @@
           "pv_forecast": "Prévision solaire aujourd'hui",
           "pv_forecast_tomorrow": "Prévision solaire demain",
           "grid_power": "Puissance réseau",
-          "grid_sign": "Signe de la puissance réseau",
           "battery_soc": "Niveau de charge de la batterie",
           "battery_power": "Puissance de la batterie (+ = décharge)",
           "battery_kwh": "Capacité utile de la batterie",
-          "battery_kw": "Puissance de charge maximale de la batterie",
-          "battery_reserve": "Réserve de la batterie",
-          "battery_use": "La pompe à chaleur et la batterie domestique",
-          "house_power": "Puissance de la maison (pour le profil de consommation)",
-          "grid_preference": "Préférence pour l'énergie propre (ajoutée par kWh du réseau)"
+          "solar_from_battery": "Solaire pour la pompe à partir de (charge batterie)",
+          "house_power": "Puissance de la maison (pour le profil de consommation)"
         },
         "data_description": {
           "grid_power": "Tout est facultatif. Avec le solaire, Roost voit le vrai surplus solaire (injection moins décharge de la batterie, au plus la puissance solaire).",
           "battery_power": "Nécessaire pour distinguer l'injection solaire d'une batterie qui revend au réseau.",
-          "battery_use": "La garder pour la maison : l'énergie que la pompe à chaleur prend à la batterie coûte ce qui manquera plus tard à la maison (l'heure où la batterie serait vide), donc Roost chauffe aux heures réseau et laisse la batterie à la maison. L'utiliser quand c'est moins cher : si la batterie est aussi chargée depuis le réseau (Roost l'apprend), son énergie coûte la moins chère de ses heures de charge à venir — pour une batterie dont le pilotage planifie à l'avance et a de la place (Predbat et similaires).",
-          "house_power": "Facultatif. Ce que consomme toute la maison, pour apprendre sa consommation par heure de la journée (quelles heures à venir ont du surplus solaire, combien de temps tient la batterie). Laissé vide, Roost le calcule à partir de la puissance réseau + solaire (+ batterie)."
+          "house_power": "Facultatif. Ce que consomme toute la maison, pour apprendre sa consommation par heure de la journée (quelles heures à venir ont du surplus solaire, combien de temps tient la batterie). Laissé vide, Roost le calcule à partir de la puissance réseau + solaire (+ batterie).",
+          "solar_from_battery": "Le surplus solaire compte comme gratuit pour la pompe dès que la batterie est au moins aussi pleine ; en dessous il va d'abord dans la batterie. Roost suit la charge avec la prévision solaire (50 % par défaut)."
+        },
+        "sections": {
+          "solar_advanced": {
+            "name": "Avancé",
+            "data": {
+              "grid_sign": "Signe de la puissance réseau",
+              "grid_preference": "Préférence pour l'énergie propre (ajoutée par kWh du réseau)"
+            },
+            "data_description": {}
+          }
         }
       },
       "comfort": {
         "title": "Confort",
-        "description": "Roost garde la pièce à la température de confort pendant les heures de confort et ne la laisse jamais descendre sous les minimums. Rempli à partir des dernières semaines de votre thermostat quand c'était possible.",
+        "description": "Le confort est une plage : pendant les heures de confort au moins la température de confort, et plus chaud jusqu'au haut de la plage seulement si cela fait économiser (chaleur stockée dans une heure bon marché pour une heure chère). Hors des heures de confort, seul le minimum éco compte. Rempli à partir des dernières semaines de ton thermostat quand c'était possible.",
         "data": {
-          "day_from": "Début des heures de confort",
-          "day_to": "Fin des heures de confort",
-          "comfort": "Température de confort (jour)",
-          "day_min": "Minimum pendant les périodes de confort",
-          "night_min": "Minimum hors des périodes de confort",
-          "store_max": "Le plus chaud en stockant la chaleur"
+          "comfort": "Confort : au moins",
+          "night_min": "Éco : au moins (hors heures de confort)",
+          "store_max": "Confort : peut chauffer jusqu'à",
+          "comfort_days": "Heures de confort"
         },
         "data_description": {
-          "store_max": "Roost stocke de la chaleur dans le sol (ou la maison) quand une heure est bon marché (ou que le solaire rapporte peu) et qu'une heure chère suit. Réglez-le égal à la température de confort pour désactiver cela.",
-          "day_from": "Horaire quotidien par défaut (planning hebdomadaire désactivé)"
+          "store_max": "Roost stocke de la chaleur dans le sol (ou la maison) quand une heure est bon marché (ou que le solaire rapporte peu) et qu'une heure chère suit. Chaque degré de plus coûte environ 5–7 % de pertes en plus : une plage de 1–2 °C suffit en général. Égal au confort désactive le stockage.",
+          "comfort_days": "Le plus souvent pareil chaque jour. Ou semaine et week-end à part, ou par jour (plusieurs plages par jour). Seul le bloc de votre choix compte.",
+          "comfort": "Ce que Roost maintient pendant les heures de confort. La pièce est chaude au début de chaque période : Roost commence à chauffer plus tôt de lui-même.",
+          "night_min": "Hors des heures de confort, Roost laisse la pièce refroidir au plus jusqu'ici. Avec une pompe à chaleur, un abaissement profond paie rarement : réchauffer demande plus de puissance à un COP plus bas."
         },
         "sections": {
           "advanced": {
             "name": "Avancé : régulation et météo",
             "description": "Les valeurs par défaut conviennent à la plupart des maisons.",
             "data": {
+              "day_min": "Plancher strict pendant les heures de confort",
               "lowest_setpoint": "Réglage le plus bas du thermostat",
               "max_above_room": "Consigne au plus de ceci au-dessus de la pièce",
               "min_interval": "Au plus un changement par",
@@ -152,17 +179,17 @@
               "weather_entity": "Entité météo"
             },
             "data_description": {
-              "lowest_setpoint": "Roost ne règle jamais le thermostat plus bas. Un réglage plus bas arrête plus tôt une pompe lente, mais si Home Assistant tombe en panne, le thermostat reste là où Roost l'a laissé.",
-              "max_above_room": "Garde un thermostat OpenTherm sur de l'eau tiède (COP élevé).",
+              "day_min": "Jamais plus froid pendant les heures de confort, même dans une heure très chère. Suit la température de confort vers le bas d'elle-même.",
+              "lowest_setpoint": "Roost ne règle jamais le thermostat plus bas. Un réglage plus bas arrête plus tôt une pompe lente, mais si Home Assistant tombe en panne, le thermostat reste là où Roost l'a laissé. Uniquement avec le pilotage par thermostat.",
+              "max_above_room": "Garde un thermostat OpenTherm sur de l'eau tiède (COP élevé). Uniquement avec le pilotage par thermostat.",
               "baseline_night": "L'économie est montrée par rapport à un thermostat constant à la température de confort, le conseil habituel pour les pompes à chaleur.",
               "weather_source": "Open-Meteo ne demande pas de compte et donne le rayonnement et le vent (le modèle de la maison utilise les deux)."
             }
           },
           "weekly_schedule": {
-            "name": "Heures de confort par jour",
-            "description": "Ces périodes remplacent les heures quotidiennes ci-dessus. Utilisez des quarts d’heure, par exemple 07:00-09:00, 17:00-22:00. Un jour vide signifie seulement la température minimale. 22:00-02:00 continue le lendemain. Roost prévoit le préchauffage avant la période de confort.",
+            "name": "Par jour",
+            "description": "Plages comme 07:00-09:00, 17:00-22:00 ; vide = pas de confort ce jour-là.",
             "data": {
-              "enabled": "Utiliser un planning hebdomadaire",
               "monday": "Lundi",
               "tuesday": "Mardi",
               "wednesday": "Mercredi",
@@ -170,6 +197,22 @@
               "friday": "Vendredi",
               "saturday": "Samedi",
               "sunday": "Dimanche"
+            }
+          },
+          "hours_same": {
+            "name": "Chaque jour pareil",
+            "data": {
+              "comfort_from": "Chaud à",
+              "comfort_to": "Jusqu'à"
+            }
+          },
+          "hours_week_weekend": {
+            "name": "Semaine et week-end",
+            "data": {
+              "weekdays_from": "En semaine chaud à",
+              "weekdays_to": "Semaine à",
+              "weekend_from": "Le week-end chaud à",
+              "weekend_to": "Week-end à"
             }
           }
         }
@@ -180,17 +223,27 @@
       },
       "pick_implementation": {
         "title": "Choisir la connexion"
+      },
+      "reconfigure": {
+        "title": "Pompe à chaleur et thermostat",
+        "description": "Choisissez une autre pompe à chaleur ou un autre thermostat. Ce que Roost a appris de la maison reste.",
+        "data": {
+          "heat_pump": "Pompe à chaleur Weheat",
+          "thermostat": "Thermostat (facultatif en pilotage OpenTherm)"
+        }
       }
     },
     "error": {
       "not_weheat": "Cet appareil n'a pas de capteurs de pompe à chaleur Weheat.",
       "comfort_below_min": "La température de confort doit être au moins le minimum de jour.",
       "store_below_comfort": "Le stockage de chaleur doit permettre au moins la température de confort.",
-      "day_order": "Les heures de confort doivent finir après leur début.",
+      "day_order": "Les heures de confort finissent avant de commencer.",
       "weather_needed": "Choisissez une entité météo (sous Avancé).",
       "lowest_above_comfort": "Le réglage le plus bas du thermostat ne doit pas dépasser la température de confort.",
       "price_needed": "Choisissez un capteur de prix, ou un prix fixe.",
-      "invalid_schedule": "Vérifiez les périodes : HH:MM-HH:MM, séparées par des virgules, par pas de 15 minutes. Aucun chevauchement, même après minuit."
+      "invalid_schedule": "Vérifiez les périodes : HH:MM-HH:MM, séparées par des virgules, par pas de 15 minutes. Aucun chevauchement, même après minuit.",
+      "times_needed": "Indiquez les heures des plages de confort choisies.",
+      "eco_above_comfort": "L'éco ne doit pas dépasser la température de confort."
     },
     "abort": {
       "already_configured": "Cette pompe à chaleur est déjà configurée.",
@@ -204,120 +257,129 @@
       "missing_configuration": "La connexion n'est pas configurée : ajoutez d'abord des identifiants d'application pour Roost.",
       "authorize_url_timeout": "Délai dépassé lors de la création du lien de connexion Weheat.",
       "no_url_available": "Aucune URL de ce Home Assistant n'est connue pour revenir après la connexion (Paramètres → Système → Réseau).",
-      "user_rejected_authorize": "La connexion n'a pas été autorisée chez Weheat."
+      "user_rejected_authorize": "La connexion n'a pas été autorisée chez Weheat.",
+      "reconfigure_successful": "Roost utilise maintenant la nouvelle pompe à chaleur et le nouveau thermostat."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Roost",
-        "description": "{saved}**La maison :** {house}\n**Prix de l'électricité :** {price}\n**Solaire et batterie :** {solar}\n**Confort :** {comfort}\n**Pièces supplémentaires :** {rooms} (à ajouter sur la page de l'intégration)\n\nChaque partie s'enregistre à la validation et revient ici ; *Terminé* ferme.",
+        "description": "{saved}**Confort :** {comfort}\n**Prix de l'électricité :** {price}\n**Solaire et batterie :** {solar}\n**La maison :** {house}\n**Pièces supplémentaires :** {rooms} (à ajouter sur la page de l'intégration)\n\nChaque partie s'enregistre à la validation et revient ici ; *Fermer* ferme la fenêtre.",
         "menu_options": {
           "mode": "Mode : observation ou pilotage",
-          "house": "La maison et le thermostat",
+          "comfort": "Confort",
           "price": "Prix de l'électricité",
           "solar": "Solaire et batterie domestique",
-          "comfort": "Confort",
           "notify": "Notifications",
-          "done": "Terminé"
+          "house": "La maison et le thermostat",
+          "opentherm": "Pilotage : thermostat ou OpenTherm",
+          "done": "Fermer"
         }
       },
       "mode": {
         "title": "Mode",
-        "description": "**Prêt à piloter : {verdict}**\nPrévu : {eta}\nVérifié sur : {basis}\n\n{plan_ok} Erreur du plan à 6 h : {plan_error} °C (requis : 0,5 ou moins)\n{hours_ok} Heures de chauffe dans la semaine vérifiée : {hours} (requis : 30)\n{heat_ok} Chaleur prévue ÷ mesurée : {heat} (requis : 0,7–1,3)\n{follows} La pompe à chaleur suit le thermostat\n{lever} La consigne fait varier la pompe à chaleur\n\nL'auto-contrôle a lieu chaque nuit à 03:30. **Observation** : Roost planifie et montre, sans jamais toucher au thermostat. **Actif** : Roost pilote le thermostat. **Arrêt** : rien.",
+        "description": "**Prêt à piloter : {verdict}**\nPrévu : {eta}\nVérifié sur : {basis}\n\n{plan_ok} Erreur du plan à 6 h : {plan_error} °C (requis : 0,5 ou moins)\n{hours_ok} Heures de chauffe dans la semaine vérifiée : {hours} (requis : 30)\n{heat_ok} Chaleur prévue ÷ mesurée : {heat} (requis : 0,7–1,3)\n{follows} La pompe à chaleur suit le thermostat\n{lever} La consigne fait varier la pompe à chaleur\n\nL'auto-contrôle a lieu chaque nuit à 03:30. **Observation** : Roost planifie et montre, sans jamais toucher au thermostat. **Actif** : Roost pilote le thermostat. **Arrêt** : rien.\n\n*Juste pour voir ? Envoyez sans rien modifier : rien n'est enregistré et vous revenez au menu.*",
         "data": {
           "mode": "Mode"
         }
       },
       "house": {
         "title": "La maison",
-        "description": "Un capteur de pièce séparé est meilleur que la mesure du thermostat.",
+        "description": "Un capteur de pièce séparé est meilleur que la mesure du thermostat.\n\n*Juste pour voir ? Envoyez sans rien modifier : rien n'est enregistré et vous revenez au menu.*",
         "data": {
           "thermostat": "Thermostat qui commande la pompe à chaleur",
           "room_temperature": "Capteur de température de pièce (facultatif, meilleur que celui du thermostat)",
           "emitter": "Émetteurs de chaleur",
           "use_bag": "Données du registre néerlandais des bâtiments (BAG)",
-          "window_sensors": "Capteurs de fenêtres et de portes (facultatif)"
+          "window_sensors": "Capteurs de fenêtres et de portes (facultatif)",
+          "emitters": "Ce qui chauffe la maison"
         },
         "data_description": {
           "thermostat": "Roost change seulement la température cible de ce thermostat, comme vous le feriez. La pompe à chaleur doit suivre le thermostat (pas sa propre courbe de chauffe).",
           "emitter": "Un plancher chauffant stocke beaucoup de chaleur et atteint la pièce lentement ; les radiateurs réagissent en quelques minutes et la maison elle-même sert de tampon. Seulement les valeurs de départ : Roost apprend votre maison à partir de ses données.",
           "use_bag": "Pays-Bas uniquement. Envoie une fois l'emplacement de votre Home Assistant à PDOK (Kadaster) pour trouver l'année de construction, la surface et les murs extérieurs de votre maison : de meilleures valeurs de départ et seulement les orientations de façade de votre maison. Roost ne garde aucune adresse. Désactiver supprime les données.",
-          "window_sensors": "Roost reconnaît aussi l'aération à une baisse rapide de la température de la pièce ; avec des capteurs il le sait tout de suite. Tant qu'une fenêtre est ouverte, Roost attend et n'en apprend rien."
+          "window_sensors": "Roost reconnaît aussi l'aération à une baisse rapide de la température de la pièce ; avec des capteurs il le sait tout de suite. Tant qu'une fenêtre est ouverte, Roost attend et n'en apprend rien.",
+          "emitters": "Cochez tout ce que la maison possède. Roost part de là (la température de l'eau nécessaire, la réaction de la maison) et apprend le reste."
         }
       },
       "price": {
         "title": "Prix de l'électricité",
-        "description": "Un contrat dynamique : choisissez le capteur avec les prix des prochaines heures — ou, sans un tel capteur, « prix day-ahead intégrés » et saisissez la formule de votre fournisseur à l'étape suivante. Un contrat à prix fixe : choisissez « Prix fixe ».",
+        "description": "Choisissez le type de prix ; seul le bloc de ce choix compte, les autres restent tels quels. Un contrat dynamique : un capteur avec les prix des heures à venir, ou sans capteur les prix day-ahead intégrés avec la formule de votre fournisseur. Un contrat fixe : le prix fixe.\n\n*Juste pour voir ? Envoyez sans rien modifier : rien n'est enregistré et vous revenez au menu.*",
         "data": {
-          "price_mode": "Prix de l'électricité",
-          "import_price": "Capteur de prix de l'électricité (avec prévision)",
-          "export_price": "Prix d'injection"
+          "price_mode": "Prix de l'électricité"
         },
-        "data_description": {
-          "price_mode": "Dynamique : un capteur avec des prix horaires. Fixe : vous saisissez le tarif de votre contrat (et un tarif heures creuses s'il y en a un) à l'étape suivante.",
-          "import_price": "Seulement avec un prix dynamique. Un capteur avec les prix des prochaines heures dans ses attributs (Nord Pool, ENTSO-e, Frank Energie, Zonneplan, Tibber, evcc, …) — pour Zonneplan « Current electricity tariff ». Des capteurs séparés pour chaque heure à venir ne fonctionnent pas ; choisissez plutôt les prix day-ahead intégrés.",
-          "export_price": "Laisser vide avec la compensation : l'injection vaut alors le prix d'achat."
-        }
-      },
-      "price_fixed": {
-        "title": "Prix fixe",
-        "description": "Comme sur votre facture, tout compris.",
-        "data": {
-          "fixed_price": "Prix par kWh (tarif normal)",
-          "fixed_low_price": "Tarif heures creuses par kWh (facultatif)",
-          "low_from": "Heures creuses à partir de",
-          "low_to": "Heures creuses jusqu'à",
-          "low_weekend": "Heures creuses tout le week-end",
-          "fixed_export_price": "Prix d'injection par kWh (facultatif)"
-        },
-        "data_description": {
-          "fixed_price": "Tout compris : énergie, taxes et TVA, comme sur votre facture.",
-          "fixed_low_price": "Laisser vide avec un tarif unique.",
-          "low_weekend": "Beaucoup de compteurs bihoraires comptent tout le week-end en heures creuses.",
-          "fixed_export_price": "Laisser vide avec la compensation : l'injection vaut alors le prix d'achat."
-        }
-      },
-      "price_epex": {
-        "title": "Prix day-ahead (intégrés)",
-        "description": "Roost récupère lui-même les prix day-ahead (EPEX), par quart d'heure, chez Energy-Charts — aucun capteur nécessaire. Ce que coûte un kWh = day-ahead × multiplicateur + montant fixe ; de même pour l'injection si elle a son propre prix.",
-        "data": {
-          "epex_zone": "Zone de prix",
-          "import_mult": "Multiplicateur",
-          "import_add": "Montant fixe par kWh",
-          "export_formula": "L'injection a son propre prix (pas de compensation)",
-          "export_mult": "Injection : multiplicateur",
-          "export_add": "Injection : montant fixe par kWh"
-        },
-        "data_description": {
-          "epex_zone": "Le marché day-ahead de votre pays (p. ex. FR, BE, NL) ; rempli à partir du pays de votre Home Assistant.",
-          "import_mult": "Généralement 1 + TVA, p. ex. 1,21 aux Pays-Bas, 1,06 en Belgique.",
-          "import_add": "La marge de votre fournisseur plus les taxes, TVA comprise. Exemple : (marge + taxes) × 1,21.",
-          "export_formula": "Désactivé : compensation — l'injection vaut le prix d'achat. Activé : la formule ci-dessous.",
-          "export_mult": "Souvent 1 (pas de TVA ni de taxe sur l'injection sans compensation).",
-          "export_add": "La rémunération d'injection de votre fournisseur, négative si elle vous coûte, p. ex. -0,02."
+        "sections": {
+          "price_sensor": {
+            "name": "Prix dynamique d'un capteur",
+            "data": {
+              "import_price": "Capteur de prix de l'électricité (avec prévision)",
+              "export_price": "Prix d'injection"
+            },
+            "data_description": {
+              "import_price": "Seulement avec un prix dynamique. Un capteur avec les prix des prochaines heures dans ses attributs (Nord Pool, ENTSO-e, Frank Energie, Zonneplan, Tibber, evcc, …) — pour Zonneplan « Current electricity tariff ». Des capteurs séparés pour chaque heure à venir ne fonctionnent pas ; choisissez plutôt les prix day-ahead intégrés.",
+              "export_price": "Laisser vide avec la compensation : l'injection vaut alors le prix d'achat."
+            }
+          },
+          "price_epex": {
+            "name": "Prix day-ahead (intégrés)",
+            "data": {
+              "epex_zone": "Zone de prix",
+              "import_mult": "Multiplicateur",
+              "import_add": "Montant fixe par kWh",
+              "export_formula": "L'injection a son propre prix (pas de compensation)",
+              "export_mult": "Injection : multiplicateur",
+              "export_add": "Injection : montant fixe par kWh"
+            },
+            "data_description": {
+              "epex_zone": "Le marché day-ahead de votre pays (p. ex. FR, BE, NL) ; rempli à partir du pays de votre Home Assistant.",
+              "import_mult": "Généralement 1 + TVA, p. ex. 1,21 aux Pays-Bas, 1,06 en Belgique.",
+              "import_add": "La marge de votre fournisseur plus les taxes, TVA comprise. Exemple : (marge + taxes) × 1,21.",
+              "export_formula": "Désactivé : compensation — l'injection vaut le prix d'achat. Activé : la formule ci-dessous.",
+              "export_mult": "Souvent 1 (pas de TVA ni de taxe sur l'injection sans compensation).",
+              "export_add": "La rémunération d'injection de votre fournisseur, négative si elle vous coûte, p. ex. -0,02."
+            }
+          },
+          "price_fixed": {
+            "name": "Prix fixe",
+            "data": {
+              "fixed_price": "Prix par kWh (tarif normal)",
+              "fixed_export_price": "Prix d'injection par kWh (facultatif)",
+              "fixed_low_price": "Tarif heures creuses par kWh (facultatif)",
+              "low_from": "Heures creuses à partir de",
+              "low_to": "Heures creuses jusqu'à",
+              "low_weekend": "Heures creuses tout le week-end"
+            },
+            "data_description": {
+              "fixed_price": "Tout compris : énergie, taxes et TVA, comme sur votre facture.",
+              "fixed_export_price": "Laisser vide avec la compensation : l'injection vaut alors le prix d'achat.",
+              "fixed_low_price": "Laisser vide avec un tarif unique.",
+              "low_weekend": "Beaucoup de compteurs bihoraires comptent tout le week-end en heures creuses."
+            }
+          }
         }
       },
       "comfort": {
         "title": "Confort",
-        "description": "Roost garde la pièce à la température de confort pendant les heures de confort et ne la laisse jamais descendre sous les minimums. Rempli à partir des dernières semaines de votre thermostat quand c'était possible.",
+        "description": "Le confort est une plage : pendant les heures de confort au moins la température de confort, et plus chaud jusqu'au haut de la plage seulement si cela fait économiser (chaleur stockée dans une heure bon marché pour une heure chère). Hors des heures de confort, seul le minimum éco compte. Rempli à partir des dernières semaines de ton thermostat quand c'était possible.\n\n*Juste regarder ? Valide sans rien changer : rien n'est enregistré et tu reviens au menu.*",
         "data": {
-          "day_from": "Début des heures de confort",
-          "day_to": "Fin des heures de confort",
-          "comfort": "Température de confort (jour)",
-          "day_min": "Minimum pendant les périodes de confort",
-          "night_min": "Minimum hors des périodes de confort",
-          "store_max": "Le plus chaud en stockant la chaleur"
+          "comfort": "Confort : au moins",
+          "night_min": "Éco : au moins (hors heures de confort)",
+          "store_max": "Confort : peut chauffer jusqu'à",
+          "comfort_days": "Heures de confort"
         },
         "data_description": {
-          "store_max": "Roost stocke de la chaleur dans le sol (ou la maison) quand une heure est bon marché (ou que le solaire rapporte peu) et qu'une heure chère suit. Réglez-le égal à la température de confort pour désactiver cela.",
-          "day_from": "Horaire quotidien par défaut (planning hebdomadaire désactivé)"
+          "store_max": "Roost stocke de la chaleur dans le sol (ou la maison) quand une heure est bon marché (ou que le solaire rapporte peu) et qu'une heure chère suit. Chaque degré de plus coûte environ 5–7 % de pertes en plus : une plage de 1–2 °C suffit en général. Égal au confort désactive le stockage.",
+          "comfort_days": "Le plus souvent pareil chaque jour. Ou semaine et week-end à part, ou par jour (plusieurs plages par jour). Seul le bloc de votre choix compte.",
+          "comfort": "Ce que Roost maintient pendant les heures de confort. La pièce est chaude au début de chaque période : Roost commence à chauffer plus tôt de lui-même.",
+          "night_min": "Hors des heures de confort, Roost laisse la pièce refroidir au plus jusqu'ici. Avec une pompe à chaleur, un abaissement profond paie rarement : réchauffer demande plus de puissance à un COP plus bas."
         },
         "sections": {
           "advanced": {
             "name": "Avancé : régulation et météo",
             "description": "Les valeurs par défaut conviennent à la plupart des maisons.",
             "data": {
+              "day_min": "Plancher strict pendant les heures de confort",
               "lowest_setpoint": "Réglage le plus bas du thermostat",
               "max_above_room": "Consigne au plus de ceci au-dessus de la pièce",
               "min_interval": "Au plus un changement par",
@@ -327,17 +389,17 @@
               "weather_entity": "Entité météo"
             },
             "data_description": {
-              "lowest_setpoint": "Roost ne règle jamais le thermostat plus bas. Un réglage plus bas arrête plus tôt une pompe lente, mais si Home Assistant tombe en panne, le thermostat reste là où Roost l'a laissé.",
-              "max_above_room": "Garde un thermostat OpenTherm sur de l'eau tiède (COP élevé).",
+              "day_min": "Jamais plus froid pendant les heures de confort, même dans une heure très chère. Suit la température de confort vers le bas d'elle-même.",
+              "lowest_setpoint": "Roost ne règle jamais le thermostat plus bas. Un réglage plus bas arrête plus tôt une pompe lente, mais si Home Assistant tombe en panne, le thermostat reste là où Roost l'a laissé. Uniquement avec le pilotage par thermostat.",
+              "max_above_room": "Garde un thermostat OpenTherm sur de l'eau tiède (COP élevé). Uniquement avec le pilotage par thermostat.",
               "baseline_night": "L'économie est montrée par rapport à un thermostat constant à la température de confort, le conseil habituel pour les pompes à chaleur.",
               "weather_source": "Open-Meteo ne demande pas de compte et donne le rayonnement et le vent (le modèle de la maison utilise les deux)."
             }
           },
           "weekly_schedule": {
-            "name": "Heures de confort par jour",
-            "description": "Ces périodes remplacent les heures quotidiennes ci-dessus. Utilisez des quarts d’heure, par exemple 07:00-09:00, 17:00-22:00. Un jour vide signifie seulement la température minimale. 22:00-02:00 continue le lendemain. Roost prévoit le préchauffage avant la période de confort.",
+            "name": "Par jour",
+            "description": "Plages comme 07:00-09:00, 17:00-22:00 ; vide = pas de confort ce jour-là.",
             "data": {
-              "enabled": "Utiliser un planning hebdomadaire",
               "monday": "Lundi",
               "tuesday": "Mardi",
               "wednesday": "Mercredi",
@@ -346,15 +408,29 @@
               "saturday": "Samedi",
               "sunday": "Dimanche"
             }
+          },
+          "hours_same": {
+            "name": "Chaque jour pareil",
+            "data": {
+              "comfort_from": "Chaud à",
+              "comfort_to": "Jusqu'à"
+            }
+          },
+          "hours_week_weekend": {
+            "name": "Semaine et week-end",
+            "data": {
+              "weekdays_from": "En semaine chaud à",
+              "weekdays_to": "Semaine à",
+              "weekend_from": "Le week-end chaud à",
+              "weekend_to": "Week-end à"
+            }
           }
         }
       },
       "solar": {
         "title": "Solaire et batterie domestique",
-        "description": "Ouvrez un bloc pour voir et modifier ses capteurs. Décocher une case oublie les capteurs de ce bloc à la validation.",
-        "data": {
-          "grid_preference": "Préférence pour l'énergie propre (ajoutée par kWh du réseau)"
-        },
+        "description": "Ouvrez un bloc pour voir et modifier ses capteurs. Décocher une case oublie les capteurs de ce bloc à la validation.\n\n*Juste pour voir ? Envoyez sans rien modifier : rien n'est enregistré et vous revenez au menu.*",
+        "data": {},
         "data_description": {},
         "sections": {
           "solar_section": {
@@ -365,8 +441,7 @@
               "pv_power": "Puissance solaire",
               "pv_forecast": "Prévision solaire aujourd'hui",
               "pv_forecast_tomorrow": "Prévision solaire demain",
-              "grid_power": "Puissance réseau",
-              "grid_sign": "Signe de la puissance réseau"
+              "grid_power": "Puissance réseau"
             },
             "data_description": {
               "has_solar": "Roost compte alors le solaire propre à ce que son injection rapporterait.",
@@ -375,29 +450,35 @@
           },
           "battery_section": {
             "name": "Batterie domestique",
-            "description": "Sa charge, sa puissance et sa taille : l'énergie de la batterie vaut ce que coûte sa recharge.",
+            "description": "Charge, puissance et taille : Roost suit la charge et utilise le solaire pour la pompe dès que la batterie est assez pleine. Celui qui pilote la batterie (Predbat, son appli) décide quand elle livre.",
             "data": {
               "has_battery": "J'ai une batterie domestique",
               "battery_soc": "Niveau de charge de la batterie",
               "battery_power": "Puissance de la batterie (+ = décharge)",
               "battery_kwh": "Capacité utile de la batterie",
-              "battery_kw": "Puissance de charge maximale de la batterie",
-              "battery_reserve": "Réserve de la batterie",
-              "battery_use": "La pompe à chaleur et la batterie domestique",
+              "solar_from_battery": "Solaire pour la pompe à partir de (charge batterie)",
               "house_power": "Puissance de la maison (pour le profil de consommation)"
             },
             "data_description": {
-              "has_battery": "Roost valorise alors l'énergie de la batterie à ce que coûte sa recharge.",
+              "has_battery": "Roost suit alors la charge de la batterie pour savoir quand le solaire est gratuit pour la pompe.",
               "battery_power": "Nécessaire pour distinguer l'injection solaire d'une batterie qui revend au réseau.",
-              "battery_use": "La garder pour la maison : l'énergie que la pompe à chaleur prend à la batterie coûte ce qui manquera plus tard à la maison (l'heure où la batterie serait vide), donc Roost chauffe aux heures réseau et laisse la batterie à la maison. L'utiliser quand c'est moins cher : si la batterie est aussi chargée depuis le réseau (Roost l'apprend), son énergie coûte la moins chère de ses heures de charge à venir — pour une batterie dont le pilotage planifie à l'avance et a de la place (Predbat et similaires).",
-              "house_power": "Facultatif. Ce que consomme toute la maison, pour apprendre sa consommation par heure de la journée (quelles heures à venir ont du surplus solaire, combien de temps tient la batterie). Laissé vide, Roost le calcule à partir de la puissance réseau + solaire (+ batterie)."
+              "house_power": "Facultatif. Ce que consomme toute la maison, pour apprendre sa consommation par heure de la journée (quelles heures à venir ont du surplus solaire, combien de temps tient la batterie). Laissé vide, Roost le calcule à partir de la puissance réseau + solaire (+ batterie).",
+              "solar_from_battery": "Le surplus solaire compte comme gratuit pour la pompe dès que la batterie est au moins aussi pleine ; en dessous il va d'abord dans la batterie. Roost suit la charge avec la prévision solaire (50 % par défaut)."
             }
+          },
+          "solar_advanced": {
+            "name": "Avancé",
+            "data": {
+              "grid_sign": "Signe de la puissance réseau",
+              "grid_preference": "Préférence pour l'énergie propre (ajoutée par kWh du réseau)"
+            },
+            "data_description": {}
           }
         }
       },
       "notify": {
         "title": "Notifications",
-        "description": "Désactivées tant que vous ne choisissez pas leur destination. Roost signale alors quand le thermostat est injoignable ou non modifiable, quand sa vérification n'est plus réussie pendant qu'il pilote, quand l'apprentissage échoue ou que la connexion Weheat est nécessaire — au plus toutes les 12 heures par type.",
+        "description": "Désactivées tant que vous ne choisissez pas leur destination. Roost signale alors quand le thermostat est injoignable ou non modifiable, quand sa vérification n'est plus réussie pendant qu'il pilote, quand l'apprentissage échoue ou que la connexion Weheat est nécessaire — au plus toutes les 12 heures par type.\n\n*Juste pour voir ? Envoyez sans rien modifier : rien n'est enregistré et vous revenez au menu.*",
         "data": {
           "notify_target": "Envoyer les notifications à",
           "weekly_report": "Résumé hebdomadaire (lundi matin)"
@@ -406,26 +487,106 @@
           "notify_target": "Une entité ou un service de notification, p. ex. notify.mobile_app_mon_telephone. Laisser vide : pas de notifications.",
           "weekly_report": "Électricité de chauffage, coût, économie, confort et origine de l'électricité de la pompe, la semaine dernière."
         }
+      },
+      "opentherm": {
+        "title": "Comment Roost pilote",
+        "description": "**Thermostat** : Roost règle la température de la pièce sur votre thermostat (comme maintenant). **OpenTherm** : Roost demande à la pompe à chaleur une température de départ via un boîtier OpenTherm (passerelle) dans Home Assistant, comme le THRM ONE. Le boîtier garde les limites ; quand Roost n'écrit plus, il passe en secours et chauffe sur sa courbe de secours. Roost écrit le départ au moins toutes les 5 minutes (0 = pas de chaleur), surveille le boîtier et met son mode de régulation sur Home Assistant tant que Roost pilote (retour à la courbe de secours quand Roost s'arrête). Nécessite un capteur de température de la pièce (La maison).\n\n**Trouvé sur ce boîtier :**\n{found}\n\n*Juste pour voir ? Envoyez sans rien modifier : rien n'est enregistré et vous revenez au menu.*",
+        "data": {
+          "control": "Pilotage",
+          "ot_max_starts": "Au plus autant de démarrages par 24 heures",
+          "ot_device": "Boîtier OpenTherm"
+        },
+        "data_description": {
+          "ot_max_starts": "0 = pas de limite (un démarrage ne coûte alors que son électricité en plus).",
+          "ot_device": "Choisissez le boîtier comme appareil : Roost trouve ses entités lui-même."
+        },
+        "sections": {
+          "advanced": {
+            "name": "Avancé",
+            "description": "Valeurs de départ que Roost remplace par ses mesures, et les textes des états du boîtier.",
+            "data": {
+              "ot_q_min": "Puissance stable la plus basse de la pompe",
+              "ot_start_kwh": "Électricité en plus par démarrage",
+              "ot_state_ok": "Valeur d'état : piloté par Home Assistant",
+              "ot_mode_ha": "Option du mode : Home Assistant",
+              "ot_mode_curve": "Option du mode : courbe de secours"
+            },
+            "data_description": {
+              "ot_q_min": "En dessous, la pompe ne tourne pas de façon stable (Weheat P80 : environ 2,8 kW à 900 tr/min). Roost planifie des heures entières à l'arrêt ou au moins cette puissance.",
+              "ot_start_kwh": "Les 15–20 premières minutes après un démarrage ont un COP plus faible ; Roost le compte par démarrage pour tourner longtemps et bas."
+            }
+          },
+          "ot_entities": {
+            "name": "Choisir soi-même (autre boîtier, ou pour corriger)",
+            "data": {
+              "ot_flow_setpoint": "Consigne de départ (number)",
+              "ot_control_state": "État du boîtier OpenTherm (sensor)",
+              "ot_control_mode": "Mode de régulation (select)",
+              "ot_max_flow_sensor": "Départ le plus haut accepté par la pompe (sensor, facultatif)",
+              "ot_communication_error": "Erreur de communication (binary sensor, facultatif)",
+              "ot_min_run_time": "Marche minimale du boîtier (number, facultatif)",
+              "ot_min_off_time": "Arrêt minimal du boîtier (number, facultatif)",
+              "ot_min_flow_number": "Départ minimal du boîtier (number, facultatif)",
+              "ot_max_flow_number": "Départ maximal du boîtier (number, facultatif)",
+              "ot_follow_curve": "La courbe de secours suit Roost (switch, facultatif)",
+              "ot_flow_temperature": "Température de départ du boîtier (sensor, facultatif)",
+              "ot_heating_active": "Chauffage actif sur le boîtier (binary sensor, facultatif)",
+              "ot_hot_water_active": "Eau chaude active sur le boîtier (binary sensor, facultatif)"
+            },
+            "data_description": {
+              "ot_min_run_time": "Roost la lit et planifie avec ; sans elle, Roost compte 30 minutes.",
+              "ot_min_flow_number": "Si le boîtier les a, elles s'appliquent (il protège la pompe aussi sans Roost) et la carte les modifie là ; les deux réglages ci-dessous ne servent alors pas.",
+              "ot_flow_temperature": "Lu directement sur la pompe (OpenTherm), une minute ou deux avant le cloud Weheat. Sans eux, Roost utilise les valeurs Weheat."
+            }
+          },
+          "ot_limits": {
+            "name": "Départ le plus bas et le plus haut",
+            "description": "Replié quand le boîtier garde ses propres limites.",
+            "data": {
+              "ot_min_flow": "Départ le plus bas",
+              "ot_max_flow": "Départ le plus haut"
+            },
+            "data_description": {
+              "ot_max_flow": "Jamais au-dessus de ce que la pompe accepte (Weheat : 40 °C)."
+            }
+          },
+          "ot_quiet_hours": {
+            "name": "Heures calmes",
+            "data": {
+              "ot_quiet": "Heures calmes",
+              "ot_quiet_from": "Heures calmes à partir de",
+              "ot_quiet_to": "Heures calmes jusqu'à",
+              "ot_quiet_max": "Puissance maximale pendant les heures calmes"
+            },
+            "data_description": {
+              "ot_quiet_max": "Contre le bruit de l'unité extérieure la nuit : de .. à, pas au-dessus de cette puissance."
+            }
+          }
+        }
       }
     },
     "error": {
       "not_weheat": "Cet appareil n'a pas de capteurs de pompe à chaleur Weheat.",
       "comfort_below_min": "La température de confort doit être au moins le minimum de jour.",
       "store_below_comfort": "Le stockage de chaleur doit permettre au moins la température de confort.",
-      "day_order": "Les heures de confort doivent finir après leur début.",
+      "day_order": "Les heures de confort finissent avant de commencer.",
       "weather_needed": "Choisissez une entité météo (sous Avancé).",
       "lowest_above_comfort": "Le réglage le plus bas du thermostat ne doit pas dépasser la température de confort.",
       "price_needed": "Choisissez un capteur de prix, ou un prix fixe.",
-      "invalid_schedule": "Vérifiez les périodes : HH:MM-HH:MM, séparées par des virgules, par pas de 15 minutes. Aucun chevauchement, même après minuit."
-    },
-    "abort": {
-      "mode_set": "Le mode est réglé."
+      "invalid_schedule": "Vérifiez les périodes : HH:MM-HH:MM, séparées par des virgules, par pas de 15 minutes. Aucun chevauchement, même après minuit.",
+      "ot_entities": "Choisissez la consigne de départ, l'état du boîtier et son mode de régulation.",
+      "ot_room": "Le pilotage OpenTherm nécessite un capteur de température de la pièce : réglez-le d'abord dans La maison.",
+      "ot_limits": "Le départ le plus bas doit être sous le plus haut.",
+      "ot_thermostat": "Le pilotage par thermostat nécessite un thermostat : choisissez-le d'abord dans La maison.",
+      "fixed_price_needed": "Indiquez le prix par kWh de votre contrat à prix fixe.",
+      "times_needed": "Indiquez les heures des plages de confort choisies.",
+      "eco_above_comfort": "L'éco ne doit pas dépasser la température de confort."
     }
   },
   "entity": {
     "sensor": {
       "setpoint": {
-        "name": "Consigne prévue"
+        "name": "Consigne de Roost"
       },
       "saving_next_24h": {
         "name": "Économie prévue sur 24 h"
@@ -437,7 +598,7 @@
         "name": "Économie ce mois-ci"
       },
       "cost_today": {
-        "name": "Coût de chauffage aujourd'hui"
+        "name": "Coût électrique de la pompe aujourd'hui"
       },
       "energy_today": {
         "name": "Électricité de chauffage aujourd'hui"
@@ -466,7 +627,7 @@
         "name": "Progression de l'import Weheat"
       },
       "plan_accuracy": {
-        "name": "Précision du plan"
+        "name": "Erreur du plan (6 h)"
       },
       "room_expected_6h": {
         "name": "Pièce prévue dans 6 heures"
@@ -476,6 +637,9 @@
       },
       "heating_curve": {
         "name": "Conseil de courbe de chauffe"
+      },
+      "electricity_planned": {
+        "name": "Électricité prévue"
       }
     },
     "binary_sensor": {
@@ -594,16 +758,31 @@
         "export_positive": "L'injection est positive"
       }
     },
-    "battery_use": {
-      "options": {
-        "house": "Garder la batterie pour la maison",
-        "cheaper": "Utiliser la batterie quand c'est moins cher"
-      }
-    },
     "weather_source": {
       "options": {
         "open_meteo": "Open-Meteo (gratuit, avec rayonnement et vent)",
         "entity": "Une entité météo"
+      }
+    },
+    "control": {
+      "options": {
+        "thermostat": "Thermostat (consigne de la pièce)",
+        "opentherm": "OpenTherm (température de départ)"
+      }
+    },
+    "emitters": {
+      "options": {
+        "floor": "Plancher chauffant",
+        "radiators": "Radiateurs",
+        "lt_radiators": "Radiateurs basse température",
+        "fan_coils": "Ventilo-convecteurs"
+      }
+    },
+    "comfort_days": {
+      "options": {
+        "same": "Pareil chaque jour",
+        "week_weekend": "Semaine et week-end",
+        "per_day": "Par jour"
       }
     }
   },
@@ -648,9 +827,17 @@
       "title": "{name} : prêt à piloter la pompe à chaleur",
       "fix_flow": {
         "step": {
+          "init": {
+            "title": "Prêt à piloter",
+            "description": "Roost a vérifié son plan. Passez en actif, ou ne montrez plus cet avis (la carte continue d'indiquer si Roost est prêt).",
+            "menu_options": {
+              "confirm": "Passer en actif",
+              "mute": "Ne plus afficher"
+            }
+          },
           "confirm": {
             "title": "Passer en actif",
-            "description": "Roost a vérifié son plan sur les {days} derniers jours : avec les consignes réellement sur le thermostat, il prévoit la pièce à {rmse} °C près 6 heures à l'avance, sur {hours} heures de chauffe, et la pompe à chaleur suit le thermostat.\n\nValidez pour laisser Roost piloter le thermostat (mode actif). Vous pouvez revenir à l'observation à tout moment avec le sélecteur de mode de Roost."
+            "description": "Roost a vérifié son plan sur les {days} derniers jours : avec les consignes réellement sur le thermostat, il prévoit la pièce à {rmse} °C près 6 heures à l'avance, sur {hours} heures de chauffe.\n\nVérifiez d'abord que la pompe à chaleur suit le thermostat (dans l'app Weheat : OpenTherm, pas sa propre courbe de chauffe) et que Roost peut régler la température du thermostat.\n\nValidez pour laisser Roost piloter le thermostat (mode actif). Vous pouvez revenir à l'observation à tout moment avec le sélecteur de mode de Roost."
           }
         }
       }
@@ -712,7 +899,7 @@
     },
     "fallback": {
       "title": "{name} : pilotage sans plan complet",
-      "description": "Depuis quelques heures, Roost ne peut pas établir de plan complet (pas de prix de l'électricité, de température de pièce ou de prévision météo). Il pilote en attendant en mode de secours : sans prix sur un prix fixe, sinon la température de confort aux heures de confort et le minimum de nuit en dehors. Vérifiez les capteurs de prix, de pièce et de météo dans les réglages de Roost ; l'avis disparaît dès qu'un plan complet est de nouveau possible."
+      "description": "Depuis quelques heures, Roost ne peut pas établir de plan complet (pas de prix de l'électricité, de température de pièce ou de prévision météo). Il pilote en attendant sur un plan simple : sans prix sur un prix fixe, sinon la température de confort aux heures de confort et le minimum de nuit en dehors. Vérifiez les capteurs de prix, de pièce et de météo dans les réglages de Roost ; l'avis disparaît dès qu'un plan complet est de nouveau possible."
     },
     "house_cold": {
       "title": "{name} : la maison reste sous son minimum",
@@ -725,6 +912,10 @@
     "price_no_forecast_flat": {
       "title": "{name} : le capteur de prix n'a pas de prévision",
       "description": "{entity} ne donne que le prix actuel, qui change d'heure en heure. Roost ne peut pas (encore) en déduire les heures à venir et planifie sur un prix fixe : il ne déplace pas le chauffage vers les heures moins chères. Choisissez un capteur avec les prix des 24 prochaines heures au moins dans ses attributs, ou les prix day-ahead intégrés avec la formule de votre contrat."
+    },
+    "opentherm_fallback": {
+      "title": "Boîtier OpenTherm non piloté par Roost",
+      "description": "{name} pilote la pompe à chaleur via OpenTherm, mais le boîtier OpenTherm est en secours : il chauffe sur sa courbe de secours, ou selon le plan que Roost lui a laissé (le boîtier indique {state}). Vérifiez que Home Assistant atteint le boîtier et que son mode de régulation est Home Assistant. L'avis disparaît dès que Roost pilote à nouveau."
     }
   },
   "services": {
@@ -793,6 +984,46 @@
         "comfort_schedule": {
           "name": "Heures de confort par jour",
           "description": "Par jour une liste de périodes, comme \"07:00-09:00, 17:30-22:00\" ou [[420, 540]] en minutes ; quarts d'heure, une période peut passer minuit."
+        },
+        "pump_entities": {
+          "name": "Entités de la pompe pour la carte",
+          "description": "Par rôle (state, water_setpoint, water_out, water_in, power_in, power_out) une autre entité ; vide reprend celle de l'appareil."
+        },
+        "control": {
+          "name": "Pilotage",
+          "description": "Thermostat (consigne de la pièce) ou OpenTherm (température de départ)."
+        },
+        "ot_min_flow": {
+          "name": "Départ minimal",
+          "description": "OpenTherm : le départ le plus bas demandé par Roost."
+        },
+        "ot_max_flow": {
+          "name": "Départ maximal",
+          "description": "OpenTherm : le départ le plus haut demandé par Roost."
+        },
+        "ot_max_starts": {
+          "name": "Démarrages par 24 h",
+          "description": "OpenTherm : au plus autant de démarrages (0 = pas de limite)."
+        },
+        "ot_quiet_from": {
+          "name": "Calme à partir de",
+          "description": "OpenTherm : début des heures calmes (heure)."
+        },
+        "ot_quiet_to": {
+          "name": "Calme jusqu'à",
+          "description": "OpenTherm : fin des heures calmes (heure)."
+        },
+        "ot_quiet_max": {
+          "name": "Puissance calme",
+          "description": "OpenTherm : puissance maximale pendant les heures calmes (kW, 0 = arrêt)."
+        },
+        "ot_relearn": {
+          "name": "Réapprendre la pompe",
+          "description": "OpenTherm : oublier la puissance minimale, l'émission et le coût de démarrage appris."
+        },
+        "ot_quiet": {
+          "name": "Heures calmes",
+          "description": "Heures calmes (OpenTherm) : activées ou non."
         }
       }
     },
@@ -813,6 +1044,41 @@
           "name": "Jour : yesterday, next_24h ou une date (AAAA-MM-JJ)"
         }
       }
+    }
+  },
+  "exceptions": {
+    "weekly_invalid": {
+      "message": "Périodes de confort hebdomadaires : {error}"
+    },
+    "weekly_on": {
+      "message": "Les périodes de confort hebdomadaires sont actives : modifiez-les plutôt que les heures de confort."
+    },
+    "hours_order": {
+      "message": "Les heures de confort doivent se terminer après leur début."
+    },
+    "pump_entities": {
+      "message": "pump_entities : une correspondance de {roles} vers une entité."
+    },
+    "pump_entity_missing": {
+      "message": "pump_entities : {role} : l'entité {entity} n'existe pas."
+    },
+    "flow_limits": {
+      "message": "Le départ minimal doit être inférieur au maximal."
+    },
+    "control_unknown": {
+      "message": "Le pilotage doit être l'un de : {options}."
+    },
+    "control_ot_missing": {
+      "message": "OpenTherm nécessite les entités du boîtier OpenTherm et un capteur de pièce (Configurer > Comment Roost pilote)."
+    },
+    "control_thermostat_missing": {
+      "message": "Le pilotage par thermostat nécessite un thermostat (Configurer > La maison)."
+    },
+    "not_set_up": {
+      "message": "Roost n'est pas configuré."
+    },
+    "day_invalid": {
+      "message": "day : yesterday, next_24h ou une date (AAAA-MM-JJ)."
     }
   }
 }

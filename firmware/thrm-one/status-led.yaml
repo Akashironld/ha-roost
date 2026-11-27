@@ -1,0 +1,92 @@
+# Status-led (PWM, GPIO1). Simplified from elvinhome v0.3.0.
+#   Breathing  starting up / waiting for Home Assistant (max 2 min)
+#   60 %       normal; short flash at every OpenTherm response
+#   N blinks   fault, lowest code wins, then a 1 s pause:
+#                2 heat pump fault      3 no OpenTherm response   4 no network
+#                5 no Home Assistant    6 ESPHome error
+# Code 5 only blinks in the "Home Assistant" mode; in the "Heating curve" mode HA is not needed.
+
+light:
+  - platform: monochromatic
+    id: statuslight
+    output: status_pwm
+    internal: true
+    restore_mode: ALWAYS_OFF
+    gamma_correct: false
+    default_transition_length: 0s
+    effects:
+      - pulse:
+          name: "Connecting"
+          transition_length: 0.8s
+          update_interval: 0.8s
+
+globals:
+  - id: led_code
+    type: int
+    restore_value: no
+    initial_value: "-1"
+
+script:
+  - id: led_connecting
+    mode: restart
+    then:
+      - script.stop: led_show
+      - globals.set: {id: led_code, value: "-1"}
+      - light.turn_on: {id: statuslight, effect: "Connecting"}
+      - wait_until:
+          condition:
+            api.connected:
+          timeout: 2min
+      - light.turn_on: {id: statuslight, effect: none}
+      - globals.set: {id: led_code, value: "0"}
+      - light.turn_on: {id: statuslight, brightness: 60%, transition_length: 0.3s}
+
+  # Blink pattern for the current code; restarted by the interval below on a change.
+  - id: led_show
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: "return id(led_code) == 0;"
+          then:
+            - light.turn_on: {id: statuslight, brightness: 60%, transition_length: 0.8s}
+          else:
+            - while:
+                condition:
+                  lambda: "return id(led_code) > 0;"
+                then:
+                  - repeat:
+                      count: !lambda "return (uint32_t) id(led_code);"
+                      then:
+                        - light.turn_on: {id: statuslight, brightness: 100%}
+                        - delay: 100ms
+                        - light.turn_off: {id: statuslight}
+                        - delay: 200ms
+                  - delay: 1s
+
+  - id: led_pulse
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: "return id(led_code) == 0;"
+          then:
+            - light.turn_on: {id: statuslight, brightness: 100%}
+            - delay: 30ms
+            - light.turn_on: {id: statuslight, brightness: 60%, transition_length: 50ms}
+
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          if (id(led_connecting).is_running()) return;
+          int code = 0;
+          if (id(ot_fault).state) code = 2;
+          else if (id(bus_comm_error).state) code = 3;
+          else if (!network::is_connected()) code = 4;
+          else if (!api::global_api_server->is_connected() && id(control_mode).active_index().value_or(0) == 0) code = 5;
+          else if ((App.get_app_state() & STATUS_LED_ERROR) != 0u) code = 6;
+          if (code != id(led_code)) {
+            id(led_code) = code;
+            id(led_show).execute();
+          }

@@ -60,7 +60,7 @@ complete local day; UTC timestamps distinguish the repeated hour when daylight s
         reasons.append("energy_mismatch")
     by_ts = {e["ts"]: e for e in entries}
     errors = []
-    for e, row in zip(entries, breakdown.get("hours", [])):
+    for e, row in zip(entries, breakdown.get("hours", []), strict=False):
         observed = e.get("T_end")
         if observed is None:
             observed = by_ts.get(e["ts"] + 3600, {}).get("T")
@@ -70,7 +70,7 @@ complete local day; UTC timestamps distinguish the repeated hour when daylight s
     if len(errors) < max(1, expected_hours - 1):
         if "missing_measurements" not in reasons:
             reasons.append("missing_measurements")
-    elif mae > ROOM_MAE_K:
+    elif mae is not None and mae > ROOM_MAE_K:
         reasons.append("temperature_mismatch")
     out.update(valid=not reasons, status="validated_estimate" if not reasons else "unreliable",
                reasons=reasons, measured_kwh=round(actual, 3), modeled_kwh=simulated,

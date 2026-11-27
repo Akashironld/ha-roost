@@ -30,7 +30,7 @@ def zone_for(country: str | None) -> str:
 def parse(payload: dict) -> list[Slot]:
     """Energy-Charts' {"unix_seconds": [...], "price": [... per MWh]} -> slots in currency per kWh."""
     ts, pr = payload.get("unix_seconds") or [], payload.get("price") or []
-    pts = [(float(t), float(p) / 1000) for t, p in zip(ts, pr) if t is not None and p is not None]
+    pts = [(float(t), float(p) / 1000) for t, p in zip(ts, pr, strict=False) if t is not None and p is not None]
     pts.sort()
     out: list[Slot] = []
     for i, (t, p) in enumerate(pts):

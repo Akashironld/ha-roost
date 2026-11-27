@@ -1,0 +1,120 @@
+# OpenTherm bus: what the box reads and writes. Derived from elvinhome v0.3.0.
+# Tested on the Weheat P80 (19-11-2026, 10 min, ~100 requests per ID):
+#   answers with a value: 0, 25, 27, 28 (17 modulation answers, but stays 0 % even at 900 rpm: left out); once at start: 3 (64), 49 (20-40 °C), 125 (2.2)
+#   write confirmed: 1, 16, 24, 57
+#   UNKNOWN_DATAID: 5, 18, 19, 26, 33, 56, 115-123 (so no fault code, pressure, hot water, starts/hours)
+# Full scan 25-11-2026 (ID 1-255, 2 rounds, read only, fw 1.8.8-scan in probe/): the Weheat only answers
+#   1, 2, 3, 7, 14, 16, 17, 24, 25, 27, 28, 49, 57, 93-95 (make/version/serial number), 125, 127; all other IDs (also 128-255)
+#   UNKNOWN_DATAID. No pump output, speed, pressure, starts, hours or fault code via OpenTherm: those only from the cloud.
+# ID 14 (max modulation) tested 25-11-2026 in fw 1.8.9: the Weheat ignores it (30 % → still 2,340 rpm); removed again in 1.8.10.
+# Only IDs the pump answers; an unanswered ID blocks the bus.
+# Only control.yaml writes: ID 1 (flow), ID 0 (CH on/off), ID 57 (max), ID 16/24.
+# ID 5 (fault code) is unknown to the Weheat; a fault does show in ID 0 (Fault).
+
+globals:
+  - id: ot_last_ms # millis() of the last OpenTherm response
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+
+opentherm:
+  before_process_response:
+    - lambda: "id(ot_last_ms) = millis(); id(ot_ok_cnt)++;"
+    - script.execute: led_pulse
+
+sensor:
+  - platform: opentherm
+    t_boiler: # ID 25
+      id: ot_t_flow
+      name: "Flow Temperature"
+      accuracy_decimals: 2 # display only; the value itself stays 1/256 °C (Roost measures with it)
+    t_ret: # ID 28
+      id: ot_t_return
+      name: "Return Temperature"
+      accuracy_decimals: 2 # display only; the value itself stays 1/256 °C (Roost measures with it)
+    t_outside: # ID 27; on a monoblock the air inlet of the outdoor unit
+      id: ot_t_outside
+      name: "Air Inlet Temperature"
+      accuracy_decimals: 2 # display only; the value itself stays 1/256 °C (Roost measures with it)
+      on_value:
+        - lambda: "if (!std::isnan(x)) id(ot_out_ms) = millis() | 1;"
+    max_t_set_ub: # ID 49, once at start: highest flow limit the pump accepts (Weheat: 40)
+      id: ot_max_t_set_ub
+      name: "Max Flow Limit (heat pump)"
+      entity_category: diagnostic
+      on_value:
+        - number.set: # ID 57 never above the pump limit
+            id: ot_max_t_set
+            value: !lambda "return (x >= 20 && x < id(flow_max).state) ? x : id(flow_max).state;"
+        - script.execute: control_run
+    opentherm_version_device: # ID 125, once
+      name: "OpenTherm Version"
+      entity_category: diagnostic
+      disabled_by_default: true
+
+binary_sensor:
+  - platform: opentherm
+    ch_active:
+      id: ot_ch_active
+      name: "Heating Active"
+    flame_on:
+      id: ot_flame
+      name: "Compressor Running"
+    dhw_active:
+      id: ot_dhw_active
+      name: "Hot Water Active"
+    fault_indication:
+      id: ot_fault
+      name: "Fault"
+      device_class: problem
+  # On when the pump has not answered for 10 s (60 s after startup).
+  - platform: template
+    id: bus_comm_error
+    name: "Communication Error"
+    on_press:
+      - logger.log: {level: WARN, tag: opentherm, format: "No response from the heat pump (10 s)"}
+    on_release:
+      - logger.log: {level: INFO, tag: opentherm, format: "Heat pump is answering again"}
+    device_class: problem
+    entity_category: diagnostic
+    lambda: |-
+      return id(ot_last_ms) != 0 ? (millis() - id(ot_last_ms) > 10000) : (millis() > 60000);
+
+number:
+  - platform: opentherm
+    t_set: # ID 1, only set by control.yaml
+      id: ot_t_set
+      internal: true
+      min_value: 0
+      max_value: 45
+      initial_value: 0
+      restore_value: true
+    max_t_set: # ID 57, equal to Max Flow
+      id: ot_max_t_set
+      internal: true
+      min_value: 20
+      max_value: 45
+      initial_value: 45
+    t_room: # ID 24, informational: room temperature
+      id: ot_room
+      internal: true
+      min_value: -40
+      max_value: 60
+      initial_value: 20
+    t_room_set: # ID 16, informational: room setpoint
+      id: ot_room_set
+      internal: true
+      min_value: 5
+      max_value: 30
+      initial_value: 20
+
+switch:
+  - platform: opentherm
+    ch_enable: # ID 0 bit: heat demand, only set by control.yaml; kept across a reboot
+      id: ot_ch_enable
+      internal: true
+      restore_mode: RESTORE_DEFAULT_OFF
+    dhw_enable: # ID 0 bit: hot water stays on; the Weheat handles it itself
+      id: ot_dhw_enable
+      internal: true
+      restore_mode: ALWAYS_ON

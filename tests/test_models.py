@@ -161,8 +161,6 @@ def test_learning_finds_the_window_facade_and_hourly_gains():
             E -= rel
             T += (rel + p["g"] * sol + p["internal"] + cook - He * (T - t_out)) / p["C"]
             rows.append(model.HourRow(ts=ts, T=T0 + rnd.gauss(0, 0.02), T_out=t_out, Q=q, rad=wx[1], wind=3.5, E=q / 3.5))
-    wxs = {}
-
     def eff(ts, facade, vertical):
         d = (ts // 86400) - DAY0
         wx = clear_sky(ts) if d % 3 else (5.0, 0.1, 3.5, 0.0, 0.1)

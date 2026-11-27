@@ -13,8 +13,10 @@ Supported shapes (detected automatically):
 from __future__ import annotations
 
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, Iterable
+
+from .util import num as _num
 
 START_KEYS = ("start", "from", "time", "startsAt", "starts_at", "start_time", "period_start", "valid_from", "datetime", "date",
               "start_date")
@@ -54,12 +56,6 @@ def to_ts(value: Any) -> float | None:
     return None
 
 
-def _num(value: Any) -> float | None:
-    try:
-        f = float(value)
-    except (TypeError, ValueError):
-        return None
-    return f if f == f and abs(f) != float("inf") else None
 
 
 def _first(d: dict, keys: Iterable[str]) -> Any:
@@ -100,7 +96,7 @@ def slots_from_list(items: list) -> list[Slot]:
 
 
 def slots_from_dict(d: dict) -> list[Slot]:
-    pts = []
+    pts: list[tuple[float, float | None, float]] = []
     for k, v in d.items():
         s, x = to_ts(k), _num(v)
         if s is not None and x is not None:
@@ -162,7 +158,7 @@ def slot_scale(slots: list[Slot], unit: str | None, state: float | None, now_ts:
     per kWh), the power of ten that makes the forecast's value for now match it: some integrations keep the forecast in
     other units than their state (Zonneplan: 1e-7 euro). Else from the unit, or a plausibility guess."""
     now_v = current_value(slots, now_ts) if state is not None and abs(state) >= 0.01 else None
-    if now_v:
+    if now_v and state is not None:
         r = state / now_v
         if r > 0:
             p = round(math.log10(r))
@@ -200,7 +196,7 @@ def _hour_floor(ts: float) -> float:
 
 def published_prefix(values: list[float | None]) -> list[float]:
     """Only contiguous known prices from now. Never bridge a gap with a historical or last price."""
-    out = []
+    out: list[float] = []
     for v in values:
         if v is None or not math.isfinite(v):
             break
@@ -212,25 +208,6 @@ def slots_from_changes(changes: list[tuple[float, float]], end_ts: float) -> lis
     """Slots from state changes (epoch s, value), each valid until the next change (the last one until end_ts)."""
     ch = sorted(changes)
     return [(t, ch[i + 1][0] if i + 1 < len(ch) else end_ts, v) for i, (t, v) in enumerate(ch) if (ch[i + 1][0] if i + 1 < len(ch) else end_ts) > t]
-
-
-def fill_gaps(vals: list[float | None], start_ts: float, seen: dict[int, float],
-              fallback: float | None = None) -> tuple[list[float | None], list[bool]]:
-    """Fill hours the forecast does not reach yet (day-ahead prices for tomorrow often arrive in the afternoon):
-    the same clock hour one day earlier, else two days earlier, else the last known value. Returns (values, guessed)."""
-    out, guessed, last = [], [], fallback
-    base = int(_hour_floor(start_ts))
-    for h, v in enumerate(vals):
-        if v is not None:
-            last = v
-            out.append(v)
-            guessed.append(False)
-            continue
-        ts = base + h * 3600
-        prev = seen.get(ts - 86400, seen.get(ts - 2 * 86400))
-        out.append(prev if prev is not None else last)
-        guessed.append(True)
-    return out, guessed
 
 
 def energy_per_hour(slots: list[Slot], start_ts: float, hours: int, rate_first: bool = False) -> list[float]:
@@ -257,23 +234,6 @@ def current_value(slots: list[Slot], now_ts: float) -> float | None:
         if s <= now_ts < e:
             return v
     return None
-
-
-def horizon_hours(slots: list[Slot], now_ts: float) -> float:
-    """How far ahead the series reaches (hours)."""
-    if not slots:
-        return 0.0
-    return max(0.0, (max(e for _, e, _ in slots) - now_ts) / 3600)
-
-
-def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def local_midnight(now: datetime) -> float:
-    """Midnight of the local day of `now` (aware datetime), as epoch seconds."""
-    loc = now.astimezone()
-    return (loc - timedelta(hours=loc.hour, minutes=loc.minute, seconds=loc.second, microseconds=loc.microsecond)).timestamp()
 
 
 FLAT_EPS = 0.002        # currency per kWh: prices this close are the same price

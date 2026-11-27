@@ -1,0 +1,125 @@
+# Temperatures from configurable HA sensors (replaces room-sensor.yaml).
+#   Room Sensor     room, e.g. sensor.living_room_temperature
+#   Outside Sensor  outside, e.g. sensor.outside_temperature or an attribute: weather.home.temperature
+#                   (a second dot separates the attribute)
+# A change makes the box reboot once (a few seconds; everything is kept): HA only passes on
+# a sensor if the box asks for it when connecting. Empty = not used.
+# HA only sends changes: as long as HA is connected the last value counts as current. If HA drops out,
+# the room value stays valid for another 30 min and outside for another 2 hours (control.yaml); after that status "stale".
+# Status: ok | stale | waiting | no_value | invalid | not_set | restarting
+
+esphome:
+  on_boot:
+    - priority: -100 # after all setup, before HA can connect
+      then:
+        - lambda: |-
+            // Subscribe to "domain.object" or "domain.object.attribute"; cb receives a valid value.
+            auto subscribe = [](const std::string &spec, text_sensor::TextSensor *status,
+                                std::function<void(float)> on_val) {
+              if (spec.empty()) { status->publish_state("not_set"); return; }
+              const size_t d1 = spec.find('.');
+              const size_t d2 = d1 == std::string::npos ? std::string::npos : spec.find('.', d1 + 1);
+              const std::string ent = spec.substr(0, d2);
+              optional<std::string> attr;
+              if (d2 != std::string::npos) attr = spec.substr(d2 + 1);
+              if (d1 == std::string::npos || d1 == 0 || d1 + 1 >= ent.size() || spec.find(' ') != std::string::npos ||
+                  (attr.has_value() && attr->empty())) {
+                status->publish_state("invalid"); return;
+              }
+              std::function<void(StringRef)> cb = [status, on_val](StringRef v) {
+                const std::string s(v.c_str(), v.size());
+                char *end;
+                const float x = strtof(s.c_str(), &end);
+                if (end == s.c_str() || std::isnan(x) || x <= -50 || x >= 60) { // e.g. "unavailable"
+                  on_val(NAN);
+                  if (status->state != "no_value") status->publish_state("no_value");
+                  return;
+                }
+                on_val(x);
+                if (status->state != "ok") status->publish_state("ok");
+              };
+              api::global_api_server->subscribe_home_assistant_state(ent, attr, std::move(cb));
+              status->publish_state("waiting");
+            };
+            // NAN = sensor not available: the value expires immediately.
+            subscribe(id(room_sensor_entity).state, id(room_sensor_status), [](float x) {
+              if (std::isnan(x) || x <= -20 || x >= 40) { id(room_valid) = false; id(ha_room_temperature).publish_state(NAN); return; }
+              id(room_valid) = true;
+              id(ha_room_temperature).publish_state(x);
+              id(ot_room).make_call().set_value(x).perform();
+            });
+            subscribe(id(outside_sensor_entity).state, id(outside_sensor_status), [](float x) {
+              id(outside_valid) = !std::isnan(x);
+              id(ha_outside_temperature).publish_state(x);
+            });
+
+script:
+  - id: restart_for_sensor
+    mode: single
+    then:
+      - delay: 3s
+      - lambda: "App.safe_reboot();"
+
+text:
+  - platform: template
+    id: room_sensor_entity
+    name: "Room Sensor"
+    mode: text
+    min_length: 0
+    max_length: 100
+    optimistic: true
+    restore_value: true
+    initial_value: "${room_sensor}"
+    entity_category: config
+    on_value:
+      - if:
+          condition:
+            lambda: "return millis() > 20000;" # not when restoring after startup
+          then:
+            - text_sensor.template.publish: {id: room_sensor_status, state: "restarting"}
+            - script.execute: restart_for_sensor
+  - platform: template
+    id: outside_sensor_entity
+    name: "Outside Sensor"
+    mode: text
+    min_length: 0
+    max_length: 100
+    optimistic: true
+    restore_value: true
+    initial_value: "${outside_sensor}"
+    entity_category: config
+    on_value:
+      - if:
+          condition:
+            lambda: "return millis() > 20000;"
+          then:
+            - text_sensor.template.publish: {id: outside_sensor_status, state: "restarting"}
+            - script.execute: restart_for_sensor
+
+text_sensor:
+  - platform: template
+    id: room_sensor_status
+    name: "Room Sensor Status"
+    entity_category: diagnostic
+  - platform: template
+    id: outside_sensor_status
+    name: "Outside Sensor Status"
+    entity_category: diagnostic
+
+sensor:
+  - platform: template
+    id: ha_room_temperature
+    name: "Room Temperature"
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: never
+  - platform: template
+    id: ha_outside_temperature
+    name: "Outside Temperature (sensor)"
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: never

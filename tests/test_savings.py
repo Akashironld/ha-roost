@@ -96,5 +96,22 @@ def test_replay_propagates_pump_output_and_uses_observed_mean_setpoints():
     assert planner.replay_day(house, hp, planner.Settings(), means) == planner.replay_day(house, hp, planner.Settings(), replaced)
 
 
+
+def test_what_if_a_day_with_eco_and_the_top_of_the_range():
+    """25-11-2026, the comfort range: a day over, planned again in hindsight with eco and the top changed."""
+    house, hp = model.HouseModel(), heatpump.HeatPumpModel()
+    entries = [{"ts": START + i * 3600, "T": 20.5, "E": 1.0, "w": 0.0, "sp": 20.0, "t_out": 3.0, "hour": i, "day": 7 <= i < 23,
+                "p_grid": 0.45 if 17 <= i < 21 else 0.18 if 11 <= i < 15 else 0.28} for i in range(24)]
+    for ot in (False, True):
+        s = planner.Settings(comfort=20.0, day_min=19.5, night_min=18.0, store_max=23.0)
+        r = planner.what_if_day(house, hp, s, entries, ot=ot)
+        assert r["base"] == {"night_min": 18.0, "store_max": 23.0, "comfort": 20.0}
+        assert set(r) == {"base", "eco_down", "eco_up", "top_down", "top_off"}
+        assert r["top_off"]["cost"] > 0.1                  # no storing before an expensive evening costs money
+        r = planner.what_if_day(house, hp, replace(s, store_max=20.0), entries, ot=ot)
+        assert "top_off" not in r and "top_down" not in r  # nothing to store already: no change to show
+    assert planner.what_if_day(house, hp, planner.Settings(), []) is None
+
+
 if __name__ == "__main__":
     run_all(dict(globals()))

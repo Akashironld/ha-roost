@@ -3,6 +3,7 @@ import math
 import os
 import sys
 import time
+from dataclasses import replace
 
 sys.path.insert(0, os.path.dirname(__file__))
 from core import load, run_all  # noqa: E402
@@ -137,7 +138,7 @@ def test_breakdown_shows_tariff_beside_price():
     """Issue #5: with a home battery the plan counts the price of buying a kWh back later, not the tariff; the
     breakdown (the look back report) keeps both, for the plan and for a replayed day."""
     s = planner.Settings()
-    hs = [planner.replace(h, p_grid=0.416, p_own=0.416, p_imp=0.25 + 0.01 * i) for i, h in enumerate(hours(0))]
+    hs = [replace(h, p_grid=0.416, p_own=0.416, p_imp=0.25 + 0.01 * i) for i, h in enumerate(hours(0))]
     p = planner.plan(HOUSE, PUMP, s, hs, t_now=20.6, e_now=2.0, sp_now=20.5)
     assert [r["tariff"] for r in p.breakdown["hours"]] == [round(h.p_imp, 4) for h in hs[:len(p.breakdown["hours"])]]
     assert all(r["price"] == 0.416 for r in p.breakdown["hours"])
@@ -175,37 +176,11 @@ def test_plan_breakdown_adds_up():
     assert any(r["sun"] for r in bd["hours"]) and not all(r["sun"] for r in bd["hours"])
 
 
-def test_guessed_prices_are_set_to_the_mean_of_the_known():
-    hs = hours(5, prices=[0.20] * 6 + [0.40] * 18)
-    guess = [False] * 6 + [True] * 18
-    n = planner.neutral_prices(hs, guess)
-    assert [h.p_grid for h in n[:6]] == [0.20] * 6 and all(abs(h.p_grid - 0.20) < 1e-9 for h in n[6:])
-    assert all(h.p_own == 0.05 for h in n)                        # own solar keeps its (lower) export value
-    assert planner.neutral_prices(hs, [False] * 24) is None        # nothing guessed: nothing to do
-    assert planner.neutral_prices(hs, [False] * 24 + [True] * 12) is None    # only guesses past 24 h
-    n = planner.neutral_prices(hs, [True] * 24)                              # the current hour is never a guess
-    assert n[0].p_grid == 0.20 and all(abs(h.p_grid - 0.20) < 1e-9 for h in n)
-    flat = hours(5, prices=[0.30] * 24)                                      # a price sensor without forecast
-    assert planner.neutral_prices(flat, [False] + [True] * 23) is None
-
-
 def test_published_prefix_preserves_real_zero_and_negative_prices_and_stops_at_gaps():
     assert series.published_prefix([.3, 0., -.1, None, .8]) == [.3, 0., -.1]
     assert series.published_prefix([None, .3]) == []
     assert series.published_prefix([.3, float("nan"), .2]) == [.3]
     assert series.published_prefix([.3, float("inf")]) == [.3]
-
-
-def test_a_guessed_expensive_morning_does_not_move_tonight():
-    """Tomorrow's prices are not published yet and are filled with today's: a plan built on them may store heat
-    tonight for a guessed expensive morning; with the guesses at the mean of what is known it does not."""
-    s = planner.Settings()
-    prices = [0.25] * 6 + [0.45] * 6 + [0.25] * 24          # from 20:00; 02:00-08:00 guessed dear
-    hs = hours(0, prices=prices, start=20)
-    guess = [False] * 4 + [True] * 32
-    real = planner.plan(HOUSE, PUMP, s, hs, t_now=20.5, e_now=0.0, sp_now=20.5)
-    calm = planner.plan(HOUSE, PUMP, s, planner.neutral_prices(hs, guess), t_now=20.5, e_now=0.0, sp_now=20.5)
-    assert max(h.sp for h in calm.hours[:6]) <= max(h.sp for h in real.hours[:6])
 
 
 # ---------------------------------------------------------------- control
@@ -268,16 +243,6 @@ def test_planner_prices_split():
     assert pr[1].own_kw > 2 and pr[1].p_own == 0.05 and pr[1].p_grid == 0.30
     assert pr[0].own_kw == 0 and pr[0].p_grid == 0.30
 
-
-
-def test_price_gaps_filled_with_the_day_before():
-    # forecast until midnight (3 hours known), tomorrow's prices not published yet
-    start = 1_800_000_000 - 1_800_000_000 % 3600
-    vals = [0.25, 0.46, 0.37, None, None, None]
-    seen = {start + 3 * 3600 - 86400: 0.22, start + 5 * 3600 - 2 * 86400: 0.20}
-    out, guess = series.fill_gaps(vals, start, seen)
-    assert out == [0.25, 0.46, 0.37, 0.22, 0.37, 0.20]   # a day earlier, nothing known (last value), two days earlier
-    assert guess == [False, False, False, True, True, True]
 
 
 def test_slots_from_state_changes():
@@ -425,6 +390,40 @@ def test_heat_pump_power_by_source():
     assert value.source_split(2.0, 2.5, 4.0, 0.0) == (2.0, 0.0, 0.0)             # plenty of solar: all solar
     assert value.source_split(0.0, 0.5, 1.0, 0.0) == (0.0, 0.0, 0.0)
 
+
+def test_the_grid_search_gives_the_same_plan():
+    """With numpy (Home Assistant) plan() searches the whole grid at once: the same setpoints and cost."""
+    from dataclasses import replace
+    if not planner.GRID:
+        return
+    s = planner.Settings(comfort=20.5, day_min=20.0, night_min=19.0, store_max=22.5, sp_min=19.0)
+    slow = replace(PUMP, a=0.9, k=1.0, offset=0.3, follow=0.35, th_diff=-0.2, q_min=2.4)
+    try:
+        for t_out, house, hp in ((8, HOUSE, PUMP), (-3, HOUSE, slow), (5, replace(HOUSE, lag=0.15, C=12.0), replace(PUMP, stops=False))):
+            hs = hours(t_out) + hours(t_out)[:12]
+            fast = planner.plan(house, hp, s, hs, 20.4, 4.0, 20.5, 24, 2.0)
+            planner.GRID = False
+            pure = planner.plan(house, hp, s, hs, 20.4, 4.0, 20.5, 24, 2.0)
+            planner.GRID = True
+            assert [x.sp for x in fast.hours] == [x.sp for x in pure.hours] and abs(fast.cost - pure.cost) < 1e-9
+    finally:
+        planner.GRID = True
+
+
+
+def test_solar_is_free_for_the_heat_pump_once_the_battery_is_full_enough():
+    # 22-11-2026: the battery's habits are no longer guessed; solar surplus counts as free from solar_from_soc on,
+    # the charge followed with the forecast; hours the battery supplies the house count at the tariff
+    inp = value.EnergyInputs(import_price=[0.30] * 6, export_price=[0.05] * 6, pv_kwh=[0, 3, 3, 3, 3, 0],
+                             load_kwh=[0.5] * 6, battery_soc=30.0, battery_kwh=10.0, solar_from_soc=50.0)
+    ev = value.compute(inp)
+    assert ev.battery_soc[0] == 30.0 and ev.value[0] == 0.30            # night: the battery supplies, at the tariff
+    assert ev.value[1] == 0.30 and ev.surplus_kwh[1] == 0.0              # 25 % at the start: the surplus fills it first
+    assert ev.battery_soc[2] >= 50.0 and ev.value[2] == 0.05 and ev.surplus_kwh[2] == 2.5   # full enough: free
+    ev80 = value.compute(value.EnergyInputs(**{**inp.__dict__, "solar_from_soc": 80.0}))
+    assert ev80.value[2] == ev80.value[3] == 0.30 and ev80.value[4] == 0.05   # 80 %: two hours later (75 % at 3, full at 4)
+    none = value.compute(value.EnergyInputs(import_price=[0.30] * 3, export_price=[0.05] * 3, pv_kwh=[0, 3, 0], load_kwh=[0.5] * 3))
+    assert none.value[1] == 0.05 and none.surplus_kwh[1] == 2.5         # no battery: the surplus is exported anyway
 
 if __name__ == "__main__":
     run_all(dict(globals()))

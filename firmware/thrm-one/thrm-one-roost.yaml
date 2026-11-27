@@ -1,0 +1,151 @@
+# THRM ONE – firmware for Roost. Hardware and OpenTherm base: elvinhome v0.3.0 (GPL-3.0).
+#
+# Files
+#   base.yaml         hardware (without NTC and water detector)
+#   status-led.yaml   LED codes
+#   opentherm.yaml    what goes over the bus (only the IDs Roost needs)
+#   control.yaml      control, safety net and heating curve (see README.md)
+#   ha-sensors.yaml   configurable room and outside sensor from HA
+#   wifi-setup.yaml   change Wi-Fi without new firmware, network info, restart
+#   ethernet.yaml     optional: W5500 Ethernet (only with a network cable)
+#   web-login.yaml    change / reset the web page login
+#   web/              own web page (http://<ip>/, default login admin / Roost)
+# Secrets only in secrets.yaml (wifi_ssid, wifi_password): do not share.
+# The built .bin contains them too: do not share it.
+
+substitutions:
+  version: "1.9.0"
+  # Defaults at first boot; afterwards configurable on the box.
+  room_sensor: sensor.living_room_temperature
+  curve_sensor: sensor.roost_heating_curve_advice
+  outside_sensor: ""
+
+esphome:
+  name_add_mac_suffix: true
+  project:
+    name: roost.thrm-one
+    version: ${version}
+  on_boot:
+    - priority: 600
+      then:
+        - script.execute: led_connecting
+
+# Own version of the ESPHome 2026.10.1 OpenTherm component, with a decoder based on signal edges (see
+# components/opentherm/opentherm.cpp, "Roost extension").
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [opentherm]
+
+packages:
+  base: !include base.yaml
+  led: !include status-led.yaml
+  opentherm: !include opentherm.yaml
+  control: !include control.yaml
+  ha_sensors: !include ha-sensors.yaml
+  wifi_setup: !include wifi-setup.yaml
+  web_login: !include web-login.yaml
+  # Ethernet: only enable with a network cable (off by default: Wi-Fi only).
+  # eth: !include ethernet.yaml
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap: {} # fallback network if Wi-Fi and Ethernet fail
+  power_save_mode: none # do not let Wi-Fi sleep: less interference with OpenTherm reading
+  # 1.9.0: never reboot because Wi-Fi is gone (ESPHome default: after 15 min). A reboot erases the Roost plan and gives
+  # ~15 s without OpenTherm, after which the Weheat stops and waits an hour on its own. Wi-Fi just keeps retrying.
+  reboot_timeout: 0s
+  on_disconnect:
+    - script.execute: led_connecting
+
+captive_portal:
+
+logger:
+  level: INFO
+  logs:
+    ethernet: ERROR # without a cable Ethernet retries every 15 s; that would otherwise spam the log
+
+api:
+  id: api_server
+  # 1.9.0: do not reboot if HA stays away (ESPHome default: after 15 min without a connection). That is exactly when the box
+  # must carry on with the Roost plan or the heating curve, without interrupting the pump.
+  reboot_timeout: 0s
+  # Record a disconnect immediately for the safety net (control.yaml).
+  on_client_connected:
+    - lambda: "id(api_lost_ms) = 0;"
+    - script.execute: control_run
+  on_client_disconnected:
+    - lambda: "if (!api::global_api_server->is_connected() && id(api_lost_ms) == 0) id(api_lost_ms) = millis() | 1;"
+  # Roost sends its plan along in case it or HA drops out (see README.md).
+  actions:
+    - action: set_plan
+      variables:
+        flows: float[]
+        outside: float[]
+        sec_into_hour: int
+      then:
+        - lambda: |-
+            const int n = std::min<int>(36, (int) flows.size());
+            for (int i = 0; i < n; i++) {
+              id(plan_flow)[i] = flows[i];
+              id(plan_out)[i] = i < (int) outside.size() ? outside[i] : NAN;
+            }
+            id(plan_n) = n;
+            id(plan_sec) = std::max<int>(0, std::min<int>(3599, (int) sec_into_hour));
+            id(plan_ms) = n > 0 ? (millis() | 1) : 0;
+            ESP_LOGI("plan", "Roost plan: %d hours, %d s into the first hour", n, id(plan_sec));
+        - script.execute: control_run
+  # Home Assistant shows these pages when the box is added.
+  wizard:
+    pages:
+      - title: "Temperatures"
+        description: "Enter the Home Assistant entities for the room and (optionally) outside temperature, for example sensor.living_room_temperature or weather.home.temperature for an attribute. The device restarts once to apply a change."
+        entities:
+          - id: room_sensor_entity
+            description: "Room temperature sensor"
+          - id: room_setpoint
+            description: "Room temperature the heating aims for when the device runs its own heating curve"
+          - id: outside_sensor_entity
+            description: "Outside temperature sensor (backup for, or instead of, the heat pump air inlet)"
+          - id: outside_priority
+            description: "Which outside temperature is used first; the other is the backup"
+      - title: "Heating control"
+        description: "Home Assistant: Roost or an automation sets Flow Setpoint and repeats it at least every few minutes; if that stops, the device runs its own heating curve until commands return. Heating curve: the device always runs its own heating curve."
+        entities:
+          - id: control_mode
+          - id: follow_roost_curve
+            description: "Take the heating curve from Roost automatically"
+          - id: flow_max
+            description: "Highest flow temperature (45 °C or lower for underfloor heating)"
+      - title: "Network"
+        description: "The device gets its IP address from your router (DHCP). Settings page: http://<device IP>/ - default login admin / Roost; change it on that page."
+        entities:
+          - id: wifi_new_ssid
+          - id: wifi_new_password
+          - id: wifi_apply
+
+ota:
+  - platform: esphome
+
+web_server:
+  version: 3
+  js_url: "" # no standard ESPHome interface: own page from web/
+  js_include: web/app.js
+  css_include: web/app.css
+  ota: false
+  log: true # log lines to the "Log" card on the page
+  # Default login for everyone (also after "Reset Web Login"): admin / Roost. The page asks to change
+  # it; the custom login is then stored in flash (web-login.yaml).
+  auth:
+    type: digest
+    username: admin
+    password: Roost
+
+text_sensor:
+  - platform: template
+    name: "Firmware"
+    lambda: 'return {"${version} (ESPHome " ESPHOME_VERSION ")"};'
+    update_interval: 6h
+    entity_category: diagnostic

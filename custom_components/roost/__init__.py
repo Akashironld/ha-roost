@@ -1,6 +1,7 @@
 """Roost: smart heating planner for Weheat heat pumps."""
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -9,23 +10,38 @@ import traceback
 from collections import deque
 from datetime import datetime
 from pathlib import Path
-
-import voluptuous as vol
+from typing import Any
 
 from homeassistant.components import websocket_api
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform, UnitOfTemperature
-from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+)
 from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers import config_validation as cv, entity_registry as er, issue_registry as ir
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
-from .const import CARD_URL, CONF_COMFORT, CONF_THERMOSTAT, DEFAULTS, DOMAIN, STORAGE_VERSION
+from . import energy_ws
+from .const import (
+    CARD_URL,
+    CONF_COMFORT,
+    CONF_THERMOSTAT,
+    DEFAULTS,
+    DOMAIN,
+    STORAGE_VERSION,
+)
 from .manager import RoostManager
+from .volcompat import vol
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,12 +87,13 @@ async def _ws_history(hass: HomeAssistant, connection: websocket_api.ActiveConne
     if mgr is None:
         connection.send_error(msg["id"], "not_found", "No Roost for this entity")
         return
-    connection.send_result(msg["id"], mgr.history_payload(msg["days"]))
+    connection.send_result(msg["id"], mgr.hl.history_payload(msg["days"]))
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Serve the dashboard card, register the services and the card's look back (websocket)."""
     websocket_api.async_register_command(hass, _ws_history)
+    websocket_api.async_register_command(hass, energy_ws.ws_energy)
     card = Path(__file__).parent / "frontend" / "roost-card.js"
     await hass.http.async_register_static_paths([StaticPathConfig(CARD_URL, str(card), True)])
     version = hass.data.setdefault(DOMAIN, {}).get("version")
@@ -102,7 +119,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     def targets(call: ServiceCall) -> list[RoostManager]:
         ms = managers()
         if not ms:
-            raise ServiceValidationError("Roost is not set up")
+            raise ServiceValidationError("Roost is not set up", translation_domain=DOMAIN, translation_key="not_set_up")
         return ms
 
     async def pause(call: ServiceCall) -> None:
@@ -119,19 +136,19 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         else:
             until = time.time() + float(call.data.get("days", 1.0)) * 86400
         for m in targets(call):
-            await m.async_away(until, call.data.get("minimum"))
+            await m.care.async_away(until, call.data.get("minimum"))
 
     async def home(call: ServiceCall) -> None:
         for m in targets(call):
-            await m.async_home()
+            await m.care.async_home()
 
     async def set_settings(call: ServiceCall) -> None:
         for m in targets(call):
-            await m.async_set_settings(**dict(call.data))
+            await m.care.async_set_settings(**dict(call.data))
 
     async def import_history(call: ServiceCall) -> None:
         for m in targets(call):
-            m.spawn(m.async_import(int(call.data["days"])), "weheat import")
+            m.spawn(m.wh.async_import(int(call.data["days"])), "weheat import")
 
     async def explain_saving(call: ServiceCall) -> ServiceResponse:
         day = call.data["day"]
@@ -139,11 +156,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             try:
                 day = cv.date(day).isoformat()
             except vol.Invalid as err:
-                raise ServiceValidationError("day: yesterday, next_24h or a date (YYYY-MM-DD)") from err
+                raise ServiceValidationError("day: yesterday, next_24h or a date (YYYY-MM-DD)", translation_domain=DOMAIN, translation_key="day_invalid") from err
         ms = targets(call)
         if len(ms) == 1:
-            return ms[0].explain_saving(day)
-        return {"entries": [{"entry": m.entry.title, **m.explain_saving(day)} for m in ms]}
+            return ms[0].hl.explain_saving(day)
+        return {"entries": [{"entry": m.entry.title, **m.hl.explain_saving(day)} for m in ms]}
 
     hass.services.async_register(DOMAIN, "pause", pause, vol.Schema({vol.Optional("hours", default=2): vol.All(vol.Coerce(float), vol.Range(min=0.25, max=72))}))
     hass.services.async_register(DOMAIN, "resume", resume, vol.Schema({}))
@@ -157,7 +174,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         vol.Optional("comfort"): temp(15, 25), vol.Optional("day_min"): temp(10, 25), vol.Optional("night_min"): temp(5, 25),
         vol.Optional("store_max"): temp(15, 28), vol.Optional("lowest_setpoint"): temp(5, 25),
         vol.Optional("day_from"): hour(0, 23), vol.Optional("day_to"): hour(1, 24),
-        vol.Optional("weekly_comfort"): cv.boolean, vol.Optional("comfort_schedule"): dict}))
+        vol.Optional("weekly_comfort"): cv.boolean, vol.Optional("control"): vol.In(["thermostat", "opentherm"]), vol.Optional("ot_min_flow"): temp(10, 40), vol.Optional("ot_max_flow"): temp(25, 50), vol.Optional("ot_max_starts"): hour(0, 24), vol.Optional("ot_quiet"): cv.boolean, vol.Optional("ot_quiet_from"): hour(0, 23), vol.Optional("ot_quiet_to"): hour(0, 23), vol.Optional("ot_quiet_max"): temp(0.5, 10), vol.Optional("ot_relearn"): cv.boolean, vol.Optional("comfort_schedule"): dict,
+        vol.Optional("pump_entities"): dict}))
     hass.services.async_register(DOMAIN, "explain_saving", explain_saving, vol.Schema({vol.Optional("day", default="yesterday"): str}),
                                  supports_response=SupportsResponse.ONLY)
     hass.services.async_register(DOMAIN, "import_history", import_history,
@@ -171,7 +189,9 @@ def _resources(hass: HomeAssistant):
     Home Assistant keeps them under hass.data["lovelace"]: a dict up to early 2025, an object since. Only the
     storage collection can be changed; YAML resources are left alone."""
     try:
-        from homeassistant.components.lovelace.resources import ResourceStorageCollection
+        from homeassistant.components.lovelace.resources import (
+            ResourceStorageCollection,
+        )
     except ImportError:  # pragma: no cover - very old or changed Home Assistant
         return None
     data = hass.data.get("lovelace")
@@ -225,7 +245,8 @@ async def async_remove_entry(hass: HomeAssistant, entry: RoostConfigEntry) -> No
     """Removed by the user: the thermostat back on comfort when Roost was steering, its repair notices go, and the
     dashboard resource with the last one."""
     try:
-        data = await Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}").async_load() or {}
+        store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}")
+        data = await store.async_load() or {}
         conf = {**DEFAULTS, **entry.data, **entry.options}
         st = hass.states.get(conf.get(CONF_THERMOSTAT, ""))
         if data.get("mode") == "active" and st is not None and st.state not in ("unavailable", "unknown"):
@@ -236,6 +257,24 @@ async def async_remove_entry(hass: HomeAssistant, entry: RoostConfigEntry) -> No
                                            blocking=True)
     except Exception:  # noqa: BLE001 - removing goes on
         _LOGGER.warning("Roost could not set the thermostat back to comfort on removal", exc_info=True)
+    try:
+        # steering over OpenTherm: the master back on its own heating curve (it would fall back after its timeout anyway)
+        mode_eid = conf.get("ot_control_mode")
+        if (data.get("ot") or {}).get("steering") and mode_eid and hass.states.get(mode_eid) is not None:
+            await hass.services.async_call("select", "select_option",
+                                           {"entity_id": mode_eid, "option": conf.get("ot_mode_curve", "Heating curve")}, blocking=True)
+    except Exception:  # noqa: BLE001 - removing goes on
+        _LOGGER.warning("Roost could not set the OpenTherm master back to its heating curve on removal", exc_info=True)
+    try:
+        # the plan Roost left on the box for when it is gone (THRM ONE 1.9.0): cleared, or the box would run it for up to
+        # 36 hours when set back to Home Assistant, with Roost removed on purpose
+        flow = str(conf.get("ot_flow_setpoint") or "")
+        svc = flow[len("number."):-len("_flow_setpoint")] + "_set_plan" if flow.startswith("number.") and flow.endswith("_flow_setpoint") else ""
+        if svc and hass.services.has_service("esphome", svc):
+            async with asyncio.timeout(5):
+                await hass.services.async_call("esphome", svc, {"flows": [], "outside": [], "sec_into_hour": 0}, blocking=True)
+    except Exception:  # noqa: BLE001 - removing goes on
+        _LOGGER.warning("Roost could not clear its plan on the OpenTherm box on removal", exc_info=True)
     if not [e for e in hass.config_entries.async_entries(DOMAIN) if e.entry_id != entry.entry_id]:
         if (res := _resources(hass)) is not None:
             try:

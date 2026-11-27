@@ -1,173 +1,208 @@
-"""Roost's Weheat login and the heat pump's history: the import in months, the nightly refresh. A mixin of RoostManager (manager.py): the methods use its state."""
+"""Roost's Weheat login and the heat pump's history, Home Assistant's side: the import in months, the nightly refresh,
+the unit's settings and fixed data, the heating curve advice. What is kept and how is in core/weheat.py.
+
+WeheatSync (held by RoostManager as `wh`) reaches the rest of Roost only through WeheatHost: the Weheat bundle
+(read and replaced, never held over an await), events, notices, saving, learning."""
 from __future__ import annotations
 
-from .mgr_common import *  # noqa: F401,F403 - the shared imports and constants
-from .mgr_common import _LOGGER, _f, _i, _iso_ts  # noqa: F401
-from . import curve
-from .weheat_api import async_pump_info, async_settings
+import logging
+import time
+import traceback
+from dataclasses import replace
+from datetime import datetime, timedelta, timezone
+from typing import Any, Protocol
+
+from homeassistant.util import dt as dt_util
+
+from . import check, curve, history
+from .const import CONF_HEAT_PUMP, WEHEAT_IMPORT_DAYS
+from .core import weheat as cweheat
+from .mgr_common import WEHEAT_FIELDS
+from .weheat_api import (
+    WeheatLoginNeeded,
+    WeheatUnavailable,
+    async_fetch_history,
+    async_fetch_months,
+    async_pump_info,
+    async_settings,
+    heat_pump_id,
+)
+
+_LOGGER = logging.getLogger(f"{__package__}.manager")   # the name it always had (log settings, bug reports)
 
 
-class WeheatMixin:
-    def _weheat_last_from_events(self) -> dict[str, float]:
-        """The last Weheat call per kind, from the event log (stored by versions before weheat_last was kept)."""
-        last: dict[str, float] = {}
-        for e in self.events:
-            if e.get("kind") == "weheat_call" and e.get("endpoint") in ("logs", "energy"):
-                try:
-                    last[e["endpoint"]] = datetime.fromisoformat(e["t"]).timestamp()
-                except (KeyError, TypeError, ValueError):
-                    pass
-        return last
+class WeheatHost(Protocol):
+    """What the Weheat side needs of the manager: no more."""
+    hass: Any
+    entry: Any
+    weheat: cweheat.Weheat                   # read and replaced
+    card: Any                                # card.login_refused(t): Weheat refused the login
+    care: Any                                # care.notify_user
+    curve_advice: Any                        # written: the heating curve advice
 
-    def _weheat_login(self) -> tuple[str | None, str | None]:
+    @property
+    def conf(self) -> dict: ...
+    @property
+    def pump(self) -> Any: ...
+    def settings(self) -> Any: ...
+    def event(self, kind: str, **data: Any) -> None: ...
+    def spawn(self, coro, name: str, background: bool = True) -> Any: ...
+    def _notify(self) -> None: ...
+    async def async_save(self) -> None: ...
+    async def _async_save_history(self) -> None: ...
+    learner: Any                             # learner.async_learn
+
+
+def _now_iso() -> str:
+    return dt_util.now().isoformat(timespec="seconds")
+
+
+class WeheatSync:
+    def __init__(self, host: WeheatHost) -> None:
+        self.host = host
+        self.importing = False
+
+    def login(self) -> tuple[str | None, str | None]:
         """(Weheat heat pump id, config entry whose login reads the API: Roost's own)."""
-        pump, _ = heat_pump_id(self.hass, self.conf.get(CONF_HEAT_PUMP))
-        return pump, self.entry.entry_id
+        h = self.host
+        pump, _ = heat_pump_id(h.hass, h.conf.get(CONF_HEAT_PUMP))
+        return pump, h.entry.entry_id
 
-    def _ask_login(self, why: str) -> None:
+    def ask_login(self, why: str) -> None:
         """No Weheat login, or Weheat refused it: Home Assistant shows 'Reconfigure / re-authenticate' for Roost."""
-        self.event("login_needed", why=why[:200])
-        self._notify_user("login")
-        self.entry.async_start_reauth(self.hass)
+        h = self.host
+        h.event("login_needed", why=why[:200])
+        h.card.login_refused(time.time())
+        h.care.notify_user("login")
+        h.entry.async_start_reauth(h.hass)
 
-    def _merge_weheat(self, rows: dict[int, dict]) -> None:
-        history.merge_hours(self._weheat_hours, rows)
-
-    def _energy_before(self, ts: float) -> bool:
-        """Most hours of the month before ts have their energy already (an import adding fields, not a first one)."""
-        month = [v for t, v in self._weheat_hours.items() if ts - 31 * 86400 <= t < ts]
-        return len(month) > 24 * 7 and sum(1 for v in month if "q" in v) > 0.8 * len(month)
+    def merge(self, rows: dict[int, dict]) -> None:
+        self.host.weheat = cweheat.merge(self.host.weheat, rows)
 
     def import_progress(self) -> tuple[int, int, datetime | None]:
         """A running Weheat import: months in, months in all, expected end (local time)."""
-        i = self.import_info
+        i = self.host.weheat.import_info
         if not self.importing:
             return i.get("months_done", i.get("months", 0)), i.get("months", 0), None
         end = check.import_done_at(i, dt_util.now().timestamp(), logs_only=bool(i.get("logs_only")))
         return i.get("months_done", 0), i.get("months", 0), dt_util.as_local(datetime.fromtimestamp(end, tz=timezone.utc))
 
-    async def _async_refresh_weheat(self) -> None:
+    def _set(self, **changes: Any) -> None:
+        self.host.weheat = replace(self.host.weheat, **changes)
+
+    async def async_refresh(self) -> None:
         """The hours since the last import, from Weheat (read-only), so learning and the self-check use the unit's own
         meters and states. Skipped quietly when the Weheat login is not available."""
-        pump, weheat_entry = self._weheat_login()
+        h = self.host
+        pump, weheat_entry = self.login()
         if not pump or not weheat_entry:
             return
-        got = await async_settings(self.hass, weheat_entry, pump)          # how it is controlled, its heating curve
+        got = await async_settings(h.hass, weheat_entry, pump)          # how it is controlled, its heating curve
         if got is not None:
-            self.weheat_settings = {**got, "at": dt_util.now().isoformat(timespec="seconds")}
-        await self._async_pump_info()
-        if not self.import_info.get("done") or not self._weheat_hours or self.importing:
+            self._set(settings={**got, "at": _now_iso()})
+        await self.async_pump_info()
+        w = h.weheat
+        if not w.import_info.get("done") or not w.hours or self.importing:
             return
         end = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
-        start = max(end - timedelta(days=30), datetime.fromtimestamp(max(self._weheat_hours) - 3 * 3600, tz=timezone.utc))
+        start = max(end - timedelta(days=30), datetime.fromtimestamp(max(w.hours) - 3 * 3600, tz=timezone.utc))
         try:
-            logs, energy, calls = await async_fetch_history(self.hass, weheat_entry, pump, start, end,
-                                                            note=lambda **k: self.event("weheat_call", **k),
-                                                            last_calls=self.weheat_last)
-            self.event("weheat_refresh", calls=calls, hours=len(logs))
+            logs, energy, calls = await async_fetch_history(h.hass, weheat_entry, pump, start, end,
+                                                            note=lambda **k: h.event("weheat_call", **k),
+                                                            last_calls=w.last)
+            h.event("weheat_refresh", calls=calls, hours=len(logs))
         except WeheatLoginNeeded as err:
-            self._ask_login(str(err))
+            self.ask_login(str(err))
             return
         except Exception as err:  # noqa: BLE001 - learn with what there is
             _LOGGER.debug("Roost: Weheat refresh skipped: %s", err)
             return
-        self._merge_weheat(history.weheat_hours(logs, energy))
-        await self._async_save_history()
+        self.merge(history.weheat_hours(logs, energy))
+        await h._async_save_history()
 
-    async def _async_pump_info(self) -> None:
+    async def async_pump_info(self) -> None:
         """The unit's fixed data from Weheat (model, gas boiler, hot water tank); kept as it was when Weheat does not
         answer."""
-        pump, weheat_entry = self._weheat_login()
+        h = self.host
+        pump, weheat_entry = self.login()
         if not pump or not weheat_entry:
             return
-        got = await async_pump_info(self.hass, weheat_entry, pump)
+        got = await async_pump_info(h.hass, weheat_entry, pump)
         if got is not None:
-            was = self.hybrid
-            self.weheat_pump = {**got, "at": dt_util.now().isoformat(timespec="seconds")}
-            if self.hybrid != was:
-                self.event("hybrid", hybrid=self.hybrid, boiler_type=got.get("boiler_type"), hours=self.boiler_hours)
+            was = cweheat.hybrid(h.weheat)
+            self._set(pump={**got, "at": _now_iso()})
+            if cweheat.hybrid(h.weheat) != was:
+                h.event("hybrid", hybrid=cweheat.hybrid(h.weheat), boiler_type=got.get("boiler_type"), hours=h.weheat.boiler_hours)
 
     async def async_import(self, days: int = WEHEAT_IMPORT_DAYS, logs_only: bool = False) -> None:
         """Read the heat pump's history from Weheat (read-only), then learn. logs_only: the hours are there already
         (with their energy), only fields of the hourly logs are new: no energy logs, so a year takes half an hour
         instead of hours."""
+        h = self.host
         if self.importing:
             return
-        pump, weheat_entry = self._weheat_login()
+        pump, weheat_entry = self.login()
         if not pump or not weheat_entry:
-            self.import_info = {"status": "no Weheat heat pump found"}
+            self._set(import_info={"status": "no Weheat heat pump found"})
             return
         self.importing = True
-        prev = self.import_info if not self.import_info.get("done") and self.import_info.get("oldest") else None
-        if prev and prev.get("fields_reading") != WEHEAT_FIELDS:
-            # cut off by an update that reads more fields: the months done lack them, so start again from the newest;
-            # the hourly logs only when the hours have their energy already
-            logs_only = logs_only or self._energy_before(datetime.fromisoformat(prev["oldest"]).timestamp())
-            prev = None
-        end = datetime.fromisoformat(prev["oldest"]) if prev else dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
-        start = datetime.fromisoformat(prev["from"]) if prev else end - timedelta(days=days)
-        if prev and not logs_only:
-            # carrying on after a restart: logs only when it was, or when the older hours have their energy already
-            logs_only = bool(prev.get("logs_only")) or self._energy_before(end.timestamp())
-        self.import_info = {"status": "importing", "from": start.isoformat(), "to": (prev or {}).get("to", end.isoformat()),
-                            "logs_only": logs_only, "fields_reading": WEHEAT_FIELDS,
-                            "oldest": end.isoformat(), "months_done": (prev or {}).get("months_done", 0),
-                            "months": max(1, round((end - start).days / 31) + (prev or {}).get("months_done", 0)),
-                            "hours": (prev or {}).get("hours", 0)}
-        self._notify()
-        learned_once = bool(prev)
+        w = h.weheat
+        plan = cweheat.plan_import(w.import_info, w.hours, days, logs_only,
+                                   dt_util.utcnow().replace(minute=0, second=0, microsecond=0), WEHEAT_FIELDS)
+        self._set(import_info=plan.info)
+        h._notify()
+        learned_once = plan.resumed
 
         async def on_month(logs: list, energy: list, oldest: datetime) -> None:
             nonlocal learned_once
             rows = history.weheat_hours(logs, energy)
-            self._merge_weheat(rows)
-            await self._async_save_history()
-            info = self.import_info
-            info.update(oldest=oldest.isoformat(), months_done=info["months_done"] + 1, hours=info["hours"] + len(rows),
-                        at=dt_util.now().isoformat(timespec="seconds"))
-            await self.async_save()                 # a restart carries on from here
-            self._notify()
+            self.merge(rows)
+            await h._async_save_history()
+            self._set(import_info=cweheat.month_done(h.weheat.import_info, oldest, len(rows), _now_iso()))
+            await h.async_save()                 # a restart carries on from here
+            h._notify()
             if not learned_once:                    # the newest month is in: learn from it now, the rest follows
                 learned_once = True
-                self.spawn(self.async_learn(), "learning after the first month")
+                h.spawn(h.learner.async_learn(), "learning after the first month")
         try:
-            calls = await async_fetch_months(self.hass, weheat_entry, pump, start, end, on_month,
-                                             lambda **k: self.event("weheat_call", **k), self.weheat_last,
-                                             energy_logs=not logs_only)
-            info = self.import_info
-            first = min(self._weheat_hours) if self._weheat_hours else None
-            self.event("import", hours=info["hours"], calls=calls, months=info["months_done"])
-            self.import_info = {"status": "done", "done": True, "fields": WEHEAT_FIELDS, "hours": info["hours"], "calls": calls,
-                                "months": info["months_done"],
-                                "from": first and datetime.fromtimestamp(first, tz=timezone.utc).isoformat(),
-                                "to": info["to"], "at": dt_util.now().isoformat(timespec="seconds")}
+            calls = await async_fetch_months(h.hass, weheat_entry, pump, plan.start, plan.end, on_month,
+                                             lambda **k: h.event("weheat_call", **k), w.last,
+                                             energy_logs=not plan.logs_only)
+            info, hours = h.weheat.import_info, h.weheat.hours
+            first = min(hours) if hours else None
+            h.event("import", hours=info["hours"], calls=calls, months=info["months_done"])
+            self._set(import_info=cweheat.import_done(info, calls, WEHEAT_FIELDS, _now_iso(),
+                                                      first and datetime.fromtimestamp(first, tz=timezone.utc).isoformat()))
         except WeheatUnavailable as err:
-            self.import_info.update(status=f"waiting for the Weheat login ({err})")        # keeps how far it got
-            self.event("import_waiting", error=str(err)[:200])
+            # keeps how far it got
+            self._set(import_info={**h.weheat.import_info, "status": f"waiting for the Weheat login ({err})"})
+            h.event("import_waiting", error=str(err)[:200])
             if isinstance(err, WeheatLoginNeeded):
-                self._ask_login(str(err))
+                self.ask_login(str(err))
         except Exception as err:  # noqa: BLE001
             _LOGGER.exception("Roost: Weheat import failed")
-            self.import_info.update(status=f"failed: {err}")
-            self.event("error", where="import", error=repr(err)[:200], trace=traceback.format_exc(limit=4)[-800:])
+            self._set(import_info={**h.weheat.import_info, "status": f"failed: {err}"})
+            h.event("error", where="import", error=repr(err)[:200], trace=traceback.format_exc(limit=4)[-800:])
         finally:
             self.importing = False
-        await self.async_save()
-        if self.import_info.get("done"):
-            await self.async_learn()
-        self._notify()
+        await h.async_save()
+        if h.weheat.import_info.get("done"):
+            await h.learner.async_learn()
+        h._notify()
 
-    async def _async_curve(self, rows: list) -> None:
+    async def async_curve(self, rows: list) -> None:
         """The heating curve advice from the house's heat loss, the emitters and the unit's flow temperatures (nightly,
         after learning). Kept as it was when there is too little data."""
-        if not self.weheat_settings:                    # not asked yet (first night after an update): ask now
-            pump, weheat_entry = self._weheat_login()
-            got = await async_settings(self.hass, weheat_entry, pump) if pump and weheat_entry else None
+        h = self.host
+        if not h.weheat.settings:                    # not asked yet (first night after an update): ask now
+            pump, weheat_entry = self.login()
+            got = await async_settings(h.hass, weheat_entry, pump) if pump and weheat_entry else None
             if got is not None:
-                self.weheat_settings = {**got, "at": dt_util.now().isoformat(timespec="seconds")}
-        flows = curve.flows_from_weheat(self._weheat_hours)
-        adv = await self.hass.async_add_executor_job(curve.advise, rows, flows, self.conf.get(CONF_EMITTER, "floor"),
-                                                     self.settings().comfort, self.pump.q_min or 0.0, curve.WEHEAT_X,
-                                                     curve.opentherm_from_weheat(self._weheat_hours))
+                self._set(settings={**got, "at": _now_iso()})
+        hours = h.weheat.hours
+        flows = curve.flows_from_weheat(hours)
+        adv = await h.hass.async_add_executor_job(curve.advise, rows, flows, curve.emitter_profile(h.conf)[1],
+                                                  h.settings().comfort, h.pump.q_min or 0.0, curve.WEHEAT_X,
+                                                  curve.opentherm_from_weheat(hours))
         if adv is not None:
-            self.curve_advice = adv
+            h.curve_advice = adv

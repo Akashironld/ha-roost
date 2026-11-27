@@ -1,0 +1,77 @@
+# Change Wi-Fi from the web page or HA, without new firmware. The box tries for 30 s; if that
+# fails, it goes back to the previous network (Ethernet keeps working). The new network is
+# then stored in flash and takes precedence over the one from secrets.yaml. The password field is
+# cleared after every attempt. The IP address always comes via DHCP; set a fixed address in the router.
+
+text:
+  - platform: template
+    id: wifi_new_ssid
+    name: "WiFi Network"
+    mode: text
+    min_length: 0
+    max_length: 32
+    optimistic: true
+    entity_category: config
+  - platform: template
+    id: wifi_new_password
+    name: "WiFi Password"
+    mode: password
+    min_length: 0
+    max_length: 64
+    optimistic: true
+    entity_category: config
+
+button:
+  - platform: template
+    id: wifi_apply
+    name: "Apply WiFi"
+    entity_category: config
+    on_press:
+      - if:
+          condition:
+            lambda: |-
+              const auto &p = id(wifi_new_password).state;
+              return !id(wifi_new_ssid).state.empty() && (p.empty() || p.size() >= 8);
+          then:
+            - text_sensor.template.publish: {id: wifi_setup_status, state: "connecting"}
+            - wifi.configure:
+                ssid: !lambda "return id(wifi_new_ssid).state;"
+                password: !lambda "return id(wifi_new_password).state;"
+                save: true
+                timeout: 30s
+                on_connect:
+                  - text_sensor.template.publish: {id: wifi_setup_status, state: "connected"}
+                  - text.set: {id: wifi_new_password, value: ""}
+                on_error:
+                  - text_sensor.template.publish: {id: wifi_setup_status, state: "failed"}
+                  - text.set: {id: wifi_new_password, value: ""}
+          else:
+            - text_sensor.template.publish: {id: wifi_setup_status, state: "invalid"}
+  - platform: restart
+    name: "Restart"
+    entity_category: config
+
+text_sensor:
+  - platform: template
+    id: wifi_setup_status
+    name: "WiFi Setup Status" # connecting | connected | failed | invalid
+    entity_category: diagnostic
+    disabled_by_default: true
+  - platform: wifi_info
+    ssid:
+      name: "WiFi Connected Network"
+      entity_category: diagnostic
+    ip_address:
+      name: "WiFi IP Address"
+      entity_category: diagnostic
+
+sensor:
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    update_interval: 60s
+    entity_category: diagnostic
+  - platform: uptime
+    name: "Uptime"
+    update_interval: 60s
+    entity_category: diagnostic
+    disabled_by_default: true

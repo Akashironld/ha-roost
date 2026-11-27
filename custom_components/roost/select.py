@@ -9,13 +9,15 @@ from . import RoostConfigEntry
 from .const import MODES
 from .entity import RoostEntity
 
+# read only (the manager computes everything): no limit on parallel updates
+PARALLEL_UPDATES = 0
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: RoostConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     async_add_entities([ModeSelect(entry.runtime_data)])
 
 
 class ModeSelect(RoostEntity, SelectEntity):
-    _attr_icon = "mdi:bird"
     _attr_options = MODES
 
     def __init__(self, mgr) -> None:

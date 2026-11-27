@@ -1,4 +1,5 @@
 """Unpublished tariffs must not participate in either planning or battery valuation."""
+from dataclasses import replace
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -33,14 +34,14 @@ async def test_old_prices_never_fill_the_unpublished_tail(hass, entry, mode):
     now = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
     base = int(now.timestamp())
     m.conf["price_mode"] = mode
-    m._epex = [(base + i*3600, base + (i+1)*3600, .1) for i in range(8)]
+    m.prices = replace(m.prices, epex=[(base + i*3600, base + (i+1)*3600, .1) for i in range(8)])
     m.conf.update(import_mult=1., import_add=0.)
     publish(hass, now, 8)
     key = "epex_import" if mode == "epex" else PRICE
-    m.price_seen[key] = {base + i*3600 - 86400: .95 for i in range(36)}
+    m.prices = replace(m.prices, seen={**m.prices.seen, key: {base + i*3600 - 86400: .95 for i in range(36)}})
     a = m._energy(now, 36)
     assert a is not None and len(a[0].import_price) == 8
-    m.price_seen[key] = {base + i*3600 - 86400: -.50 for i in range(36)}
+    m.prices = replace(m.prices, seen={**m.prices.seen, key: {base + i*3600 - 86400: -.50 for i in range(36)}})
     b = m._energy(now, 36)
     assert a == b
 
@@ -90,9 +91,9 @@ async def test_plan_extends_when_prices_are_published_and_partial_saving_is_unav
     now = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
     publish(hass, now, 8)
     await m._async_plan(now)
-    assert len(m.plan_hours) == len(m.plan.hours) == 8
-    assert not any(m.plan_guess)
-    assert "incomplete_forecast" in m.plan.breakdown["quality"]["reasons"]
+    assert len(m.held.hours) == len(m.held.plan.hours) == 8
+    assert not any(m.held.guess)
+    assert "incomplete_forecast" in m.held.plan.breakdown["quality"]["reasons"]
     assert SavingNext24hSensor(m).native_value is None
     attrs = SetpointSensor(m).extra_state_attributes
     assert attrs["price_horizon_hours"] == 8 and attrs["cost_24h"] is None
@@ -100,8 +101,8 @@ async def test_plan_extends_when_prices_are_published_and_partial_saving_is_unav
 
     publish(hass, now, 36)
     await m._async_plan(now + timedelta(seconds=1))
-    assert len(m.plan_hours) == 36 and len(m.plan.hours) == 24
-    assert "incomplete_forecast" not in m.plan.breakdown["quality"]["reasons"]
+    assert len(m.held.hours) == 36 and len(m.held.plan.hours) == 24
+    assert "incomplete_forecast" not in m.held.plan.breakdown["quality"]["reasons"]
     assert SetpointSensor(m).extra_state_attributes["price_limited_until"] is None
 
 
@@ -114,7 +115,7 @@ async def test_a_sensor_without_forecast_or_history_plans_on_a_flat_price(hass, 
     """v0.8.0: not a 1-hour plan. Nothing known about the sensor yet: its current price for every hour, with a notice."""
     m = entry.runtime_data
     now = dt_util.utcnow()
-    m.price_seen.pop(PRICE, None)
+    m.prices = replace(m.prices, seen={k: v for k, v in m.prices.seen.items() if k != PRICE})
     hass.states.async_set(PRICE, "-0.05", {"unit_of_measurement": "EUR/kWh"})
     inp, _ = m._energy(now, 36)
     assert inp.import_price == [-.05] * 36
@@ -123,7 +124,7 @@ async def test_a_sensor_without_forecast_or_history_plans_on_a_flat_price(hass, 
 
 def _history(m, now, price):
     base = int(now.timestamp() // 3600 * 3600)
-    m.price_seen[PRICE] = {base - h * 3600: price(base - h * 3600) for h in range(1, 48)}
+    m.prices = replace(m.prices, seen={**m.prices.seen, PRICE: {base - h * 3600: price(base - h * 3600) for h in range(1, 48)}})
     return base
 
 
@@ -156,7 +157,7 @@ async def test_a_dynamic_sensor_without_forecast_is_estimated_from_day_ahead_pri
     now = dt_util.utcnow()
     base = int(now.timestamp() // 3600 * 3600)
     epex = lambda ts: 0.05 + 0.04 * ((ts // 3600) % 7)
-    m._epex = [(base + h * 3600, base + (h + 1) * 3600, epex(base + h * 3600)) for h in range(-48, 20)]
+    m.prices = replace(m.prices, epex=[(base + h * 3600, base + (h + 1) * 3600, epex(base + h * 3600)) for h in range(-48, 20)])
     _history(m, now, lambda ts: 1.21 * epex(ts) + 0.10)
     hass.states.async_set(PRICE, str(round(1.21 * epex(base) + 0.10, 4)), {"unit_of_measurement": "EUR/kWh"})
     inp, _ = m._energy(now, 36)
@@ -169,7 +170,7 @@ async def test_a_dynamic_sensor_that_does_not_follow_day_ahead_stays_flat(hass, 
     m = entry.runtime_data
     now = dt_util.utcnow()
     base = int(now.timestamp() // 3600 * 3600)
-    m._epex = [(base + h * 3600, base + (h + 1) * 3600, 0.05 + 0.04 * (h % 7)) for h in range(-48, 20)]
+    m.prices = replace(m.prices, epex=[(base + h * 3600, base + (h + 1) * 3600, 0.05 + 0.04 * (h % 7)) for h in range(-48, 20)])
     _history(m, now, lambda ts: 0.30 if (ts // 3600) % 5 else 0.10)     # unrelated to day-ahead
     hass.states.async_set(PRICE, "0.30", {"unit_of_measurement": "EUR/kWh"})
     inp, _ = m._energy(now, 36)
@@ -189,12 +190,12 @@ async def test_missing_price_keeps_the_plan_for_an_hour_then_plans_on_a_flat_pri
     leaving the thermostat wherever the last plan put it."""
     m = entry.runtime_data
     now = dt_util.utcnow()
-    assert m.plan is not None
+    assert m.held.plan is not None
     held = m.planned_sp(now.timestamp())
     hass.states.async_set(PRICE, "unavailable")
     await m._async_plan(now)
-    assert m.reason.code == "no_price" and m.plan is not None and m.planned_sp(now.timestamp()) == held
+    assert m.reason.code == "no_price" and m.held.plan is not None and m.planned_sp(now.timestamp()) == held
     later = now + timedelta(minutes=61)
     await m._async_plan(later)
-    assert m.fallback == "no_price" and m.plan is not None and m.reason.code == "fallback_no_price"
-    assert len(set(m.plan_tariff)) == 1 and m.plan.breakdown["saving"] is None
+    assert m.held.fallback == "no_price" and m.held.plan is not None and m.reason.code == "fallback_no_price"
+    assert len(set(m.held.tariff)) == 1 and m.held.plan.breakdown["saving"] is None

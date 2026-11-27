@@ -26,12 +26,14 @@
           "room_temperature": "Raumtemperatursensor (optional, besser als der des Thermostats)",
           "emitter": "Wärmeabgabe",
           "use_bag": "Gebäudedaten aus dem niederländischen Gebäuderegister (BAG)",
-          "window_sensors": "Fenster- und Türsensoren (optional)"
+          "window_sensors": "Fenster- und Türsensoren (optional)",
+          "emitters": "Was heizt das Haus"
         },
         "data_description": {
           "emitter": "Eine Fußbodenheizung speichert viel Wärme und erreicht den Raum langsam; Heizkörper reagieren in Minuten und das Haus selbst ist der Puffer. Nur die Startwerte: Roost lernt dein Haus aus seinen Daten.",
           "use_bag": "Nur Niederlande. Sendet den Heimstandort deines Home Assistant einmal an PDOK (Kadaster), um Baujahr, Wohnfläche und Außenwände deines Hauses nachzuschlagen: bessere Startwerte und nur die Fassadenrichtungen, die dein Haus hat. Roost speichert keine Adresse. Ausschalten löscht die Daten.",
-          "window_sensors": "Roost erkennt Lüften auch an einem schnellen Abfall der Raumtemperatur; mit Sensoren weiß er es sofort. Solange ein Fenster offen ist, wartet Roost und lernt nicht daraus."
+          "window_sensors": "Roost erkennt Lüften auch an einem schnellen Abfall der Raumtemperatur; mit Sensoren weiß er es sofort. Solange ein Fenster offen ist, wartet Roost und lernt nicht daraus.",
+          "emitters": "Alles ankreuzen, was das Haus hat. Roost startet damit (wie warm das Wasser sein muss, wie das Haus reagiert) und lernt den Rest."
         }
       },
       "price": {
@@ -54,18 +56,27 @@
         "data": {
           "epex_zone": "Gebotszone",
           "import_mult": "Multiplikator",
-          "import_add": "Fester Betrag pro kWh",
-          "export_formula": "Einspeisung hat einen eigenen Preis (keine Saldierung)",
-          "export_mult": "Einspeisung: Multiplikator",
-          "export_add": "Einspeisung: fester Betrag pro kWh"
+          "import_add": "Fester Betrag pro kWh"
         },
         "data_description": {
           "epex_zone": "Der Day-Ahead-Markt deines Landes (z. B. DE-LU, AT, NL); aus dem Land deines Home Assistant ausgefüllt.",
           "import_mult": "Meist 1 + MwSt., z. B. 1,19 in Deutschland, 1,21 in den Niederlanden.",
-          "import_add": "Der Aufschlag deines Anbieters plus Steuern und Abgaben, inklusive MwSt. Beispiel DE: (Aufschlag + Netzentgelt + Stromsteuer) × 1,19.",
-          "export_formula": "Aus: Saldierung — Einspeisung ist so viel wert wie Bezug. An: die Formel unten.",
-          "export_mult": "Oft 1 (keine MwSt. oder Steuer auf Einspeisung ohne Saldierung).",
-          "export_add": "Die Einspeisevergütung deines Anbieters, negativ, wenn sie dich kostet, z. B. -0,02."
+          "import_add": "Der Aufschlag deines Anbieters plus Steuern und Abgaben, inklusive MwSt. Beispiel DE: (Aufschlag + Netzentgelt + Stromsteuer) × 1,19."
+        },
+        "sections": {
+          "export_formula_section": {
+            "name": "Einspeisung mit eigenem Preis (keine Saldierung)",
+            "data": {
+              "export_formula": "Einspeisung hat einen eigenen Preis (keine Saldierung)",
+              "export_mult": "Einspeisung: Multiplikator",
+              "export_add": "Einspeisung: fester Betrag pro kWh"
+            },
+            "data_description": {
+              "export_formula": "Aus: Saldierung — Einspeisung ist so viel wert wie Bezug. An: die Formel unten.",
+              "export_mult": "Oft 1 (keine MwSt. oder Steuer auf Einspeisung ohne Saldierung).",
+              "export_add": "Die Einspeisevergütung deines Anbieters, negativ, wenn sie dich kostet, z. B. -0,02."
+            }
+          }
         }
       },
       "price_fixed": {
@@ -73,17 +84,26 @@
         "description": "Wie auf deiner Rechnung, alles inklusive.",
         "data": {
           "fixed_price": "Preis pro kWh (Normaltarif)",
-          "fixed_low_price": "Niedertarif pro kWh (optional)",
-          "low_from": "Niedertarif ab",
-          "low_to": "Niedertarif bis",
-          "low_weekend": "Niedertarif das ganze Wochenende",
           "fixed_export_price": "Einspeisepreis pro kWh (optional)"
         },
         "data_description": {
           "fixed_price": "Alles inklusive: Energie, Steuern und MwSt., wie auf deiner Rechnung.",
-          "fixed_low_price": "Bei einem Einheitstarif leer lassen.",
-          "low_weekend": "Viele Zweitarifzähler zählen das ganze Wochenende als Niedertarif.",
           "fixed_export_price": "Bei Saldierung leer lassen: Einspeisung ist dann den Bezugspreis wert."
+        },
+        "sections": {
+          "low_tariff": {
+            "name": "Niedertarif (optional)",
+            "data": {
+              "fixed_low_price": "Niedertarif pro kWh (optional)",
+              "low_from": "Niedertarif ab",
+              "low_to": "Niedertarif bis",
+              "low_weekend": "Niedertarif das ganze Wochenende"
+            },
+            "data_description": {
+              "fixed_low_price": "Bei einem Einheitstarif leer lassen.",
+              "low_weekend": "Viele Zweitarifzähler zählen das ganze Wochenende als Niedertarif."
+            }
+          }
         }
       },
       "solar": {
@@ -106,43 +126,50 @@
           "pv_forecast": "Solarprognose heute",
           "pv_forecast_tomorrow": "Solarprognose morgen",
           "grid_power": "Netzleistung",
-          "grid_sign": "Vorzeichen der Netzleistung",
           "battery_soc": "Ladestand des Heimspeichers",
           "battery_power": "Leistung des Heimspeichers (+ = Entladen)",
           "battery_kwh": "Nutzbare Batteriekapazität",
-          "battery_kw": "Maximale Ladeleistung der Batterie",
-          "battery_reserve": "Batteriereserve",
-          "battery_use": "Die Wärmepumpe und die Hausbatterie",
-          "house_power": "Hausleistung (für das Verbrauchsprofil)",
-          "grid_preference": "Vorzug für eigene Energie (pro kWh aus dem Netz aufgeschlagen)"
+          "solar_from_battery": "Solarstrom für die Wärmepumpe ab (Ladezustand Akku)",
+          "house_power": "Hausleistung (für das Verbrauchsprofil)"
         },
         "data_description": {
           "grid_power": "Alles optional. Mit Solar sieht Roost den echten Solarüberschuss (Einspeisung minus Batterieentladung, höchstens die Solarleistung).",
           "battery_power": "Nötig, um Solareinspeisung von einer ins Netz verkaufenden Batterie zu unterscheiden.",
-          "battery_use": "Für das Haus behalten: Strom, den die Wärmepumpe aus der Batterie nimmt, kostet, was dem Haus später fehlt (die Stunde, in der die Batterie leer wäre), also heizt Roost in Netzstunden und lässt die Batterie dem Haus. Nutzen, wenn günstiger: Wird die Batterie auch aus dem Netz geladen (das lernt Roost), kostet Strom daraus die günstigste ihrer kommenden Ladestunden — für eine Batterie mit einer Steuerung, die vorausplant und Platz hat (Predbat und ähnliche).",
-          "house_power": "Optional. Was das ganze Haus verbraucht, um den Verbrauch pro Tagesstunde zu lernen (welche kommenden Stunden Solarüberschuss haben, wie lange der Akku reicht). Leer gelassen berechnet Roost ihn aus Netzleistung + Solarleistung (+ Akkuleistung)."
+          "house_power": "Optional. Was das ganze Haus verbraucht, um den Verbrauch pro Tagesstunde zu lernen (welche kommenden Stunden Solarüberschuss haben, wie lange der Akku reicht). Leer gelassen berechnet Roost ihn aus Netzleistung + Solarleistung (+ Akkuleistung).",
+          "solar_from_battery": "Solarüberschuss gilt für die Wärmepumpe als kostenlos, sobald der Akku mindestens so voll ist; darunter geht er zuerst in den Akku. Roost verfolgt die Ladung mit der Solarprognose (Standard 50 %)."
+        },
+        "sections": {
+          "solar_advanced": {
+            "name": "Erweitert",
+            "data": {
+              "grid_sign": "Vorzeichen der Netzleistung",
+              "grid_preference": "Vorzug für eigene Energie (pro kWh aus dem Netz aufgeschlagen)"
+            },
+            "data_description": {}
+          }
         }
       },
       "comfort": {
         "title": "Komfort",
-        "description": "Roost hält den Raum in den Komfortstunden auf Komforttemperatur und lässt ihn nie kälter werden als die Minima. Wo möglich aus den letzten Wochen deines Thermostats ausgefüllt.",
+        "description": "Komfort ist ein Bereich: in den Komfortzeiten mindestens die Komforttemperatur, und wärmer bis zur Obergrenze nur, wenn das Geld spart (Wärme in einer günstigen Stunde für eine teure speichern). Außerhalb der Komfortzeiten zählt nur das Eco-Minimum. Wo möglich aus den letzten Wochen deines Thermostats ausgefüllt.",
         "data": {
-          "day_from": "Beginn der Komfortstunden",
-          "day_to": "Ende der Komfortstunden",
-          "comfort": "Komforttemperatur (Tag)",
-          "day_min": "Minimum in Komfortzeiten",
-          "night_min": "Minimum außerhalb der Komfortzeiten",
-          "store_max": "Am wärmsten beim Wärmespeichern"
+          "comfort": "Komfort: mindestens",
+          "night_min": "Eco: mindestens (außerhalb der Komfortzeiten)",
+          "store_max": "Komfort: darf aufwärmen bis",
+          "comfort_days": "Komfortzeiten"
         },
         "data_description": {
-          "store_max": "Roost speichert Wärme im Boden (oder im Haus), wenn eine Stunde günstig ist (oder Solar wenig einbringt) und eine teure folgt. Auf die Komforttemperatur setzen, um das auszuschalten.",
-          "day_from": "Täglicher Standard (bei ausgeschaltetem Wochenplan)"
+          "store_max": "Roost speichert Wärme im Boden (oder im Haus), wenn eine Stunde günstig ist (oder Solarstrom wenig einbringt) und eine teure folgt. Jedes Grad wärmer kostet etwa 5–7 % mehr Wärmeverlust, ein Bereich von 1–2 °C genügt meist. Gleich Komfort schaltet das Speichern ab.",
+          "comfort_days": "Meistens jeden Tag gleich. Oder Werktage und Wochenende getrennt, oder pro Tag (mehrere Blöcke am Tag). Nur der Block deiner Wahl zählt.",
+          "comfort": "Was Roost in den Komfortzeiten hält. Der Raum ist zu Beginn jeder Komfortzeit warm: Roost heizt von selbst früher an.",
+          "night_min": "Außerhalb der Komfortzeiten lässt Roost den Raum höchstens bis hierhin abkühlen. Bei einer Wärmepumpe lohnt sich eine tiefe Absenkung selten: das Wiederaufheizen braucht mehr Leistung bei niedrigerer COP."
         },
         "sections": {
           "advanced": {
             "name": "Erweitert: Regelung und Wetter",
             "description": "Die Standardwerte passen für die meisten Häuser.",
             "data": {
+              "day_min": "Feste Untergrenze in den Komfortzeiten",
               "lowest_setpoint": "Niedrigste Thermostateinstellung",
               "max_above_room": "Sollwert höchstens so viel über dem Raum",
               "min_interval": "Höchstens eine Änderung pro",
@@ -152,17 +179,17 @@
               "weather_entity": "Wetter-Entität"
             },
             "data_description": {
-              "lowest_setpoint": "Roost stellt das Thermostat nie niedriger. Eine niedrigere Einstellung lässt eine träge Wärmepumpe früher stoppen, aber wenn Home Assistant ausfällt, bleibt das Thermostat dort, wo Roost es gelassen hat.",
-              "max_above_room": "Hält ein OpenTherm-Thermostat bei lauwarmem Wasser (hoher COP).",
+              "day_min": "Nie kälter als dies in den Komfortzeiten, auch nicht in einer sehr teuren Stunde. Geht mit der Komforttemperatur von selbst nach unten mit.",
+              "lowest_setpoint": "Roost stellt das Thermostat nie niedriger. Eine niedrigere Einstellung lässt eine träge Wärmepumpe früher stoppen, aber wenn Home Assistant ausfällt, bleibt das Thermostat dort, wo Roost es gelassen hat. Nur bei Steuerung über das Thermostat.",
+              "max_above_room": "Hält ein OpenTherm-Thermostat bei lauwarmem Wasser (hoher COP). Nur bei Steuerung über das Thermostat.",
               "baseline_night": "Die Ersparnis wird gegenüber einem konstanten Thermostat auf Komforttemperatur gezeigt, der üblichen Empfehlung für Wärmepumpen.",
               "weather_source": "Open-Meteo braucht kein Konto und liefert Strahlung und Wind (das Hausmodell nutzt beides)."
             }
           },
           "weekly_schedule": {
-            "name": "Komfortzeiten je Wochentag",
-            "description": "Diese Zeiten ersetzen bei Aktivierung die tägliche Start- und Endzeit oben. Viertelstunden verwenden, z. B. 07:00-09:00, 17:00-22:00. Ein leerer Tag bedeutet nur Mindesttemperatur. 22:00-02:00 reicht in den nächsten Tag. Roost plant das Vorheizen vor dem Komfortzeitraum.",
+            "name": "Pro Tag",
+            "description": "Zeiträume wie 07:00-09:00, 17:00-22:00; leer = an dem Tag kein Komfort.",
             "data": {
-              "enabled": "Wochenplan verwenden",
               "monday": "Montag",
               "tuesday": "Dienstag",
               "wednesday": "Mittwoch",
@@ -170,6 +197,22 @@
               "friday": "Freitag",
               "saturday": "Samstag",
               "sunday": "Sonntag"
+            }
+          },
+          "hours_same": {
+            "name": "Jeden Tag gleich",
+            "data": {
+              "comfort_from": "Warm um",
+              "comfort_to": "Bis"
+            }
+          },
+          "hours_week_weekend": {
+            "name": "Werktage und Wochenende",
+            "data": {
+              "weekdays_from": "Werktags warm um",
+              "weekdays_to": "Werktage bis",
+              "weekend_from": "Wochenende warm um",
+              "weekend_to": "Wochenende bis"
             }
           }
         }
@@ -180,17 +223,27 @@
       },
       "pick_implementation": {
         "title": "Anmeldung wählen"
+      },
+      "reconfigure": {
+        "title": "Wärmepumpe und Thermostat",
+        "description": "Wähle eine andere Wärmepumpe oder ein anderes Thermostat. Was Roost über das Haus gelernt hat, bleibt.",
+        "data": {
+          "heat_pump": "Weheat-Wärmepumpe",
+          "thermostat": "Thermostat (optional bei Steuerung über OpenTherm)"
+        }
       }
     },
     "error": {
       "not_weheat": "Dieses Gerät hat keine Sensoren einer Weheat-Wärmepumpe.",
       "comfort_below_min": "Die Komforttemperatur muss mindestens das Tagesminimum sein.",
       "store_below_comfort": "Wärmespeichern muss mindestens die Komforttemperatur erlauben.",
-      "day_order": "Die Komfortstunden müssen nach ihrem Beginn enden.",
+      "day_order": "Die Komfortzeiten enden, bevor sie beginnen.",
       "weather_needed": "Wähle eine Wetter-Entität (unter Erweitert).",
       "lowest_above_comfort": "Die niedrigste Thermostateinstellung darf nicht über der Komforttemperatur liegen.",
       "price_needed": "Wähle einen Preissensor oder einen Festpreis.",
-      "invalid_schedule": "Wochenzeiten prüfen: HH:MM-HH:MM, durch Kommas getrennt, in 15-Minuten-Schritten. Zeiträume dürfen sich auch über Mitternacht nicht überschneiden."
+      "invalid_schedule": "Wochenzeiten prüfen: HH:MM-HH:MM, durch Kommas getrennt, in 15-Minuten-Schritten. Zeiträume dürfen sich auch über Mitternacht nicht überschneiden.",
+      "times_needed": "Trage die Zeiten der gewählten Komfortstunden ein.",
+      "eco_above_comfort": "Eco darf nicht über der Komforttemperatur liegen."
     },
     "abort": {
       "already_configured": "Diese Wärmepumpe ist bereits eingerichtet.",
@@ -204,120 +257,129 @@
       "missing_configuration": "Die Anmeldung ist nicht eingerichtet: Füge zuerst Anwendungs-Anmeldedaten für Roost hinzu.",
       "authorize_url_timeout": "Zeitüberschreitung beim Erstellen des Weheat-Anmeldelinks.",
       "no_url_available": "Es ist keine URL dieses Home Assistant bekannt, zu der nach der Anmeldung zurückgekehrt werden kann (Einstellungen → System → Netzwerk).",
-      "user_rejected_authorize": "Die Anmeldung wurde bei Weheat nicht erlaubt."
+      "user_rejected_authorize": "Die Anmeldung wurde bei Weheat nicht erlaubt.",
+      "reconfigure_successful": "Roost nutzt jetzt die neue Wärmepumpe und das neue Thermostat."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Roost",
-        "description": "{saved}**Haus:** {house}\n**Strompreis:** {price}\n**Solar und Batterie:** {solar}\n**Komfort:** {comfort}\n**Zusätzliche Räume:** {rooms} (auf der Integrationsseite hinzufügen)\n\nJeder Teil speichert beim Absenden und kehrt hierher zurück; *Fertig* schließt.",
+        "description": "{saved}**Komfort:** {comfort}\n**Strompreis:** {price}\n**Solar und Batterie:** {solar}\n**Haus:** {house}\n**Zusätzliche Räume:** {rooms} (auf der Integrationsseite hinzufügen)\n\nJeder Teil speichert beim Absenden und kehrt hierher zurück; *Schließen* schließt das Fenster.",
         "menu_options": {
           "mode": "Modus: mitlesen oder steuern",
-          "house": "Haus und Thermostat",
+          "comfort": "Komfort",
           "price": "Strompreis",
           "solar": "Solar und Heimspeicher",
-          "comfort": "Komfort",
           "notify": "Benachrichtigungen",
-          "done": "Fertig"
+          "house": "Haus und Thermostat",
+          "opentherm": "Steuerung: Thermostat oder OpenTherm",
+          "done": "Schließen"
         }
       },
       "mode": {
         "title": "Modus",
-        "description": "**Bereit zum Steuern: {verdict}**\nErwartet: {eta}\nGeprüft an: {basis}\n\n{plan_ok} Planfehler 6 h voraus: {plan_error} °C (nötig: 0,5 oder weniger)\n{hours_ok} Heizstunden in der geprüften Woche: {hours} (nötig: 30)\n{heat_ok} Wärme vorhergesagt ÷ gemessen: {heat} (nötig: 0,7–1,3)\n{follows} Die Wärmepumpe folgt dem Thermostat\n{lever} Der Sollwert bewegt die Wärmepumpe\n\nDie Selbstprüfung läuft jede Nacht um 03:30. **Mitlesen**: Roost plant und zeigt, berührt das Thermostat nie. **Aktiv**: Roost steuert das Thermostat. **Aus**: nichts.",
+        "description": "**Bereit zum Steuern: {verdict}**\nErwartet: {eta}\nGeprüft an: {basis}\n\n{plan_ok} Planfehler 6 h voraus: {plan_error} °C (nötig: 0,5 oder weniger)\n{hours_ok} Heizstunden in der geprüften Woche: {hours} (nötig: 30)\n{heat_ok} Wärme vorhergesagt ÷ gemessen: {heat} (nötig: 0,7–1,3)\n{follows} Die Wärmepumpe folgt dem Thermostat\n{lever} Der Sollwert bewegt die Wärmepumpe\n\nDie Selbstprüfung läuft jede Nacht um 03:30. **Mitlesen**: Roost plant und zeigt, berührt das Thermostat nie. **Aktiv**: Roost steuert das Thermostat. **Aus**: nichts.\n\n*Nur ansehen? Ohne Änderung absenden: nichts wird gespeichert und du bist zurück im Menü.*",
         "data": {
           "mode": "Modus"
         }
       },
       "house": {
         "title": "Das Haus",
-        "description": "Ein eigener Raumsensor ist besser als der Messwert des Thermostats.",
+        "description": "Ein eigener Raumsensor ist besser als der Messwert des Thermostats.\n\n*Nur ansehen? Ohne Änderung absenden: nichts wird gespeichert und du bist zurück im Menü.*",
         "data": {
           "thermostat": "Thermostat, das die Wärmepumpe steuert",
           "room_temperature": "Raumtemperatursensor (optional, besser als der des Thermostats)",
           "emitter": "Wärmeabgabe",
           "use_bag": "Gebäudedaten aus dem niederländischen Gebäuderegister (BAG)",
-          "window_sensors": "Fenster- und Türsensoren (optional)"
+          "window_sensors": "Fenster- und Türsensoren (optional)",
+          "emitters": "Was heizt das Haus"
         },
         "data_description": {
           "thermostat": "Roost ändert nur die Zieltemperatur dieses Thermostats, so wie du es tun würdest. Die Wärmepumpe muss dem Thermostat folgen (nicht ihrer eigenen Heizkurve).",
           "emitter": "Eine Fußbodenheizung speichert viel Wärme und erreicht den Raum langsam; Heizkörper reagieren in Minuten und das Haus selbst ist der Puffer. Nur die Startwerte: Roost lernt dein Haus aus seinen Daten.",
           "use_bag": "Nur Niederlande. Sendet den Heimstandort deines Home Assistant einmal an PDOK (Kadaster), um Baujahr, Wohnfläche und Außenwände deines Hauses nachzuschlagen: bessere Startwerte und nur die Fassadenrichtungen, die dein Haus hat. Roost speichert keine Adresse. Ausschalten löscht die Daten.",
-          "window_sensors": "Roost erkennt Lüften auch an einem schnellen Abfall der Raumtemperatur; mit Sensoren weiß er es sofort. Solange ein Fenster offen ist, wartet Roost und lernt nicht daraus."
+          "window_sensors": "Roost erkennt Lüften auch an einem schnellen Abfall der Raumtemperatur; mit Sensoren weiß er es sofort. Solange ein Fenster offen ist, wartet Roost und lernt nicht daraus.",
+          "emitters": "Alles ankreuzen, was das Haus hat. Roost startet damit (wie warm das Wasser sein muss, wie das Haus reagiert) und lernt den Rest."
         }
       },
       "price": {
         "title": "Strompreis",
-        "description": "Ein dynamischer Vertrag: Wähle den Sensor mit den Preisen der kommenden Stunden — oder, ohne einen solchen Sensor, „Day-Ahead-Preise eingebaut“ und gib im nächsten Schritt die Formel deines Anbieters ein. Ein Festpreisvertrag: Wähle „Festpreis“.",
+        "description": "Wähle die Art des Preises; nur der Block dieser Wahl zählt, die anderen bleiben wie sie waren. Ein dynamischer Vertrag: ein Sensor mit den Preisen der kommenden Stunden, oder ohne Sensor die eingebauten Day-Ahead-Preise mit der Formel deines Anbieters. Ein Festpreisvertrag: der Festpreis.\n\n*Nur ansehen? Ohne Änderung absenden: nichts wird gespeichert und du bist zurück im Menü.*",
         "data": {
-          "price_mode": "Strompreis",
-          "import_price": "Strompreissensor (mit Prognose)",
-          "export_price": "Einspeisepreis"
+          "price_mode": "Strompreis"
         },
-        "data_description": {
-          "price_mode": "Dynamisch: ein Sensor mit Stundenpreisen. Fest: Du gibst im nächsten Schritt den Tarif deines Vertrags ein (und einen Niedertarif, falls vorhanden).",
-          "import_price": "Nur bei einem dynamischen Preis. Ein Sensor mit den Preisen der kommenden Stunden in seinen Attributen (Nord Pool, ENTSO-e, Frank Energie, Zonneplan, Tibber, evcc, …) — bei Zonneplan „Current electricity tariff“. Einzelne Sensoren je Stunde voraus funktionieren nicht; wähle stattdessen die eingebauten Day-Ahead-Preise.",
-          "export_price": "Bei Saldierung leer lassen: Einspeisung ist dann den Bezugspreis wert."
-        }
-      },
-      "price_fixed": {
-        "title": "Festpreis",
-        "description": "Wie auf deiner Rechnung, alles inklusive.",
-        "data": {
-          "fixed_price": "Preis pro kWh (Normaltarif)",
-          "fixed_low_price": "Niedertarif pro kWh (optional)",
-          "low_from": "Niedertarif ab",
-          "low_to": "Niedertarif bis",
-          "low_weekend": "Niedertarif das ganze Wochenende",
-          "fixed_export_price": "Einspeisepreis pro kWh (optional)"
-        },
-        "data_description": {
-          "fixed_price": "Alles inklusive: Energie, Steuern und MwSt., wie auf deiner Rechnung.",
-          "fixed_low_price": "Bei einem Einheitstarif leer lassen.",
-          "low_weekend": "Viele Zweitarifzähler zählen das ganze Wochenende als Niedertarif.",
-          "fixed_export_price": "Bei Saldierung leer lassen: Einspeisung ist dann den Bezugspreis wert."
-        }
-      },
-      "price_epex": {
-        "title": "Day-Ahead-Preise (eingebaut)",
-        "description": "Roost holt die Day-Ahead-Preise (EPEX) selbst ab, pro Viertelstunde, von Energy-Charts — kein Sensor nötig. Was eine kWh kostet = Day-Ahead × Multiplikator + fester Betrag; dasselbe für die Einspeisung, wenn sie einen eigenen Preis hat.",
-        "data": {
-          "epex_zone": "Gebotszone",
-          "import_mult": "Multiplikator",
-          "import_add": "Fester Betrag pro kWh",
-          "export_formula": "Einspeisung hat einen eigenen Preis (keine Saldierung)",
-          "export_mult": "Einspeisung: Multiplikator",
-          "export_add": "Einspeisung: fester Betrag pro kWh"
-        },
-        "data_description": {
-          "epex_zone": "Der Day-Ahead-Markt deines Landes (z. B. DE-LU, AT, NL); aus dem Land deines Home Assistant ausgefüllt.",
-          "import_mult": "Meist 1 + MwSt., z. B. 1,19 in Deutschland, 1,21 in den Niederlanden.",
-          "import_add": "Der Aufschlag deines Anbieters plus Steuern und Abgaben, inklusive MwSt. Beispiel DE: (Aufschlag + Netzentgelt + Stromsteuer) × 1,19.",
-          "export_formula": "Aus: Saldierung — Einspeisung ist so viel wert wie Bezug. An: die Formel unten.",
-          "export_mult": "Oft 1 (keine MwSt. oder Steuer auf Einspeisung ohne Saldierung).",
-          "export_add": "Die Einspeisevergütung deines Anbieters, negativ, wenn sie dich kostet, z. B. -0,02."
+        "sections": {
+          "price_sensor": {
+            "name": "Dynamischer Preis aus einem Sensor",
+            "data": {
+              "import_price": "Strompreissensor (mit Prognose)",
+              "export_price": "Einspeisepreis"
+            },
+            "data_description": {
+              "import_price": "Nur bei einem dynamischen Preis. Ein Sensor mit den Preisen der kommenden Stunden in seinen Attributen (Nord Pool, ENTSO-e, Frank Energie, Zonneplan, Tibber, evcc, …) — bei Zonneplan „Current electricity tariff“. Einzelne Sensoren je Stunde voraus funktionieren nicht; wähle stattdessen die eingebauten Day-Ahead-Preise.",
+              "export_price": "Bei Saldierung leer lassen: Einspeisung ist dann den Bezugspreis wert."
+            }
+          },
+          "price_epex": {
+            "name": "Day-Ahead-Preise (eingebaut)",
+            "data": {
+              "epex_zone": "Gebotszone",
+              "import_mult": "Multiplikator",
+              "import_add": "Fester Betrag pro kWh",
+              "export_formula": "Einspeisung hat einen eigenen Preis (keine Saldierung)",
+              "export_mult": "Einspeisung: Multiplikator",
+              "export_add": "Einspeisung: fester Betrag pro kWh"
+            },
+            "data_description": {
+              "epex_zone": "Der Day-Ahead-Markt deines Landes (z. B. DE-LU, AT, NL); aus dem Land deines Home Assistant ausgefüllt.",
+              "import_mult": "Meist 1 + MwSt., z. B. 1,19 in Deutschland, 1,21 in den Niederlanden.",
+              "import_add": "Der Aufschlag deines Anbieters plus Steuern und Abgaben, inklusive MwSt. Beispiel DE: (Aufschlag + Netzentgelt + Stromsteuer) × 1,19.",
+              "export_formula": "Aus: Saldierung — Einspeisung ist so viel wert wie Bezug. An: die Formel unten.",
+              "export_mult": "Oft 1 (keine MwSt. oder Steuer auf Einspeisung ohne Saldierung).",
+              "export_add": "Die Einspeisevergütung deines Anbieters, negativ, wenn sie dich kostet, z. B. -0,02."
+            }
+          },
+          "price_fixed": {
+            "name": "Festpreis",
+            "data": {
+              "fixed_price": "Preis pro kWh (Normaltarif)",
+              "fixed_export_price": "Einspeisepreis pro kWh (optional)",
+              "fixed_low_price": "Niedertarif pro kWh (optional)",
+              "low_from": "Niedertarif ab",
+              "low_to": "Niedertarif bis",
+              "low_weekend": "Niedertarif das ganze Wochenende"
+            },
+            "data_description": {
+              "fixed_price": "Alles inklusive: Energie, Steuern und MwSt., wie auf deiner Rechnung.",
+              "fixed_export_price": "Bei Saldierung leer lassen: Einspeisung ist dann den Bezugspreis wert.",
+              "fixed_low_price": "Bei einem Einheitstarif leer lassen.",
+              "low_weekend": "Viele Zweitarifzähler zählen das ganze Wochenende als Niedertarif."
+            }
+          }
         }
       },
       "comfort": {
         "title": "Komfort",
-        "description": "Roost hält den Raum in den Komfortstunden auf Komforttemperatur und lässt ihn nie kälter werden als die Minima. Wo möglich aus den letzten Wochen deines Thermostats ausgefüllt.",
+        "description": "Komfort ist ein Bereich: in den Komfortzeiten mindestens die Komforttemperatur, und wärmer bis zur Obergrenze nur, wenn das Geld spart (Wärme in einer günstigen Stunde für eine teure speichern). Außerhalb der Komfortzeiten zählt nur das Eco-Minimum. Wo möglich aus den letzten Wochen deines Thermostats ausgefüllt.\n\n*Nur schauen? Ohne Änderung absenden: es wird nichts gespeichert und du bist zurück im Menü.*",
         "data": {
-          "day_from": "Beginn der Komfortstunden",
-          "day_to": "Ende der Komfortstunden",
-          "comfort": "Komforttemperatur (Tag)",
-          "day_min": "Minimum in Komfortzeiten",
-          "night_min": "Minimum außerhalb der Komfortzeiten",
-          "store_max": "Am wärmsten beim Wärmespeichern"
+          "comfort": "Komfort: mindestens",
+          "night_min": "Eco: mindestens (außerhalb der Komfortzeiten)",
+          "store_max": "Komfort: darf aufwärmen bis",
+          "comfort_days": "Komfortzeiten"
         },
         "data_description": {
-          "store_max": "Roost speichert Wärme im Boden (oder im Haus), wenn eine Stunde günstig ist (oder Solar wenig einbringt) und eine teure folgt. Auf die Komforttemperatur setzen, um das auszuschalten.",
-          "day_from": "Täglicher Standard (bei ausgeschaltetem Wochenplan)"
+          "store_max": "Roost speichert Wärme im Boden (oder im Haus), wenn eine Stunde günstig ist (oder Solarstrom wenig einbringt) und eine teure folgt. Jedes Grad wärmer kostet etwa 5–7 % mehr Wärmeverlust, ein Bereich von 1–2 °C genügt meist. Gleich Komfort schaltet das Speichern ab.",
+          "comfort_days": "Meistens jeden Tag gleich. Oder Werktage und Wochenende getrennt, oder pro Tag (mehrere Blöcke am Tag). Nur der Block deiner Wahl zählt.",
+          "comfort": "Was Roost in den Komfortzeiten hält. Der Raum ist zu Beginn jeder Komfortzeit warm: Roost heizt von selbst früher an.",
+          "night_min": "Außerhalb der Komfortzeiten lässt Roost den Raum höchstens bis hierhin abkühlen. Bei einer Wärmepumpe lohnt sich eine tiefe Absenkung selten: das Wiederaufheizen braucht mehr Leistung bei niedrigerer COP."
         },
         "sections": {
           "advanced": {
             "name": "Erweitert: Regelung und Wetter",
             "description": "Die Standardwerte passen für die meisten Häuser.",
             "data": {
+              "day_min": "Feste Untergrenze in den Komfortzeiten",
               "lowest_setpoint": "Niedrigste Thermostateinstellung",
               "max_above_room": "Sollwert höchstens so viel über dem Raum",
               "min_interval": "Höchstens eine Änderung pro",
@@ -327,17 +389,17 @@
               "weather_entity": "Wetter-Entität"
             },
             "data_description": {
-              "lowest_setpoint": "Roost stellt das Thermostat nie niedriger. Eine niedrigere Einstellung lässt eine träge Wärmepumpe früher stoppen, aber wenn Home Assistant ausfällt, bleibt das Thermostat dort, wo Roost es gelassen hat.",
-              "max_above_room": "Hält ein OpenTherm-Thermostat bei lauwarmem Wasser (hoher COP).",
+              "day_min": "Nie kälter als dies in den Komfortzeiten, auch nicht in einer sehr teuren Stunde. Geht mit der Komforttemperatur von selbst nach unten mit.",
+              "lowest_setpoint": "Roost stellt das Thermostat nie niedriger. Eine niedrigere Einstellung lässt eine träge Wärmepumpe früher stoppen, aber wenn Home Assistant ausfällt, bleibt das Thermostat dort, wo Roost es gelassen hat. Nur bei Steuerung über das Thermostat.",
+              "max_above_room": "Hält ein OpenTherm-Thermostat bei lauwarmem Wasser (hoher COP). Nur bei Steuerung über das Thermostat.",
               "baseline_night": "Die Ersparnis wird gegenüber einem konstanten Thermostat auf Komforttemperatur gezeigt, der üblichen Empfehlung für Wärmepumpen.",
               "weather_source": "Open-Meteo braucht kein Konto und liefert Strahlung und Wind (das Hausmodell nutzt beides)."
             }
           },
           "weekly_schedule": {
-            "name": "Komfortzeiten je Wochentag",
-            "description": "Diese Zeiten ersetzen bei Aktivierung die tägliche Start- und Endzeit oben. Viertelstunden verwenden, z. B. 07:00-09:00, 17:00-22:00. Ein leerer Tag bedeutet nur Mindesttemperatur. 22:00-02:00 reicht in den nächsten Tag. Roost plant das Vorheizen vor dem Komfortzeitraum.",
+            "name": "Pro Tag",
+            "description": "Zeiträume wie 07:00-09:00, 17:00-22:00; leer = an dem Tag kein Komfort.",
             "data": {
-              "enabled": "Wochenplan verwenden",
               "monday": "Montag",
               "tuesday": "Dienstag",
               "wednesday": "Mittwoch",
@@ -346,15 +408,29 @@
               "saturday": "Samstag",
               "sunday": "Sonntag"
             }
+          },
+          "hours_same": {
+            "name": "Jeden Tag gleich",
+            "data": {
+              "comfort_from": "Warm um",
+              "comfort_to": "Bis"
+            }
+          },
+          "hours_week_weekend": {
+            "name": "Werktage und Wochenende",
+            "data": {
+              "weekdays_from": "Werktags warm um",
+              "weekdays_to": "Werktage bis",
+              "weekend_from": "Wochenende warm um",
+              "weekend_to": "Wochenende bis"
+            }
           }
         }
       },
       "solar": {
         "title": "Solar und Heimspeicher",
-        "description": "Öffne einen Block, um seine Sensoren zu sehen und zu ändern. Wenn du einen Haken entfernst, vergisst Roost beim Absenden die Sensoren dieses Blocks.",
-        "data": {
-          "grid_preference": "Vorzug für eigene Energie (pro kWh aus dem Netz aufgeschlagen)"
-        },
+        "description": "Öffne einen Block, um seine Sensoren zu sehen und zu ändern. Wenn du einen Haken entfernst, vergisst Roost beim Absenden die Sensoren dieses Blocks.\n\n*Nur ansehen? Ohne Änderung absenden: nichts wird gespeichert und du bist zurück im Menü.*",
+        "data": {},
         "data_description": {},
         "sections": {
           "solar_section": {
@@ -365,8 +441,7 @@
               "pv_power": "Solarleistung",
               "pv_forecast": "Solarprognose heute",
               "pv_forecast_tomorrow": "Solarprognose morgen",
-              "grid_power": "Netzleistung",
-              "grid_sign": "Vorzeichen der Netzleistung"
+              "grid_power": "Netzleistung"
             },
             "data_description": {
               "has_solar": "Roost rechnet eigenen Solarstrom dann mit dem, was die Einspeisung einbringen würde.",
@@ -375,29 +450,35 @@
           },
           "battery_section": {
             "name": "Heimspeicher",
-            "description": "Ladestand, Leistung und Größe: Energie aus der Batterie zählt zu dem, was das Nachladen kostet.",
+            "description": "Ladung, Leistung und Größe: Roost verfolgt die Ladung und nutzt Solarstrom für die Wärmepumpe, sobald der Akku voll genug ist. Wer den Akku steuert (Predbat, seine App), entscheidet, wann er liefert.",
             "data": {
               "has_battery": "Ich habe einen Heimspeicher",
               "battery_soc": "Ladestand des Heimspeichers",
               "battery_power": "Leistung des Heimspeichers (+ = Entladen)",
               "battery_kwh": "Nutzbare Batteriekapazität",
-              "battery_kw": "Maximale Ladeleistung der Batterie",
-              "battery_reserve": "Batteriereserve",
-              "battery_use": "Die Wärmepumpe und die Hausbatterie",
+              "solar_from_battery": "Solarstrom für die Wärmepumpe ab (Ladezustand Akku)",
               "house_power": "Hausleistung (für das Verbrauchsprofil)"
             },
             "data_description": {
-              "has_battery": "Roost bewertet Energie aus der Batterie dann mit dem, was das Nachladen kostet.",
+              "has_battery": "Roost verfolgt dann die Ladung des Akkus, um zu entscheiden, wann Solarstrom für die Wärmepumpe kostenlos ist.",
               "battery_power": "Nötig, um Solareinspeisung von einer ins Netz verkaufenden Batterie zu unterscheiden.",
-              "battery_use": "Für das Haus behalten: Strom, den die Wärmepumpe aus der Batterie nimmt, kostet, was dem Haus später fehlt (die Stunde, in der die Batterie leer wäre), also heizt Roost in Netzstunden und lässt die Batterie dem Haus. Nutzen, wenn günstiger: Wird die Batterie auch aus dem Netz geladen (das lernt Roost), kostet Strom daraus die günstigste ihrer kommenden Ladestunden — für eine Batterie mit einer Steuerung, die vorausplant und Platz hat (Predbat und ähnliche).",
-              "house_power": "Optional. Was das ganze Haus verbraucht, um den Verbrauch pro Tagesstunde zu lernen (welche kommenden Stunden Solarüberschuss haben, wie lange der Akku reicht). Leer gelassen berechnet Roost ihn aus Netzleistung + Solarleistung (+ Akkuleistung)."
+              "house_power": "Optional. Was das ganze Haus verbraucht, um den Verbrauch pro Tagesstunde zu lernen (welche kommenden Stunden Solarüberschuss haben, wie lange der Akku reicht). Leer gelassen berechnet Roost ihn aus Netzleistung + Solarleistung (+ Akkuleistung).",
+              "solar_from_battery": "Solarüberschuss gilt für die Wärmepumpe als kostenlos, sobald der Akku mindestens so voll ist; darunter geht er zuerst in den Akku. Roost verfolgt die Ladung mit der Solarprognose (Standard 50 %)."
             }
+          },
+          "solar_advanced": {
+            "name": "Erweitert",
+            "data": {
+              "grid_sign": "Vorzeichen der Netzleistung",
+              "grid_preference": "Vorzug für eigene Energie (pro kWh aus dem Netz aufgeschlagen)"
+            },
+            "data_description": {}
           }
         }
       },
       "notify": {
         "title": "Benachrichtigungen",
-        "description": "Aus, bis du wählst, wohin sie gehen. Roost meldet dann, wenn das Thermostat nicht erreichbar oder nicht änderbar ist, wenn seine Prüfung beim Steuern nicht mehr besteht, wenn das Lernen fehlschlägt oder die Weheat-Anmeldung nötig ist — je Art höchstens alle 12 Stunden.",
+        "description": "Aus, bis du wählst, wohin sie gehen. Roost meldet dann, wenn das Thermostat nicht erreichbar oder nicht änderbar ist, wenn seine Prüfung beim Steuern nicht mehr besteht, wenn das Lernen fehlschlägt oder die Weheat-Anmeldung nötig ist — je Art höchstens alle 12 Stunden.\n\n*Nur ansehen? Ohne Änderung absenden: nichts wird gespeichert und du bist zurück im Menü.*",
         "data": {
           "notify_target": "Benachrichtigungen senden an",
           "weekly_report": "Wochenübersicht (Montagmorgen)"
@@ -406,26 +487,106 @@
           "notify_target": "Eine Benachrichtigungsentität oder ein Dienst, z. B. notify.mobile_app_mein_handy. Leer lassen: keine Benachrichtigungen.",
           "weekly_report": "Heizstrom, Kosten, Ersparnis, Komfort und woher der Strom der Wärmepumpe kam, letzte Woche."
         }
+      },
+      "opentherm": {
+        "title": "Wie Roost steuert",
+        "description": "**Thermostat**: Roost stellt die Raumtemperatur am Thermostat ein (wie bisher). **OpenTherm**: Roost fordert über eine OpenTherm-Box (Gateway) in Home Assistant, etwa den THRM ONE, eine Vorlauftemperatur an. Die Box hält die Grenzen; schreibt Roost nicht mehr, geht sie in den Ersatzbetrieb und heizt nach ihrer Ersatzheizkurve. Roost schreibt den Vorlauf mindestens alle 5 Minuten (0 = keine Wärme), überwacht die Box und stellt ihre Regelart auf Home Assistant, solange Roost steuert (zurück auf die Ersatzheizkurve, wenn Roost aufhört). Braucht einen Raumtemperatursensor (Das Haus).\n\n**Auf dieser Box gefunden:**\n{found}\n\n*Nur ansehen? Ohne Änderung absenden: nichts wird gespeichert und du bist zurück im Menü.*",
+        "data": {
+          "control": "Steuerung",
+          "ot_max_starts": "Höchstens so viele Starts pro 24 Stunden",
+          "ot_device": "OpenTherm-Box"
+        },
+        "data_description": {
+          "ot_max_starts": "0 = keine Grenze (ein Start kostet dann nur seinen Mehrstrom).",
+          "ot_device": "Die Box als Gerät wählen: Roost findet ihre Entitäten selbst."
+        },
+        "sections": {
+          "advanced": {
+            "name": "Erweitert",
+            "description": "Startwerte, die Roost durch Messwerte ersetzt, und die Texte der Zustände der Box.",
+            "data": {
+              "ot_q_min": "Niedrigste stabile Heizleistung der Wärmepumpe",
+              "ot_start_kwh": "Zusätzlicher Strom pro Start",
+              "ot_state_ok": "Zustandswert: von Home Assistant gesteuert",
+              "ot_mode_ha": "Option der Regelart: Home Assistant",
+              "ot_mode_curve": "Option der Regelart: Ersatzheizkurve"
+            },
+            "data_description": {
+              "ot_q_min": "Darunter läuft die Wärmepumpe nicht stabil (Weheat P80: etwa 2,8 kW bei 900 U/min). Roost plant ganze Stunden aus oder mindestens diese Leistung.",
+              "ot_start_kwh": "Die ersten 15–20 Minuten nach einem Start laufen mit schlechterem COP; Roost rechnet das pro Start, damit sie lange und niedrig läuft."
+            }
+          },
+          "ot_entities": {
+            "name": "Selbst wählen (andere Box oder zum Korrigieren)",
+            "data": {
+              "ot_flow_setpoint": "Vorlauf-Sollwert (number)",
+              "ot_control_state": "Zustand der OpenTherm-Box (sensor)",
+              "ot_control_mode": "Regelart (select)",
+              "ot_max_flow_sensor": "Höchster Vorlauf, den die Wärmepumpe annimmt (sensor, optional)",
+              "ot_communication_error": "Kommunikationsfehler (binary sensor, optional)",
+              "ot_min_run_time": "Mindestens an, an der Box (number, optional)",
+              "ot_min_off_time": "Mindestens aus, an der Box (number, optional)",
+              "ot_min_flow_number": "Niedrigster Vorlauf an der Box (number, optional)",
+              "ot_max_flow_number": "Höchster Vorlauf an der Box (number, optional)",
+              "ot_follow_curve": "Ersatzheizkurve folgt Roost (switch, optional)",
+              "ot_flow_temperature": "Vorlauftemperatur an der Box (sensor, optional)",
+              "ot_heating_active": "Heizen aktiv an der Box (binary sensor, optional)",
+              "ot_hot_water_active": "Warmwasser aktiv an der Box (binary sensor, optional)"
+            },
+            "data_description": {
+              "ot_min_run_time": "Roost liest sie und plant damit; ohne rechnet Roost mit 30 Minuten.",
+              "ot_min_flow_number": "Hat die Box diese, gelten sie (sie schützt die Wärmepumpe auch ohne Roost) und die Karte ändert sie dort; die zwei Einstellungen darunter werden dann nicht verwendet.",
+              "ot_flow_temperature": "Direkt von der Pumpe gelesen (OpenTherm), ein bis zwei Minuten vor der Weheat-Cloud. Ohne sie nutzt Roost die Weheat-Werte."
+            }
+          },
+          "ot_limits": {
+            "name": "Niedrigste und höchste Vorlauftemperatur",
+            "description": "Eingeklappt, wenn die Box ihre Grenzen selbst hält.",
+            "data": {
+              "ot_min_flow": "Niedrigster Vorlauf",
+              "ot_max_flow": "Höchster Vorlauf"
+            },
+            "data_description": {
+              "ot_max_flow": "Nie über dem, was die Wärmepumpe annimmt (Weheat: 40 °C)."
+            }
+          },
+          "ot_quiet_hours": {
+            "name": "Ruhezeiten",
+            "data": {
+              "ot_quiet": "Ruhezeit",
+              "ot_quiet_from": "Ruhezeit ab",
+              "ot_quiet_to": "Ruhezeit bis",
+              "ot_quiet_max": "Höchste Leistung in der Ruhezeit"
+            },
+            "data_description": {
+              "ot_quiet_max": "Gegen das Geräusch der Außeneinheit nachts: von .. bis, nicht über dieser Leistung."
+            }
+          }
+        }
       }
     },
     "error": {
       "not_weheat": "Dieses Gerät hat keine Sensoren einer Weheat-Wärmepumpe.",
       "comfort_below_min": "Die Komforttemperatur muss mindestens das Tagesminimum sein.",
       "store_below_comfort": "Wärmespeichern muss mindestens die Komforttemperatur erlauben.",
-      "day_order": "Die Komfortstunden müssen nach ihrem Beginn enden.",
+      "day_order": "Die Komfortzeiten enden, bevor sie beginnen.",
       "weather_needed": "Wähle eine Wetter-Entität (unter Erweitert).",
       "lowest_above_comfort": "Die niedrigste Thermostateinstellung darf nicht über der Komforttemperatur liegen.",
       "price_needed": "Wähle einen Preissensor oder einen Festpreis.",
-      "invalid_schedule": "Wochenzeiten prüfen: HH:MM-HH:MM, durch Kommas getrennt, in 15-Minuten-Schritten. Zeiträume dürfen sich auch über Mitternacht nicht überschneiden."
-    },
-    "abort": {
-      "mode_set": "Der Modus ist eingestellt."
+      "invalid_schedule": "Wochenzeiten prüfen: HH:MM-HH:MM, durch Kommas getrennt, in 15-Minuten-Schritten. Zeiträume dürfen sich auch über Mitternacht nicht überschneiden.",
+      "ot_entities": "Wähle den Vorlauf-Sollwert, den Zustand der Box und ihre Regelart.",
+      "ot_room": "Die Steuerung über OpenTherm braucht einen Raumtemperatursensor: zuerst unter Das Haus einstellen.",
+      "ot_limits": "Der niedrigste Vorlauf muss unter dem höchsten liegen.",
+      "ot_thermostat": "Die Steuerung über das Thermostat braucht ein Thermostat: zuerst unter Das Haus wählen.",
+      "fixed_price_needed": "Trage den Preis pro kWh deines Festpreisvertrags ein.",
+      "times_needed": "Trage die Zeiten der gewählten Komfortstunden ein.",
+      "eco_above_comfort": "Eco darf nicht über der Komforttemperatur liegen."
     }
   },
   "entity": {
     "sensor": {
       "setpoint": {
-        "name": "Geplanter Sollwert"
+        "name": "Roost-Vorgabe"
       },
       "saving_next_24h": {
         "name": "Erwartete Ersparnis nächste 24 h"
@@ -437,7 +598,7 @@
         "name": "Ersparnis diesen Monat"
       },
       "cost_today": {
-        "name": "Heizkosten heute"
+        "name": "Stromkosten Wärmepumpe heute"
       },
       "energy_today": {
         "name": "Heizstrom heute"
@@ -466,7 +627,7 @@
         "name": "Fortschritt des Weheat-Imports"
       },
       "plan_accuracy": {
-        "name": "Plangenauigkeit"
+        "name": "Planfehler (6 h voraus)"
       },
       "room_expected_6h": {
         "name": "Erwartete Raumtemperatur in 6 Stunden"
@@ -476,6 +637,9 @@
       },
       "heating_curve": {
         "name": "Heizkurven-Empfehlung"
+      },
+      "electricity_planned": {
+        "name": "Geplanter Strom"
       }
     },
     "binary_sensor": {
@@ -594,16 +758,31 @@
         "export_positive": "Einspeisung ist positiv"
       }
     },
-    "battery_use": {
-      "options": {
-        "house": "Batterie für das Haus behalten",
-        "cheaper": "Batterie nutzen, wenn das günstiger ist"
-      }
-    },
     "weather_source": {
       "options": {
         "open_meteo": "Open-Meteo (kostenlos, mit Strahlung und Wind)",
         "entity": "Eine Wetter-Entität"
+      }
+    },
+    "control": {
+      "options": {
+        "thermostat": "Thermostat (Raumsollwert)",
+        "opentherm": "OpenTherm (Vorlauftemperatur)"
+      }
+    },
+    "emitters": {
+      "options": {
+        "floor": "Fußbodenheizung",
+        "radiators": "Heizkörper",
+        "lt_radiators": "Niedertemperatur-Heizkörper",
+        "fan_coils": "Gebläsekonvektoren"
+      }
+    },
+    "comfort_days": {
+      "options": {
+        "same": "Jeden Tag gleich",
+        "week_weekend": "Werktage und Wochenende",
+        "per_day": "Pro Tag"
       }
     }
   },
@@ -648,9 +827,17 @@
       "title": "{name}: bereit, die Wärmepumpe zu steuern",
       "fix_flow": {
         "step": {
+          "init": {
+            "title": "Bereit zum Steuern",
+            "description": "Roost hat seinen Plan geprüft. Auf aktiv schalten, oder diesen Hinweis nicht mehr zeigen (die Karte zeigt weiter, ob Roost bereit ist).",
+            "menu_options": {
+              "confirm": "Auf aktiv schalten",
+              "mute": "Nicht mehr anzeigen"
+            }
+          },
           "confirm": {
             "title": "Auf aktiv schalten",
-            "description": "Roost hat seinen Plan an den letzten {days} Tagen geprüft: Mit den Sollwerten, die wirklich am Thermostat standen, sagt es den Raum 6 Stunden voraus auf {rmse} °C genau vorher, über {hours} Heizstunden, und die Wärmepumpe folgt dem Thermostat.\n\nAbsenden, um Roost das Thermostat steuern zu lassen (Modus aktiv). Mit der Modusauswahl von Roost kannst du jederzeit zurück zum Mitlesen."
+            "description": "Roost hat seinen Plan an den letzten {days} Tagen geprüft: Mit den Sollwerten, die wirklich am Thermostat standen, sagt es den Raum 6 Stunden voraus auf {rmse} °C genau vorher, über {hours} Heizstunden.\n\nPrüfe zuerst, dass die Wärmepumpe dem Thermostat folgt (in der Weheat-App: OpenTherm, nicht die eigene Heizkurve) und dass Roost die Temperatur des Thermostats einstellen kann.\n\nAbsenden, um Roost das Thermostat steuern zu lassen (Modus aktiv). Mit der Modusauswahl von Roost kannst du jederzeit zurück zum Mitlesen."
           }
         }
       }
@@ -712,7 +899,7 @@
     },
     "fallback": {
       "title": "{name}: Steuerung ohne vollständigen Plan",
-      "description": "Roost kann seit einigen Stunden keinen vollständigen Plan erstellen (kein Strompreis, keine Raumtemperatur oder Wettervorhersage). Bis dahin steuert es mit einem Ersatz: ohne Preis mit einem festen Preis, sonst Komforttemperatur in den Komfortstunden und Nachtminimum außerhalb. Prüfe die Preis-, Raum- und Wettersensoren in den Einstellungen von Roost; der Hinweis verschwindet, sobald wieder ein vollständiger Plan möglich ist."
+      "description": "Roost kann seit einigen Stunden keinen vollständigen Plan erstellen (kein Strompreis, keine Raumtemperatur oder Wettervorhersage). Bis dahin steuert es mit einem einfachen Plan: ohne Preis mit einem festen Preis, sonst Komforttemperatur in den Komfortstunden und Nachtminimum außerhalb. Prüfe die Preis-, Raum- und Wettersensoren in den Einstellungen von Roost; der Hinweis verschwindet, sobald wieder ein vollständiger Plan möglich ist."
     },
     "house_cold": {
       "title": "{name}: das Haus bleibt unter dem Minimum",
@@ -725,6 +912,10 @@
     "price_no_forecast_flat": {
       "title": "{name}: der Preissensor hat keine Vorhersage",
       "description": "{entity} liefert nur den aktuellen Preis, und der ändert sich von Stunde zu Stunde. Roost kann daraus die kommenden Stunden (noch) nicht ableiten und plant mit einem festen Preis: es verschiebt das Heizen nicht in günstigere Stunden. Wähle einen Sensor mit Preisen für mindestens die nächsten 24 Stunden in den Attributen oder die eingebauten Day-Ahead-Preise mit der Formel deines Tarifs."
+    },
+    "opentherm_fallback": {
+      "title": "OpenTherm-Box nicht von Roost gesteuert",
+      "description": "{name} steuert die Wärmepumpe über OpenTherm, aber die OpenTherm-Box ist im Ersatzbetrieb: sie heizt nach ihrer Ersatzheizkurve oder nach dem Plan, den Roost ihr gab (die Box meldet {state}). Prüfe, ob Home Assistant die Box erreicht und ihre Regelart auf Home Assistant steht. Der Hinweis verschwindet, sobald Roost wieder steuert."
     }
   },
   "services": {
@@ -793,6 +984,46 @@
         "comfort_schedule": {
           "name": "Komfortzeiten je Wochentag",
           "description": "Je Wochentag eine Liste von Zeiträumen, als \"07:00-09:00, 17:30-22:00\" oder [[420, 540]] in Minuten; Viertelstunden, ein Zeitraum darf über Mitternacht gehen."
+        },
+        "pump_entities": {
+          "name": "Pumpen-Entitäten für die Karte",
+          "description": "Je Rolle (state, water_setpoint, water_out, water_in, power_in, power_out) eine andere Entität; leer nimmt wieder die des Geräts."
+        },
+        "control": {
+          "name": "Steuerung",
+          "description": "Thermostat (Raumsollwert) oder OpenTherm (Vorlauftemperatur)."
+        },
+        "ot_min_flow": {
+          "name": "Niedrigster Vorlauf",
+          "description": "OpenTherm: der niedrigste Vorlauf, den Roost anfordert."
+        },
+        "ot_max_flow": {
+          "name": "Höchster Vorlauf",
+          "description": "OpenTherm: der höchste Vorlauf, den Roost anfordert."
+        },
+        "ot_max_starts": {
+          "name": "Starts pro 24 h",
+          "description": "OpenTherm: höchstens so viele Starts (0 = keine Grenze)."
+        },
+        "ot_quiet_from": {
+          "name": "Ruhe ab",
+          "description": "OpenTherm: Beginn der Ruhezeit (Stunde)."
+        },
+        "ot_quiet_to": {
+          "name": "Ruhe bis",
+          "description": "OpenTherm: Ende der Ruhezeit (Stunde)."
+        },
+        "ot_quiet_max": {
+          "name": "Ruheleistung",
+          "description": "OpenTherm: höchste Leistung in der Ruhezeit (kW, 0 = aus)."
+        },
+        "ot_relearn": {
+          "name": "Wärmepumpe neu lernen",
+          "description": "OpenTherm: Gelerntes (niedrigste Leistung, Wärmeabgabe, Startkosten) vergessen."
+        },
+        "ot_quiet": {
+          "name": "Ruhezeit",
+          "description": "Ruhezeit (OpenTherm): an oder aus."
         }
       }
     },
@@ -813,6 +1044,41 @@
           "name": "Tag: yesterday, next_24h oder ein Datum (JJJJ-MM-TT)"
         }
       }
+    }
+  },
+  "exceptions": {
+    "weekly_invalid": {
+      "message": "Wöchentliche Komfortzeiten: {error}"
+    },
+    "weekly_on": {
+      "message": "Die wöchentlichen Komfortzeiten sind an: ändere diese statt der Komfortstunden."
+    },
+    "hours_order": {
+      "message": "Die Komfortstunden müssen nach ihrem Beginn enden."
+    },
+    "pump_entities": {
+      "message": "pump_entities: eine Zuordnung von {roles} zu einer Entität."
+    },
+    "pump_entity_missing": {
+      "message": "pump_entities: {role}: die Entität {entity} gibt es nicht."
+    },
+    "flow_limits": {
+      "message": "Der niedrigste Vorlauf muss unter dem höchsten liegen."
+    },
+    "control_unknown": {
+      "message": "Die Steuerung muss eine davon sein: {options}."
+    },
+    "control_ot_missing": {
+      "message": "OpenTherm braucht die Entitäten der OpenTherm-Box und einen Raumsensor (Konfigurieren > Wie Roost steuert)."
+    },
+    "control_thermostat_missing": {
+      "message": "Die Steuerung über das Thermostat braucht ein Thermostat (Konfigurieren > Das Haus)."
+    },
+    "not_set_up": {
+      "message": "Roost ist nicht eingerichtet."
+    },
+    "day_invalid": {
+      "message": "day: yesterday, next_24h oder ein Datum (JJJJ-MM-TT)."
     }
   }
 }

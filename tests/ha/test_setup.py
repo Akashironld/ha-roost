@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+from dataclasses import replace
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import Context, HomeAssistant
@@ -64,12 +65,12 @@ async def test_diagnostics_and_unload(hass: HomeAssistant, entry) -> None:
 async def test_the_plan_inputs_are_kept_for_a_replay(hass: HomeAssistant, entry) -> None:
     """Each hour the plan in force is kept with all it saw, so a decision can be replayed from the diagnostics."""
     m = entry.runtime_data
-    assert m.plan and m.plan_hours
-    m._log_plan(int(time.time() // 3600 * 3600), 20.3)
+    assert m.held.plan and m.held.hours
+    m.log = replace(m.log, plan_log=m.log.plan_log + [m.hl.plan_entry(int(time.time() // 3600 * 3600), 20.3)])
     d = await async_get_config_entry_diagnostics(hass, entry)
     snap = d["plan_log"][-1]
-    assert snap["room"] == 20.3 and len(snap["hours"]) == len(m.plan_hours) and len(snap["hours"][0]) == 9
-    assert snap["sp"] == [h.sp for h in m.plan.hours]
+    assert snap["room"] == 20.3 and len(snap["hours"]) == len(m.held.hours) and len(snap["hours"][0]) == 9
+    assert snap["sp"] == [h.sp for h in m.held.plan.hours]
 
 
 async def test_without_a_weheat_login_it_asks_for_one(hass: HomeAssistant, entry) -> None:
@@ -97,7 +98,7 @@ async def test_built_in_day_ahead_prices(hass: HomeAssistant, weheat: str, aiocl
     m = entry.runtime_data
     assert aioclient_mock.call_count == 1 and m.sources.get("epex") == "ok"
     assert m.sources.get("price") == "epex"
-    tariff = [round(x, 4) for x in m.plan_tariff[:4]]
+    tariff = [round(x, 4) for x in m.held.tariff[:4]]
     assert set(tariff[1:]) <= {round(0.1 * 1.21 + 0.15, 4), round(0.3 * 1.21 + 0.15, 4)}, tariff
 
 
@@ -120,7 +121,7 @@ async def test_look_back_over_the_websocket(hass: HomeAssistant, entry) -> None:
             raise err
 
     m = entry.runtime_data
-    m.hour_log.append({"ts": int(time.time() // 3600 * 3600) - 3600, "T": 20.4, "sp_t": 20.5, "sp_plan": 20.5, "p6": 20.6,
+    m.log.hour_log.append({"ts": int(time.time() // 3600 * 3600) - 3600, "T": 20.4, "sp_t": 20.5, "sp_plan": 20.5, "p6": 20.6,
                        "reason": "holding", "args": {}, "p_grid": 0.3, "q": 1.2, "day": True})
     ok = Conn()
     _ws_history(hass, ok, {"id": 1, "type": "roost/history", "entity_id": _plan_entity(hass), "days": 2})
@@ -147,19 +148,19 @@ async def test_today_survives_a_restart(hass: HomeAssistant, entry) -> None:
     from homeassistant.util import dt as dt_util
 
     m = entry.runtime_data
-    m._cost_day, m.cost_today, m.kwh_today = dt_util.now().date().isoformat(), 1.234, 4.56
+    m.meters = replace(m.meters, cost_day=dt_util.now().date().isoformat(), cost_today=1.234, kwh_today=4.56)
     assert await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
     m = entry.runtime_data
-    assert (round(m.cost_today, 3), round(m.kwh_today, 2)) == (1.234, 4.56)
+    assert (round(m.meters.cost_today, 3), round(m.meters.kwh_today, 2)) == (1.234, 4.56)
     assert hass.states.get("sensor.roost_heating_cost_today").state == "1.23"
 
-    m._cost_day = "2020-01-01"
+    m.meters = replace(m.meters, cost_day="2020-01-01")
     assert await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
     m = entry.runtime_data
     await m._async_tick(None)
-    assert m._cost_day == dt_util.now().date().isoformat() and m.cost_today == 0.0
+    assert m.meters.cost_day == dt_util.now().date().isoformat() and m.meters.cost_today == 0.0
 
 
 async def test_house_use_from_grid_and_solar(hass: HomeAssistant, weheat: str) -> None:
@@ -180,7 +181,7 @@ async def test_house_use_from_grid_and_solar(hass: HomeAssistant, weheat: str) -
     stats = {"sensor.grid": [{"start": t, "mean": 300.0} for t in hours],
              "sensor.pv": [{"start": t, "mean": 0.2} for t in hours if 6 <= dt_util.as_local(t).hour < 20]}
     m = entry.runtime_data
-    m._weather = {int(t.timestamp()): (8.0, 0.2 if 6 <= dt_util.as_local(t).hour < 20 else 0.0, 3.0) for t in hours}
+    m.weather = replace(m.weather, forecast={int(t.timestamp()): (8.0, 0.2 if 6 <= dt_util.as_local(t).hour < 20 else 0.0, 3.0) for t in hours})
     with patch.object(learning.statistics, "statistics_during_period", return_value=stats), \
             patch.object(learning, "_async_archive", return_value=None):
         _rows, extra = await learning.async_rows(m)
@@ -204,7 +205,7 @@ async def test_heating_curve_advice_sensor(hass: HomeAssistant, entry) -> None:
                                                [25.0, None, None]], room=21.0, ua_kw=0.167, base_kw=-0.41, margin_kw=0.8,
                                        k_kw=0.209, n=1.1, cycling_from=8.0, days=142, hours=1880, out_min=-1.3, out_max=11.9,
                                        reliable=True, extrapolated=[-20.0])
-    m.weheat_settings = {"available": True, "control": "opentherm_smart", "curve": [[-20.0, 39.0], [9.0, 30.0]]}
+    m.weheat = replace(m.weheat, settings={"available": True, "control": "opentherm_smart", "curve": [[-20.0, 39.0], [9.0, 30.0]]})
     m._notify()
     await hass.async_block_till_done()
     st = next(s for s in hass.states.async_all("sensor") if s.entity_id.endswith("heating_curve_advice"))
@@ -240,10 +241,10 @@ async def test_explain_saving_service(hass: HomeAssistant, entry) -> None:
     with pytest.raises(ServiceValidationError):
         await hass.services.async_call("roost", "explain_saving", {"day": "last tuesday"}, blocking=True, return_response=True)
     # the plan in force expected another setpoint now: the next plan logs the change
-    snap = dict(m._plan_snap)
-    m._plan_snap = {**snap, "sp": [x + 1.0 for x in snap["sp"]], "saving": snap["saving"] + 0.5}
+    snap = dict(m.log.plan_snap)
+    m.log = replace(m.log, plan_snap={**snap, "sp": [x + 1.0 for x in snap["sp"]], "saving": snap["saving"] + 0.5})
     await m._async_tick(None, force_plan=True)
-    line = m.plan_changes[-1]
+    line = m.log.plan_changes[-1]
     assert line["sp"][0] == snap["sp"][0] + 1.0 and line["why"]
     diag = await async_get_config_entry_diagnostics(hass, entry)
     assert diag["plan_changes"] and diag["saving_explained"]["next_24h"]["hours"]
@@ -272,13 +273,44 @@ async def test_an_update_replays_the_days_kept(hass: HomeAssistant, entry) -> No
     m = entry.runtime_data
     start = dt_util.start_of_local_day(dt_util.now() - timedelta(days=1))
     day = start.date().isoformat()
-    m.hour_log = [{"ts": int((start + timedelta(hours=h)).timestamp()), "T": 20.5, "E": 0.0, "sp": 20.5, "sp_t": 20.5,
+    m.log = replace(m.log, hour_log=[{"ts": int((start + timedelta(hours=h)).timestamp()), "T": 20.5, "E": 0.0, "sp": 20.5, "sp_t": 20.5,
                    "t_out": 5.0, "rad": 0.0, "hour": h, "wind": 3.5, "p_grid": 0.3, "p_own": 0.3, "own": 0.0,
-                   "day": 7 <= h < 22, "e": 0.3, "q": 1.2} for h in range(24)]
-    m.saving_days[day], m.replayed_with = 9.99, None                 # as an older version left it
-    await m._async_replay_kept_days()
-    assert day not in m.saving_days and day in m.saving_detail and m.saving_detail[day]["parts"]
-    assert m.saving_detail[day]["saving"] is None
-    assert "missing_context" in m.saving_detail[day]["quality"]["reasons"]
-    assert m.saving_detail[day]["model_saving"] is not None
-    assert m.replayed_with == planner.REPLAY_VERSION
+                   "day": 7 <= h < 22, "e": 0.3, "q": 1.2} for h in range(24)],
+                    saving_days={**m.log.saving_days, day: 9.99}, replayed_with=None)      # as an older version left it
+    await m.hl.async_replay_kept_days()
+    assert day not in m.log.saving_days and day in m.log.saving_detail and m.log.saving_detail[day]["parts"]
+    assert m.log.saving_detail[day]["saving"] is None
+    assert "missing_context" in m.log.saving_detail[day]["quality"]["reasons"]
+    assert m.log.saving_detail[day]["model_saving"] is not None
+    assert m.log.replayed_with == planner.REPLAY_VERSION
+
+
+async def test_energy_tab_from_the_statistics(hass: HomeAssistant, weheat: str) -> None:
+    """23-11-2026: the card's Energy tab (websocket roost/energy) per day from the Weheat meters' statistics."""
+    from datetime import timedelta
+    from unittest.mock import patch
+
+    from homeassistant.util import dt as dt_util
+
+    from custom_components.roost import energy_ws
+
+    entry = await setup_roost(hass, weheat, {})
+    m = entry.runtime_data
+    assert m.ent.get("heat") and m.ent.get("elec")
+    end = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
+    hours = [end - timedelta(hours=i) for i in range(1, 49)]
+    stats = {m.ent["heat"]: [{"start": t.timestamp(), "change": 2.8} for t in hours],
+             m.ent["elec"]: [{"start": t.timestamp(), "change": 0.6} for t in hours],
+             m.ent["outdoor"]: [{"start": t.timestamp(), "mean": 2.0, "min": 1.0} for t in hours]}
+    sent = []
+    conn = type("Conn", (), {"send_result": lambda self, i, r: sent.append(r),
+                             "send_error": lambda self, i, c, t: sent.append({"error": c})})()
+    with patch.object(energy_ws.statistics, "statistics_during_period", return_value=stats):
+        await energy_ws.ws_energy.__wrapped__(hass, conn, {"id": 1, "type": "roost/energy",
+                                                           "entity_id": _plan_entity(hass), "period": "day"})
+    res = sent[0]
+    rows = res["rows"]
+    assert res["period"] == "day" and 2 <= len(rows) <= 3
+    assert abs(sum(r["q_heat"] for r in rows) - 48 * 2.8) < 1e-6
+    assert all(r["cop_heat"] == round(2.8 / 0.6, 2) for r in rows if r["e_heat"] >= 0.05)
+    assert all(r["index"] is not None for r in rows if r["q_heat"] >= 1.0)     # against the learned model

@@ -36,7 +36,8 @@ def parse_day(text: str) -> list[list[int]]:
 def normalise(week: dict) -> dict[str, list[list[int]]]:
     if not isinstance(week, dict) or set(week) - set(DAYS):
         raise ValueError("Unknown weekday")
-    out, intervals = {}, []
+    out: dict[str, list[list[int]]] = {}
+    intervals: list[tuple[int, int]] = []
     for i, day in enumerate(DAYS):
         value = week.get(day, "")
         if isinstance(value, str):
@@ -64,7 +65,7 @@ def normalise(week: dict) -> dict[str, list[list[int]]]:
             else:
                 intervals.append((a, b))
     intervals.sort()
-    if any(a[1] > b[0] for a, b in zip(intervals, intervals[1:])):
+    if any(a[1] > b[0] for a, b in zip(intervals, intervals[1:], strict=False)):
         raise ValueError("Periods overlap, including overnight continuations")
     return out
 

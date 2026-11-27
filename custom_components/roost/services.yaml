@@ -32,6 +32,54 @@ away:
 home:
 set_settings:
   fields:
+    control:
+      selector:
+        select:
+          options:
+            - thermostat
+            - opentherm
+    ot_min_flow:
+      selector:
+        number:
+          min: 10
+          max: 40
+          step: 0.5
+          unit_of_measurement: "°C"
+    ot_max_flow:
+      selector:
+        number:
+          min: 25
+          max: 50
+          step: 0.5
+          unit_of_measurement: "°C"
+    ot_max_starts:
+      selector:
+        number:
+          min: 0
+          max: 24
+    ot_quiet:
+      selector:
+        boolean:
+    ot_quiet_from:
+      selector:
+        number:
+          min: 0
+          max: 23
+    ot_quiet_to:
+      selector:
+        number:
+          min: 0
+          max: 23
+    ot_quiet_max:
+      selector:
+        number:
+          min: 0.5
+          max: 10
+          step: 0.1
+          unit_of_measurement: "kW"
+    ot_relearn:
+      selector:
+        boolean:
     comfort:
       selector:
         number:
@@ -85,6 +133,9 @@ set_settings:
       selector:
         boolean:
     comfort_schedule:
+      selector:
+        object:
+    pump_entities:
       selector:
         object:
 import_history:

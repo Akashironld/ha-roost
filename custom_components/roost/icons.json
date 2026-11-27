@@ -1,0 +1,75 @@
+{
+  "entity": {
+    "sensor": {
+      "setpoint": {
+        "default": "mdi:home-thermometer"
+      },
+      "saving_next_24h": {
+        "default": "mdi:piggy-bank-outline"
+      },
+      "saving_yesterday": {
+        "default": "mdi:piggy-bank"
+      },
+      "saving_month": {
+        "default": "mdi:piggy-bank"
+      },
+      "cost_today": {
+        "default": "mdi:cash"
+      },
+      "energy_value": {
+        "default": "mdi:cash-clock"
+      },
+      "house_model": {
+        "default": "mdi:home-analytics"
+      },
+      "heat_pump_model": {
+        "default": "mdi:heat-pump-outline"
+      },
+      "room_expected_6h": {
+        "default": "mdi:home-thermometer-outline"
+      },
+      "heat_planned": {
+        "default": "mdi:radiator"
+      },
+      "electricity_planned": {
+        "default": "mdi:transmission-tower-import"
+      },
+      "plan_accuracy": {
+        "default": "mdi:target"
+      },
+      "weheat_import": {
+        "default": "mdi:cloud-download-outline"
+      },
+      "import_progress": {
+        "default": "mdi:progress-download"
+      },
+      "heating_curve": {
+        "default": "mdi:chart-bell-curve-cumulative"
+      }
+    },
+    "binary_sensor": {
+      "paused": {
+        "default": "mdi:hand-back-right-outline"
+      },
+      "following": {
+        "default": "mdi:link-variant"
+      },
+      "ready": {
+        "default": "mdi:check-decagram-outline"
+      }
+    },
+    "button": {
+      "learn_now": {
+        "default": "mdi:school-outline"
+      },
+      "import_history": {
+        "default": "mdi:cloud-download-outline"
+      }
+    },
+    "select": {
+      "mode": {
+        "default": "mdi:bird"
+      }
+    }
+  }
+}

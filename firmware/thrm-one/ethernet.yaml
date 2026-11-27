@@ -1,0 +1,24 @@
+# Optional: W5500 Ethernet. Only include if a network cable is plugged in (see thrm-one-roost.yaml).
+# Without a cable the chip retries every 15 s; that causes unnecessary load alongside the OpenTherm reading.
+ethernet:
+  type: W5500
+  clk_pin: GPIO22
+  mosi_pin: GPIO20
+  miso_pin: GPIO21
+  cs_pin: GPIO23
+  interrupt_pin: GPIO19
+  reset_pin: GPIO18
+  on_disconnect:
+    then:
+      - script.execute: led_connecting
+
+network:
+  priority:
+    - ethernet
+    - wifi
+
+text_sensor:
+  - platform: ethernet_info
+    ip_address:
+      name: "Ethernet IP Address"
+      entity_category: diagnostic

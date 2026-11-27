@@ -20,7 +20,7 @@ from datetime import datetime
 from math import ceil
 
 from .heatpump import HeatPumpModel
-from .model import HouseModel, HourRow, unfollowed
+from .model import HourRow, HouseModel, unfollowed
 from .planner import HourIn, Settings, Simulator
 from .window import reading_step
 
@@ -40,7 +40,12 @@ READY_HEAT_RATIO = 0.3     # predicted heat within ±30 % of the meters
 # correction
 CORR_HOURS = 8             # residuals of the last hours
 CORR_HALF_LIFE = 3.0       # hours: weight of older residuals
-CORR_FADE = 6.0            # hours: half-life of the correction in the plan
+CORR_FADE = 3.0            # hours: half-life of the correction in the plan
+CORR_SHARE = 0.5           # share of the heat missed in the last hours carried into the plan. Backtest on the author's
+                           # house (155 heating days, from every 3rd hour, the forecast weather): the full share with a 6 h
+                           # half-life made the room forecast worse at 6 h (0.534 -> 0.553 °C) and 24 h (0.714 -> 0.733);
+                           # half with 3 h is as good as none at 6 h and the best at 24 h with the slow correction (0.704),
+                           # and still answers a real change (a door, a stove) the hour it shows
 CORR_MAX = 1.0             # kW
 CORR_SUN_RAD = 0.02        # kW/m² on the facade: below it an hour counts as dark
 CORR_COARSE = 0.3          # °C: a room reading that changes in steps this large or more gives no correction
@@ -84,7 +89,7 @@ def self_check(rows: list[HourRow], house: HouseModel, hp: HeatPumpModel, days: 
     last = max(idx)
     end = check_end(rows, house, hp, days)
     older = end is not None and end < last - 86400
-    if older:
+    if older and end is not None:
         last = end
         idx = {t: r for t, r in idx.items() if t <= end + 24 * 3600}     # the 24-hour horizon may run past the end
     first = last - days * 86400
@@ -236,6 +241,7 @@ def correction(entries: list[dict], house: HouseModel, hp: HeatPumpModel, now_ts
     hours without sun count (people, a door, a stove): what sunny hours missed is the sun model's, and the nightly
     learning takes that over. Nothing when the room reading changes in steps of CORR_COARSE or more."""
     sim = Simulator(house, hp, Settings())
+    sim_ot = Simulator(house, hp, Settings(ot=True))
     by_ts = {e["ts"]: e for e in entries}
     recent = [e for e in entries if now_ts - e["ts"] <= (CORR_HOURS + 1) * 3600]
     if reading_step(e.get("T") for e in recent) >= CORR_COARSE:
@@ -253,14 +259,54 @@ def correction(entries: list[dict], house: HouseModel, hp: HeatPumpModel, now_ts
         h = HourIn(t_out=e["t_out"], wind=e.get("wind", 3.5), rad=e.get("rad", 0.0), p_grid=0.0, p_own=0.0, dhw=e["dhw"],
                    hour=e.get("hour", -1))
         w0 = (by_ts.get(e["ts"] - 3600) or {}).get("q")      # heat the hour before: where the output starts
-        T1 = sim.hour(e["T"], e.get("E", 0.0), float(sp), h, w0)[0]
+        if e.get("ot"):
+            # OpenTherm: the heat the unit made that hour (what was asked is only a level, the master may differ)
+            q = e.get("q")
+            if q is None:
+                continue
+            h0 = HourIn(t_out=h.t_out, wind=h.wind, rad=h.rad, p_grid=0.0, p_own=0.0, hour=h.hour)   # q is space heating only
+            T1 = sim_ot.hour(e["T"], e.get("E", 0.0), float(q), h0, None)[0]
+        else:
+            T1 = sim.hour(e["T"], e.get("E", 0.0), float(sp), h, w0)[0]
         kw = (nxt["T"] - T1) * house.C              # °C over one hour × kWh/K = kW
         res.append((kw, 0.5 ** ((now_ts - nxt["ts"]) / 3600 / CORR_HALF_LIFE)))
     n = len(res)
     if n < 2:
         return 0.0, n
-    kw = sum(k * w for k, w in res) / sum(w for _, w in res) * n / (n + 1)
+    kw = sum(k * w for k, w in res) / sum(w for _, w in res) * n / (n + 1) * CORR_SHARE
     return round(max(-CORR_MAX, min(CORR_MAX, kw)), 3), n
+
+
+SLOW_SHARE = 0.5           # share of yesterday's missed heat carried into the plan: the day's miss repeats with a
+                           # correlation of 0.52 (author's house). Backtest, 155 heating days, 24 h room error with the
+                           # hourly correction 0.530 -> 0.523 °C (without it 0.503 -> 0.490); simulations: neutral
+SLOW_MAX = 0.5             # kW
+SLOW_SUN = 0.03            # kW/m² mean sun on the facade over the day: above it no slow correction
+
+
+def slow_correction(entries: list[dict], house: HouseModel, hp: HeatPumpModel, now_ts: float) -> float:
+    """Heat the model missed over the last whole day, carried at SLOW_SHARE into every hour of the plan: a slow
+    disturbance (people, a stove, sun through other windows) the hourly correction above does not hold. The day is
+    replayed from its measured start with the heat the unit really made. 0 without a whole day in the log."""
+    by_ts = {e["ts"]: e for e in entries}
+    end = int(now_ts // 3600 * 3600) - 3600
+    start = end - 24 * 3600
+    got = [by_ts.get(start + 3600 * i) for i in range(25)]
+    day: list[dict] = [e for e in got if e is not None]
+    if len(day) < 25 or any(e.get("T") is None for e in day) or any(e.get("q") is None for e in day[:24]):
+        return 0.0
+    if reading_step(e["T"] for e in day) >= CORR_COARSE:
+        return 0.0
+    if sum(e.get("rad", 0.0) for e in day[:24]) / 24 >= SLOW_SUN:
+        return 0.0                  # a sunny day: what it missed is the sun's, and tomorrow's sun is another
+    sim = Simulator(house, hp, Settings(ot=True))
+    T, E = day[0]["T"], day[0].get("E", 0.0)
+    for e in day[:24]:
+        h = HourIn(t_out=e["t_out"], wind=e.get("wind", 3.5), rad=e.get("rad", 0.0), p_grid=0.0, p_own=0.0,
+                   hour=e.get("hour", -1))
+        T, E, *_ = sim.hour(T, E, float(e["q"]), h, None)
+    kw = (day[24]["T"] - T) * house.C / 24
+    return round(max(-SLOW_MAX, min(SLOW_MAX, SLOW_SHARE * kw)), 3)
 
 
 def fade(kw: float, hours_ahead: int) -> float:

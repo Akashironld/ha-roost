@@ -16,6 +16,9 @@ from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_mock_service
 
+import custom_components.roost  # noqa: F401,E402 - Home Assistant finds custom integrations through this package; a test
+#                                  module that imports nothing of Roost (test_config_flow) would otherwise run without it
+
 DOMAIN = "roost"
 THERMOSTAT = "climate.living_room"
 PRICE = "sensor.electricity_price"
@@ -26,6 +29,7 @@ WEHEAT_SENSORS = {   # translation_key -> (state, unit, device_class)
     "energy_output_defrost": ("-100.0", "kWh", "energy"),
     "electricity_used_defrost": ("4.0", "kWh", "energy"),
     "electricity_used_dhw": ("1000.0", "kWh", "energy"),
+    "electricity_used_indoor_unit": ("900.0", "kWh", "energy"),
     "outside_temperature": ("6.0", "°C", "temperature"),
     "power_input": ("10", "W", "power"),
     "power_output": ("0", "W", "power"),

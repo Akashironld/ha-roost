@@ -19,11 +19,36 @@ warm the water is: too high costs efficiency, too low leaves the house cold. The
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 
 from .model import HourRow
 
-EMITTER_N = {"floor": 1.1, "radiators": 1.3, "both": 1.2}
+EMITTER_N = {"floor": 1.1, "radiators": 1.3, "both": 1.2, "lt_radiators": 1.25, "fan_coils": 1.0}
+# the COP to start from against floor heating: radiators need hot water; low-temperature radiators and fan coils far less
+EMITTER_COP = {"floor": 0.0, "radiators": -0.7, "both": -0.35, "lt_radiators": -0.25, "fan_coils": -0.15}
+
+
+def emitter_profile(conf: dict) -> tuple[str, float, float, bool]:
+    """From what the house has (the ticks, or the single choice of before): (the house model's starting kind: floor /
+    radiators / both, the emitter exponent n, the COP offset to start from, floor wording). With more than one kind, n
+    is their mean and the COP that of the warmest: the water has to be warm enough for all of them."""
+    kinds = [k for k in (conf.get("emitters") or []) if k in EMITTER_N] or [conf.get("emitter") or "floor"]
+    if kinds == ["both"]:
+        kinds = ["floor", "radiators"]
+    n = round(sum(EMITTER_N[k] for k in kinds) / len(kinds), 3)
+    cop = min(EMITTER_COP.get(k, 0.0) for k in kinds)
+    has_floor = "floor" in kinds
+    start = "floor" if kinds == ["floor"] else ("both" if has_floor else "radiators")
+    return start, n, cop, has_floor
+
+
+def emitter_ticks(conf: dict) -> list[str]:
+    """The ticks to show: the ones set, or the single choice of before (both = floor and radiators)."""
+    if conf.get("emitters"):
+        return list(conf["emitters"])
+    e = conf.get("emitter") or "floor"
+    return ["floor", "radiators"] if e == "both" else [e]
+
+
 WEHEAT_X = (-20.0, 9.0, 15.0, 20.0, 25.0)     # outdoor temperatures of the five points in the Weheat app
 SIGNATURE_MAX_OUT = 12.0     # days warmer than this hardly heat: the line bends there (heating limit), leave them out
 MIN_DAY_HEAT_KW = 0.3        # a day with less heat than this did not really heat
@@ -80,7 +105,7 @@ class CurveAdvice:
             return None
         if t_out <= pts[0][0]:
             return pts[0][1]
-        for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        for (x0, y0), (x1, y1) in zip(pts, pts[1:], strict=False):
             if t_out <= x1:
                 return y0 + (y1 - y0) * (t_out - x0) / (x1 - x0)
         return None
@@ -170,7 +195,7 @@ def _up(v: float) -> float:
     return -(-v * 2 // 1) / 2
 
 
-def advise(rows: list[HourRow], flows: dict[int, float], emitter: str, room: float, q_min: float = 0.0,
+def advise(rows: list[HourRow], flows: dict[int, float], emitter: str | float, room: float, q_min: float = 0.0,
            xs: tuple[float, ...] = WEHEAT_X, opentherm: set[int] | None = None) -> CurveAdvice | None:
     """rows: the learning history; flows: {hour ts: mean flow temperature (°C)} from the Weheat logs; emitter: floor,
     radiators or both; room: the comfort temperature; q_min: the unit's lowest steady output (kW, 0: unknown)."""
@@ -179,7 +204,7 @@ def advise(rows: list[HourRow], flows: dict[int, float], emitter: str, room: flo
     if sig is None or len(steady) < MIN_HOURS:
         return None
     ua, base, se, res = sig
-    n = EMITTER_N.get(emitter, EMITTER_N["floor"])
+    n = EMITTER_N.get(emitter, EMITTER_N["floor"]) if isinstance(emitter, str) else float(emitter)
     k = _median([q / (f - t) ** n for _o, t, f, q in steady])
     cold = [e for t, e in res if t <= MARGIN_MAX_OUT]
     margin = max(0.0, _quantile(cold if len(cold) >= MARGIN_MIN_DAYS else [e for _t, e in res], MARGIN_Q))
@@ -241,9 +266,3 @@ def opentherm_from_weheat(hours: dict[int, dict]) -> set[int]:
 def flows_from_weheat(hours: dict[int, dict]) -> dict[int, float]:
     """{hour ts: flow °C} from the imported Weheat hours (key 'flow', the unit's outlet)."""
     return {t: v["flow"] for t, v in hours.items() if v.get("flow") is not None}
-
-
-def made_note(advice: CurveAdvice, now: float) -> dict:
-    """A short summary for the logs and the diagnostics."""
-    return {"at": datetime.fromtimestamp(now, tz=timezone.utc).isoformat(timespec="seconds"), "days": advice.days,
-            "hours": advice.hours, "reliable": advice.reliable, "points": advice.points}

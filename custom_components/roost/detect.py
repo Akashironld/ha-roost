@@ -5,8 +5,11 @@ common names (evcc, Nord Pool, Tibber, ENTSO-e, Frank Energie, Solcast, Predbat,
 """
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from . import series
 
@@ -66,7 +69,7 @@ def room_sensor(hass: HomeAssistant, thermostat_id: str | None, heat_pump_device
 
     def in_area(eid: str) -> bool:
         a = _area(hass, eid)
-        return a == area if area else bool(a) and _has(a, LIVING)
+        return a == area if area else bool(a and _has(a, LIVING))
     found = [st.entity_id for st in _sensors(hass, "temperature")
              if in_area(st.entity_id) and _device(hass, st.entity_id) not in own
              and not _has(st.entity_id, ("outside", "outdoor", "buiten", "water", "dhw", "floor", "vloer"))]
@@ -75,7 +78,8 @@ def room_sensor(hass: HomeAssistant, thermostat_id: str | None, heat_pump_device
 
 def prices(hass: HomeAssistant) -> tuple[str | None, str | None]:
     """(import, export) price sensors with a forecast in their attributes."""
-    imp, exp = [], []
+    imp: list[str] = []
+    exp: list[str] = []
     for st in hass.states.async_all("sensor"):
         unit = str(st.attributes.get("unit_of_measurement") or "")
         if "kwh" not in unit.lower():
@@ -121,6 +125,61 @@ def energy(hass: HomeAssistant) -> dict[str, str]:
     return out
 
 
+def _power_on_device(hass: HomeAssistant, entity_id: str | None, words: tuple = ()) -> str | None:
+    """A power sensor on the same device as an energy meter (the dashboard has the kWh meter, Roost wants kW)."""
+    dev = _device(hass, entity_id) if entity_id else None
+    if dev is None:
+        return None
+    hits = [s.entity_id for s in _sensors(hass, "power") if _device(hass, s.entity_id) == dev and (not words or _has(s.entity_id, words))]
+    return sorted(hits, key=len)[0] if hits else None
+
+
+async def async_energy_dashboard(hass: HomeAssistant) -> dict[str, str]:
+    """What Home Assistant's own Energy dashboard already knows: the solar, grid and battery power sensors (its
+    power settings, else a power sensor on the device of its kWh meter), the grid sign and the battery's charge.
+    Empty when the dashboard is not set up. Only real entities, never a statistic of another integration."""
+    try:
+        from homeassistant.components.energy.data import async_get_manager
+        prefs: dict[str, Any] = dict((await async_get_manager(hass)).data or {})
+    except Exception:  # noqa: BLE001 - no energy integration: the names are searched as before
+        return {}
+    out: dict[str, str] = {}
+
+    def ok(eid: Any) -> bool:
+        return isinstance(eid, str) and "." in eid and ":" not in eid and hass.states.get(eid) is not None
+    sources: list[dict[str, Any]] = [dict(x) for x in prefs.get("energy_sources") or [] if isinstance(x, dict)]
+    for src in sources:
+        kind = src.get("type")
+        pc: dict[str, Any] = dict(src.get("power_config") or {})
+        if kind == "solar":
+            rate = src.get("stat_rate")
+            pv = rate if ok(rate) else _power_on_device(hass, src.get("stat_energy_from"), PV_WORDS)
+            if pv and "pv_power" not in out:
+                out["pv_power"] = pv
+        elif kind == "grid":
+            if ok(pc.get("stat_rate")):
+                out.update({"grid_power": pc["stat_rate"], "grid_sign": "import_positive"})
+            elif ok(pc.get("stat_rate_inverted")):
+                out.update({"grid_power": pc["stat_rate_inverted"], "grid_sign": "export_positive"})
+            elif ok(src.get("stat_rate")) and not pc:
+                out.update({"grid_power": src["stat_rate"], "grid_sign": "import_positive"})
+            else:
+                meter = next((f.get("stat_energy_from") for f in src.get("flow_from") or [] if isinstance(f, dict)), None)
+                grid = _power_on_device(hass, meter, ("grid", "net", "meter", "p1", "import"))
+                if grid:
+                    out["grid_power"] = grid
+        elif kind == "battery":
+            if ok(pc.get("stat_rate")):
+                out["battery_power"] = pc["stat_rate"]          # + = discharging, as Roost counts it
+            elif ok(src.get("stat_rate")) and not pc:
+                out["battery_power"] = src["stat_rate"]
+            if ok(src.get("stat_soc")):
+                out["battery_soc"] = src["stat_soc"]
+    return out
+
+
 def friendly(hass: HomeAssistant, entity_id: str | None) -> str:
-    st = hass.states.get(entity_id) if entity_id else None
-    return (st.attributes.get("friendly_name") or entity_id) if st else (entity_id or "—")
+    if not entity_id:
+        return "—"
+    st = hass.states.get(entity_id)
+    return (st.attributes.get("friendly_name") or entity_id) if st else entity_id

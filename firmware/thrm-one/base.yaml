@@ -1,0 +1,36 @@
+# THRM ONE - hardware (derived from elvinhome v0.3.0).
+# Left out compared to Elvin: NTC (reads too high on the v0.2 prototype, not used anywhere) and
+# the water detector (header melted on this unit). Ethernet is in ethernet.yaml (optional).
+esphome:
+  name: thrm-one
+  friendly_name: THRM ONE
+  comment: "OpenTherm master for a heat pump (Roost)"
+
+esp32:
+  variant: esp32c6
+  board: esp32-c6-devkitc-1
+  framework:
+    type: esp-idf
+
+network:
+  enable_ipv6: true
+
+# OpenTherm master, opto-isolated.
+opentherm:
+  id: ot_hub
+  in_pin: GPIO6
+  out_pin: GPIO7
+  # sync_mode is not needed: the RMT hardware records the response, independent of what the processor is doing (and sync_mode
+  # blocks the rest of the box for ~130 ms per exchange).
+  sync_mode: false
+  # Roost extension (components/opentherm): measure / decode timestamped edges
+  edge_stats: false # true = every minute a pulse-width distribution + edge list of rejected responses (tag otedge)
+  edge_decoder: true
+  rmt_capture: true # record the response with the RMT hardware, independent of CPU interrupts
+
+# Red status LED, cathode to ground.
+output:
+  - platform: ledc
+    id: status_pwm
+    pin: GPIO1
+    frequency: 1000Hz

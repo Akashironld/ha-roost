@@ -3,6 +3,8 @@
 last hours, settings, guessed prices left out). Kept for two days, for the look back report and roost.explain_saving."""
 from __future__ import annotations
 
+from typing import Any
+
 SAVING_STEP = 0.05      # a change of the expected saving smaller than this is not worth a line
 KEPT_S = 2 * 86400
 PRICE_REL = 0.01        # a published price that moved more than 1 % changed
@@ -27,7 +29,7 @@ def _expected_now(old: dict, at: float) -> float | None:
     """The room the old plan expected at `at` (between its hour ends)."""
     t, pts = old["t"], [(old["at"], old["room"])]
     pts += [(old["base"] + (k + 1) * 3600, x) for k, x in enumerate(t)]
-    for (a, x), (b, y) in zip(pts, pts[1:]):
+    for (a, x), (b, y) in zip(pts, pts[1:], strict=False):
         if a <= at <= b:
             return x + (y - x) * (at - a) / max(1.0, b - a)
     return None
@@ -45,7 +47,8 @@ def compare(old: dict | None, new: dict, room: float) -> dict | None:
     sp_old, sp_new = old["sp"][shift], new["sp"][0]
     if abs(sp_new - sp_old) < 0.01 and abs(new["saving"] - old["saving"]) < SAVING_STEP:
         return None
-    why, detail = [], {}
+    why: list[str] = []
+    detail: dict[str, Any] = {}
     n = min(len(old["sp"]) - shift, len(new["sp"]))
     published = sum(1 for k in range(n, len(new["price"]))
                     if len(old["sp"]) < 24 and k + shift >= len(old["price"])
@@ -74,15 +77,20 @@ def compare(old: dict | None, new: dict, room: float) -> dict | None:
     if changed:
         why.append("prices_changed")
         detail["prices_changed"] = changed
-    if new["settings"] != old["settings"]:
+    from .planner import (
+        user_settings,  # local: replan stays importable without numpy in the pure tests
+    )
+    if user_settings(new["settings"]) != user_settings(old["settings"]):
         why.append("settings")
+    elif new["settings"] != old["settings"]:
+        why.append("learned")                   # what Roost learned of the heat pump moved, not the user's settings
     if new["neutral"] != old["neutral"]:
         why.append("estimated")
     why += [c for c in ("forecast", "room", "correction") if size[c] >= 1.0]
     if not why:
         if abs(sp_new - sp_old) < 0.01:
             return None                 # only the expected saving moved, and nothing that explains it: no line
-        biggest = max(size, key=size.get)
+        biggest = max(size, key=lambda c: size[c])
         why.append(biggest if size[biggest] >= 0.25 else ("new_hour" if shift > 0 else "other"))
     if "forecast" in why:
         detail["forecast_k"], detail["forecast_sun"] = round(dt, 1), round(dr, 2)

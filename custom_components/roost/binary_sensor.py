@@ -11,6 +11,9 @@ from homeassistant.util import dt as dt_util
 from . import RoostConfigEntry
 from .entity import RoostEntity
 
+# read only (the manager computes everything): no limit on parallel updates
+PARALLEL_UPDATES = 0
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: RoostConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     m = entry.runtime_data
@@ -18,7 +21,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: RoostConfigEntry, async_
 
 
 class PausedSensor(RoostEntity, BinarySensorEntity):
-    _attr_icon = "mdi:hand-back-right-outline"
 
     def __init__(self, mgr) -> None:
         super().__init__(mgr, "paused")
@@ -30,20 +32,18 @@ class PausedSensor(RoostEntity, BinarySensorEntity):
 
 
 class FollowingSensor(RoostEntity, BinarySensorEntity):
-    _attr_icon = "mdi:link-variant"
 
     def __init__(self, mgr) -> None:
         super().__init__(mgr, "following")
 
     @property
     def is_on(self):
-        return self.mgr.following
+        return self.mgr.notices.following
 
 
 class ReadySensor(RoostEntity, BinarySensorEntity):
     """The nightly self-check says Roost predicts well enough to steer (what is still missing in the attributes)."""
 
-    _attr_icon = "mdi:check-decagram-outline"
 
     def __init__(self, mgr) -> None:
         super().__init__(mgr, "ready")
@@ -55,7 +55,7 @@ class ReadySensor(RoostEntity, BinarySensorEntity):
     @property
     def extra_state_attributes(self):
         c = self.mgr.check
-        code, when = self.mgr.ready_eta()
+        code, when = self.mgr.notices.ready_eta()
         return {"waiting_for": code, "expected": when.isoformat(timespec="minutes") if when else None,
                 "heating_weeks_check": c.get("winter"),       # mild weather: judged on the last heating weeks
                 "checked_week_until": c.get("window_end") and dt_util.utc_from_timestamp(c["window_end"]).isoformat(),

@@ -16,6 +16,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .model import WIND_REF, HourRow
+from .util import num as _f
+from .weather import humidity as weather_rh
 
 BAD_LOW, BAD_HIGH = 0.5, 95.0          # Weheat reports -1 °C (and other nonsense) when a sensor fails
 
@@ -40,12 +42,6 @@ def _ts(v: Any) -> int | None:
     return int(dt.timestamp())
 
 
-def _f(v: Any) -> float | None:
-    try:
-        x = float(v)
-    except (TypeError, ValueError):
-        return None
-    return x if x == x else None
 
 
 def _temp(v: Any) -> float | None:
@@ -146,7 +142,8 @@ def weheat_hours(logs: list[dict], energy: list[dict]) -> dict[int, dict]:
         t -= t % 3600
         q = (_f(x.get("totalEOutHeating")) or 0.0) + (_f(x.get("totalEOutHeatingDefrost")) or 0.0)
         e = (_f(x.get("totalEInHeating")) or 0.0) + (_f(x.get("totalEInHeatingDefrost")) or 0.0)
-        out.setdefault(t, {}).update({"q": max(0.0, q), "e": max(0.0, e),
+        qd = -(_f(x.get("totalEOutHeatingDefrost")) or 0.0)         # heat taken back from the house to defrost (>= 0)
+        out.setdefault(t, {}).update({"q": max(0.0, q), "e": max(0.0, e), "qd": max(0.0, qd),
                                       "dhw_e": (_f(x.get("totalEInDhw")) or 0.0) + (_f(x.get("totalEInDhwDefrost")) or 0.0),
                                       **_extras(x, EXTRA_ENERGY)})
     return out
@@ -170,9 +167,9 @@ def build_rows(weheat: dict[int, dict], ha: dict[int, dict], weather: dict[int, 
         if room is None or not (BAD_LOW < room < BAD_HIGH):
             continue
         if "q" in w:
-            q, e, dhw_e = w["q"], w.get("e", 0.0), w.get("dhw_e", 0.0)
+            q, e, dhw_e, qd = w["q"], w.get("e", 0.0), w.get("dhw_e", 0.0), w.get("qd")
         elif h.get("q") is not None:
-            q, e, dhw_e = max(0.0, h["q"]), max(0.0, h.get("e") or 0.0), max(0.0, h.get("dhw_e") or 0.0)
+            q, e, dhw_e, qd = max(0.0, h["q"]), max(0.0, h.get("e") or 0.0), max(0.0, h.get("dhw_e") or 0.0), h.get("qd")
         else:
             continue
         if w.get("manual_s", 0.0) > 600:               # someone ran the unit by hand: not normal operation
@@ -182,5 +179,5 @@ def build_rows(weheat: dict[int, dict], ha: dict[int, dict], weather: dict[int, 
                             E=e, T_out_sensor=w.get("sensor_out") if w.get("sensor_out") is not None else h.get("sensor_out"),
                             dhw_s=dhw_s, heating_s=w.get("heating_s", 0.0),           # seconds only known from the Weheat logs
                             sp=w.get("sp") if w.get("sp") is not None else h.get("sp"),
-                            T_th=th, room_sensor=sensor))
+                            T_th=th, room_sensor=sensor, Ei=h.get("ei"), Qd=qd, rh=weather_rh(wx)))
     return rows

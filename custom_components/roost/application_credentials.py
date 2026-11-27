@@ -6,7 +6,9 @@ from __future__ import annotations
 
 from homeassistant.components.application_credentials import ClientCredential
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.config_entry_oauth2_flow import LocalOAuth2ImplementationWithPkce
+from homeassistant.helpers.config_entry_oauth2_flow import (
+    LocalOAuth2ImplementationWithPkce,
+)
 
 AUTHORIZE = "https://auth.weheat.nl/auth/realms/Weheat/protocol/openid-connect/auth/"
 TOKEN = "https://auth.weheat.nl/auth/realms/Weheat/protocol/openid-connect/token/"

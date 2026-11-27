@@ -12,9 +12,12 @@ Room model per hour (least squares on the hours with data, coefficients not nega
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from typing import Any
+
+from .util import fill, solve
 
 # kind -> minimum (°C) and the local hours it holds [from, to); None: the comfort hours of the house
-KINDS = {
+KINDS: dict[str, dict[str, Any]] = {
     "bedroom": {"min": 16.0, "from": 19, "to": 23},
     "kids": {"min": 18.0, "from": 7, "to": 21},
     "study": {"min": 19.0, "from": 8, "to": 18},
@@ -73,27 +76,9 @@ class RoomModel:
 
     @classmethod
     def from_dict(cls, d: dict | None) -> "RoomModel":
-        m = cls()
-        for k, v in (d or {}).items():
-            if hasattr(m, k):
-                setattr(m, k, v)
-        return m
+        return fill(cls(), d)
 
 
-def _solve(A: list[list[float]], b: list[float]) -> list[float] | None:
-    n = len(b)
-    M = [A[i][:] + [b[i]] for i in range(n)]
-    for c in range(n):
-        p = max(range(c, n), key=lambda r: abs(M[r][c]))
-        if abs(M[p][c]) < 1e-12:
-            return None
-        M[c], M[p] = M[p], M[c]
-        for r in range(n):
-            if r != c:
-                f = M[r][c] / M[c][c]
-                for k in range(c, n + 1):
-                    M[r][k] -= f * M[c][k]
-    return [M[i][n] / M[i][i] for i in range(n)]
 
 
 def learn(samples: list[tuple[float, float, float, float, float]]) -> RoomModel | None:
@@ -109,12 +94,12 @@ def learn(samples: list[tuple[float, float, float, float, float]]) -> RoomModel 
         y = [T1 - T for T, T1, _q, _to, _tm in samples]
         k = len(free)
         A = [[sum(x[i] * x[j] for x in X) + (1e-3 if i == j else 0.0) for j in range(k)] for i in range(k)]
-        bb = [sum(x[i] * yy for x, yy in zip(X, y)) for i in range(k)]
-        sol = _solve(A, bb)
+        bb = [sum(x[i] * yy for x, yy in zip(X, y, strict=False)) for i in range(k)]
+        sol = solve(A, bb)
         if sol is None:
             return None
         coef = {n: 0.0 for n in names}
-        coef.update(dict(zip(free, sol)))
+        coef.update(dict(zip(free, sol, strict=False)))
         neg = [n for n in free if n != "b0" and coef[n] < 0]
         if not neg:
             break

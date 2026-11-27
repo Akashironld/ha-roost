@@ -13,7 +13,8 @@ Roost plans afresh when:
 - the weather forecast for the coming hours changed clearly (outdoor temperature or sun on the house);
 - own solar is clearly more or less than the plan counted on (the forecast changed, or the panels give clearly more
   or less now than forecast for this hour);
-- the user changed something (settings, away, mode), the window closed, learning made new models (`force`).
+- the user changed something (settings, away, mode), the window closed, learning made new models, Roost started
+  again (`force`);
 """
 from __future__ import annotations
 
@@ -47,6 +48,7 @@ class Commitment:
     tariff: list[float]                         # the import price per hour it planned with
     pv: list[float] | None = None               # the own solar forecast it planned with (kWh per hour)
     fallback: str | None = None                 # made without prices ("no_price"): any real price replaces it
+    kind: str | None = None                     # what `sp` holds: None = room setpoints, "level" = heat outputs (OpenTherm)
 
     def as_dict(self) -> dict:
         return dict(vars(self))
@@ -100,7 +102,7 @@ def _mean_abs(a: list[float], b: list[float]) -> float | None:
     n = min(len(a), len(b))
     if not n:
         return None
-    return sum(abs(x - y) for x, y in zip(a[:n], b[:n])) / n
+    return sum(abs(x - y) for x, y in zip(a[:n], b[:n], strict=False)) / n
 
 
 def why_plan(c: Commitment | None, now: float, *, room: float | None, coarse: bool, tariff: list[float] | None,
@@ -122,7 +124,7 @@ def why_plan(c: Commitment | None, now: float, *, room: float | None, coarse: bo
         mine = c.tariff[i:]
         if len(c.tariff) < HORIZON_H and len(tariff) >= len(mine) + NEW_PRICES_H:
             return "prices"
-        if any(abs(a - b) > PRICE_EPS for a, b in zip(mine, tariff)):
+        if any(abs(a - b) > PRICE_EPS for a, b in zip(mine, tariff, strict=False)):
             return "prices"
     exp = c.expected_room(now)
     if room is not None and exp is not None and abs(room - exp) > (ROOM_K_COARSE if coarse else ROOM_K):

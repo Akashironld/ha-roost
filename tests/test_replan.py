@@ -60,6 +60,15 @@ def test_saving_alone_and_settings_and_estimates():
     assert replan.compare(snap(), snap(at=BASE + 1500, saving=0.43), 20.5) is None     # 3 ct: not worth a line
 
 
+def test_learned_values_are_not_the_users_settings():
+    # 24-11-2026: the lowest output and the indoor unit moved every hour and read as "settings changed"
+    old = snap(settings={"comfort": 20.5, "ot_q_min": 2.38, "ot_run_kw": 0.048})
+    new = snap(at=BASE + 1500, saving=0.50, settings={"comfort": 20.5, "ot_q_min": 2.34, "ot_run_kw": 0.057})
+    assert replan.compare(old, new, 20.5)["why"] == ["learned"]
+    new2 = snap(at=BASE + 1500, saving=0.50, settings={"comfort": 21.0, "ot_q_min": 2.34, "ot_run_kw": 0.057})
+    assert replan.compare(old, new2, 20.5)["why"] == ["settings"]
+
+
 def test_unexplained_saving_change_is_no_line_and_a_setpoint_change_names_the_largest_cause():
     """21-10: many lines said only 'recalculated' while the saving jumped 10-20 ct. A saving that moves on its own is
     no line now; a setpoint that changes names the largest cause, also below its threshold."""

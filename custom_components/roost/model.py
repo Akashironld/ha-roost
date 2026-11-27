@@ -28,7 +28,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import asdict, dataclass, field, replace
-from typing import Callable
+from typing import Any, Callable
+
+from .util import fill
 
 WIND_REF = 3.5
 PARAMS = ("C", "H", "g", "lag", "internal", "Hw")
@@ -86,11 +88,7 @@ class HouseModel:
 
     @classmethod
     def from_dict(cls, d: dict | None) -> "HouseModel":
-        m = cls()
-        for k, v in (d or {}).items():
-            if hasattr(m, k):
-                setattr(m, k, v)
-        return m
+        return fill(cls(), d)
 
     def internal_at(self, hour: int) -> float:
         """Internal gain in this local hour (hour < 0: unknown, the constant only)."""
@@ -123,6 +121,9 @@ class HourRow:
     T_th: float | None = None     # the thermostat's own room reading
     room_sensor: bool = False     # T comes from a separate room sensor (not the thermostat)
     hour: int = -1                # local hour of the day (-1: not known)
+    Ei: float | None = None       # the indoor unit's electricity (kWh; pumps, control): not in E, nor in the COP
+    Qd: float | None = None       # heat taken back from the house to defrost (kWh, >= 0; Q is net of it)
+    rh: float | None = None       # outdoor relative humidity (%, weather service)
 
 
 def within(p: dict) -> bool:
@@ -136,7 +137,8 @@ def replay(p: dict, idx: dict[int, HourRow], days: list[int], extra: Callable[[i
     -> (sum of squared °C errors, hours, sum of squared daily balance errors in kW, days)"""
     C, H, g, lag, P, Hw = p["C"], p["H"], p["g"], p["lag"], p["internal"], p["Hw"]
     se = sb = 0.0
-    n = nb = 0
+    n: float = 0
+    nb: float = 0
     for d in days:
         t = d * 86400
         r0 = idx.get(t)
@@ -276,15 +278,15 @@ def default_may_replace(idx: dict[int, HourRow], previous: "HouseModel", test: l
 def fit(idx: dict[int, HourRow], days: list[int], centre: dict, spread: dict = SPREAD, weights: dict[int, float] | None = None) -> dict:
     """Smallest replay error + balance error, with a pull towards `centre`."""
     def cost(x):
-        p = dict(zip(PARAMS, x))
+        p = dict(zip(PARAMS, x, strict=False))
         if not within(p):
             return 1e12
-        se, n, sb, nb = replay(p, idx, days, weights=weights)
+        se, n, sb, _nb = replay(p, idx, days, weights=weights)
         if n == 0:
             return 1e12
         return se / (SIGMA_T ** 2 * 24) + sb / SIGMA_BAL ** 2 + sum(((p[k] - centre[k]) / spread[k]) ** 2 for k in PARAMS)
     x = nelder_mead(cost, [centre[k] for k in PARAMS], [spread[k] * 0.5 for k in PARAMS])
-    return dict(zip(PARAMS, x))
+    return dict(zip(PARAMS, x, strict=False))
 
 
 UNFOLLOWED_K = 1.0     # °C beyond what the heat pump's response explains
@@ -387,7 +389,7 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
     def idx_for(facade: float, vertical: float) -> dict[int, HourRow]:
         key = (facade, vertical) if vertical > 0 and eff else (0.0, 0.0)
         if key not in cache:
-            cache[key] = {r.ts: (replace(r, rad=eff(r.ts, *key)) if key[1] > 0 else r) for r in rows}
+            cache[key] = {r.ts: (replace(r, rad=eff(r.ts, *key)) if key[1] > 0 and eff else r) for r in rows}
         return cache[key]
 
     def extra_for(profile: list[float] | None):
@@ -431,12 +433,12 @@ def learn(rows: list[HourRow], previous: HouseModel, eff: Callable[[int, float, 
     choice = next(n for n, *_ in options if n in scores and scores[n][2] <= best + MARGIN)
     idx = ix_new
     heating = sum(1 for d in days if heating_day(idx, d))
-    rounded = {k: {"temperature": round(v[0], 3), "balance_kw": round(v[1], 3)} for k, v in scores.items()}
+    rounded: dict[str, Any] = {k: {"temperature": round(v[0], 3), "balance_kw": round(v[1], 3)}
+                               for k, v in scores.items()}
     rounded["sun"] = {f"{f:g}/{v:g}": round(e, 3) for e, f, v in tried if e < 1e9}
     rounded["sun_chosen"] = f"{facade:g}/{vertical:g}"
     if choice in ("new", "recent"):
         if choice == "recent":
-            candidate = recent_p
             final = fit(idx, recent + [d for d in test if d not in recent], centre)
         else:
             final = fit(idx, days, centre, weights=wts)

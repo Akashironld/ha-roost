@@ -139,6 +139,28 @@ def test_hot_water_profile():
     assert hp.dhw_share(6, 12) == 1.0 and hp.dhw_share(2, 3) == 0.0
 
 
+def test_hot_water_timing_fixed_or_picked_by_the_unit():
+    import random
+    rnd = random.Random(3)
+    def days(n, pick):
+        out = []
+        for d in range(n):
+            wd, hh = d % 7, pick(d)
+            for h in range(24):
+                out.append((wd, h, 0.7 if h == hh else 0.0, 700_000 + d))
+        return out
+    # a timer: 13:00 every day -> the weekday profile, sharp
+    prof, fixed = response.dhw_forecast(days(56, lambda d: 13))
+    assert fixed is not None and fixed > 0.9 and prof[13] > 0.6 and prof[3] < 0.05
+    # a unit that picks its own hour (midday mostly, some nights): wider, less sure of any one hour
+    pick = lambda d: rnd.choice([11, 12, 12, 13, 13, 3, 22])
+    prof2, fixed2 = response.dhw_forecast(days(42, lambda d: 13) + [(s[0], s[1], s[2], s[3] + 42) for s in days(14, pick)])
+    assert fixed2 is not None and fixed2 < 0.8
+    assert max(prof2[:24]) < 0.6 and prof2[11] > 0.03 and prof2[3] > 0.01
+    # without day numbers (old samples): the weekday profile as before
+    assert response.dhw_forecast([s[:3] for s in days(56, lambda d: 13)])[1] is None
+
+
 def test_self_check_and_readiness():
     hp = true_pump()
     rows = simulate(hp, days=12)
@@ -234,8 +256,9 @@ def test_correction_from_the_last_hours():
         T, E = T1 + 0.02, E1                     # the room ends each hour 0.02 °C warmer than the model says
     entries.append({"ts": t0 + 6 * 3600, "T": T, "E": E, "sp_t": 20.5, "t_out": 12.0})
     kw, n = check.correction(entries, HOUSE, hp, t0 + 6 * 3600)
-    assert n == 6 and 0.25 < kw < 0.4, (kw, n)   # 0.02 °C × 19 kWh/K = 0.38 kW, shrunk for 6 hours
-    assert check.fade(kw, 6) == kw / 2
+    # 0.02 °C × 19 kWh/K = 0.38 kW, shrunk for 6 hours, half of it carried (CORR_SHARE)
+    assert n == 6 and 0.25 * check.CORR_SHARE < kw < 0.4 * check.CORR_SHARE, (kw, n)
+    assert check.fade(kw, 3) == kw / 2
     for e in entries:
         e.pop("dhw", None)                       # hot water unknown: no correction
     assert check.correction(entries, HOUSE, hp, t0 + 6 * 3600) == (0.0, 0)
@@ -345,6 +368,14 @@ def test_import_end_expected_sooner_with_logs_only():
     assert check.import_done_at(imp, at) == at + 10 * 1800
     assert check.import_done_at(imp, at, logs_only=True) == at + 10 * 150
 
+
+
+def test_an_empty_tank_brings_hot_water_now():
+    # 17-11-2026 21:30: the top of the tank at 21.7 °C after the showers; the unit reheated from 22:00, not at its midday
+    base = [0.0, 0.0, 0.1, 0.0]
+    assert response.dhw_soon(base, 45.0) == base and response.dhw_soon(base, None) == base
+    assert response.dhw_soon(base, 21.7) == [0.75, 0.75, 0.1, 0.0]
+    assert response.dhw_soon([1.0], 20.0) == [1.0]
 
 if __name__ == "__main__":
     run_all(dict(globals()))

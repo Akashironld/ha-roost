@@ -30,6 +30,8 @@ EN = {
     "warm_enough": "warm enough ({room:.1f} °C): no heat needed",
     "hold_ahead": "room above the setpoint: keeping {sp:g} °C ahead of dearer hours ({ct:.0f} ct from {at}:00); the heat pump waits",
     "holding": "keeping the room at temperature",
+    "ot_below_min": "the house needs {kw:.1f} kW, below the heat pump's lowest output ({q_min:g} kW): heating in whole hours",
+    "ot_low_long": "running long and low ({kw:g} kW) while it is cheap",
     # control: what happens with the thermostat
     "paused": "changed by hand: leaving the thermostat alone for {min:.0f} more min",
     "already_right": "thermostat already right",
@@ -38,6 +40,11 @@ EN = {
     "following": "following the plan",
     "min_run": "the heat pump just started: lowering in {min:.0f} min",
     "set_failed": "could not set the thermostat: trying again in {min:.0f} min",
+    # OpenTherm steering (opentherm.py)
+    "ot_wait_hour": "switching the heat pump on or off at the turn of the hour",
+    "ot_bridge": "the plan heats again next hour: running on at the lowest output (a stop costs an hour of rest)",
+    "ot_fallback": "the OpenTherm master is not steered by Roost ({state}): it heats on its own curve",
+    "ot_set_failed": "could not write the flow setpoint: trying again at the next round",
 }
 
 

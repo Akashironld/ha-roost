@@ -1,0 +1,719 @@
+# Control: who decides the flow temperature, and what the box does when something fails.
+# See README.md for the contract with Roost / Home Assistant and the fault table.
+#
+# Control Mode
+#   "Home Assistant"  Roost or an automation writes Flow Setpoint (0 = no heat demand) and
+#                     repeats it at least every Command Timeout / 3. If no command arrives for longer than
+#                     Command Timeout, or HA is gone that long, the box steers itself on the
+#                     heating curve until a command comes in again.
+#   "Heating curve"   the box always steers itself: heating curve on the outside temperature, heat demand
+#                     on/off on the room temperature (if it is fresh).
+# Limits always apply: Min Flow..Max Flow (hard max 45 °C); start at return + 2; upwards immediately up to a Soft Start Above
+# difference, above that 1 °C per minute; downwards immediately;
+# heat demand at least Min Run Time on and Min Off Time off (short-cycling protection).
+# Room influence (Room Influence) shifts the heating curve by the difference room target - room.
+
+substitutions:
+  default_curve: "-20:41,9:26.5,15:23,20:20,25:20"
+
+globals:
+  - {id: api_lost_ms, type: uint32_t, restore_value: no, initial_value: "0"} # 0 = HA connected
+  - {id: cmd_ms, type: uint32_t, restore_value: no, initial_value: "0"} # last Flow Setpoint command
+  - {id: ot_out_ms, type: uint32_t, restore_value: no, initial_value: "0"}
+  - {id: outside_valid, type: bool, restore_value: no, initial_value: "false"} # valid outside sensor value from HA
+  - {id: room_valid, type: bool, restore_value: no, initial_value: "false"} # valid room value from HA
+  - {id: last_ctrl_ms, type: uint32_t, restore_value: no, initial_value: "0"}
+  - {id: ot_ok_cnt, type: uint32_t, restore_value: no, initial_value: "0"} # OpenTherm responses in this window
+  - {id: ot_err_total, type: uint32_t, restore_value: no, initial_value: "0"} # value of the error counter at the previous window
+  - {id: room_demand, type: bool, restore_value: no, initial_value: "true"}
+  - {id: curve_n, type: int, restore_value: no, initial_value: "0"}
+  - {id: demand_on, type: bool, restore_value: no, initial_value: "false"} # heat demand as sent to the pump
+  - {id: demand_ms, type: uint32_t, restore_value: no, initial_value: "0"} # last change; 0 = free
+  - {id: roost_curve, type: std::string, restore_value: no, initial_value: '""'} # last heating curve from Roost
+  - {id: curve_x, type: "std::array<float, 8>", restore_value: no}
+  - {id: curve_y, type: "std::array<float, 8>", restore_value: no}
+  # Roost plan for when Roost/HA drops out (1.9.0, see README.md): flow per hour (0 = off), the outside temperature
+  # Roost calculated with, received at plan_ms (millis, 0 = no plan) with plan_sec seconds of the first hour already elapsed.
+  # Not in flash: after a reboot without HA the heating curve applies.
+  - {id: plan_flow, type: "std::array<float, 36>", restore_value: no}
+  - {id: plan_out, type: "std::array<float, 36>", restore_value: no}
+  - {id: plan_n, type: int, restore_value: no, initial_value: "0"}
+  - {id: plan_ms, type: uint32_t, restore_value: no, initial_value: "0"}
+  - {id: plan_sec, type: int, restore_value: no, initial_value: "0"}
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: curve_parse
+        - number.set: {id: ot_max_t_set, value: !lambda "const float ub = id(ot_max_t_set_ub).state, x = id(flow_max).state; return (!std::isnan(ub) && ub >= 20 && ub < x) ? ub : x;"}
+        - number.set: {id: ot_room_set, value: !lambda "return id(room_setpoint).state;"}
+
+# ---------------------------------------------------------------- settings (config) -----
+select:
+  # Which outside temperature takes precedence. The pump's air inlet (ID 27) can deviate due to defrosting,
+  # returning cold air or sun; the outside sensor from HA can fail. The other one is always the fallback.
+  - platform: template
+    id: outside_priority
+    name: "Outside Temperature Source"
+    options: ["Heat pump air inlet", "Outside sensor"]
+    initial_option: "Heat pump air inlet"
+    optimistic: true
+    restore_value: true
+    entity_category: config
+    on_value:
+      - script.execute: control_run
+  - platform: template
+    id: control_mode
+    name: "Control Mode"
+    options: ["Home Assistant", "Heating curve"]
+    initial_option: "Home Assistant"
+    optimistic: true
+    restore_value: true
+    entity_category: config
+    on_value:
+      - script.execute: control_run
+
+button:
+  - platform: template
+    id: copy_roost_curve
+    name: "Copy Roost Curve" # copies Roost's heating curve once (when Follow Roost Curve is off)
+    entity_category: config
+    on_press:
+      - lambda: |-
+          if (!id(roost_curve).empty()) id(heating_curve).make_call().set_value(id(roost_curve)).perform();
+
+switch:
+  - platform: template
+    id: heating_enabled
+    name: "Heating"
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    on_turn_on: {script.execute: control_run}
+    on_turn_off: {script.execute: control_run}
+  - platform: template
+    id: follow_roost_curve
+    name: "Follow Roost Curve"
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    entity_category: config
+
+number:
+  # The command from Roost / HA. Every write (even of the same value) extends the command.
+  - platform: template
+    id: flow_setpoint
+    name: "Flow Setpoint"
+    unit_of_measurement: "°C"
+    device_class: temperature
+    min_value: 0
+    max_value: 45
+    step: 0.5
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+    set_action:
+      - globals.set: {id: cmd_ms, value: "millis() | 1"}
+    on_value: # only control after the new value has been stored
+      - script.execute: control_run
+  - platform: template
+    id: command_timeout
+    on_value:
+      - script.execute: control_run
+    name: "Command Timeout"
+    unit_of_measurement: "min"
+    min_value: 1
+    max_value: 120
+    step: 1
+    initial_value: 15
+    optimistic: true
+    restore_value: true
+    mode: box
+    entity_category: config
+  - platform: template
+    id: room_setpoint
+    # 25-11-2026: "Fallback" in the name: it only counts when Roost is gone (Roost's comfort, with Follow Roost Curve)
+    name: "Fallback Room Setpoint"
+    unit_of_measurement: "°C"
+    device_class: temperature
+    min_value: 5
+    max_value: 30
+    step: 0.5
+    initial_value: 20
+    optimistic: true
+    restore_value: true
+    mode: box
+    entity_category: config
+    on_value:
+      - script.execute: control_run
+      - number.set: {id: ot_room_set, value: !lambda "return x;"}
+  - platform: template
+    id: room_hysteresis
+    on_value:
+      - script.execute: control_run
+    name: "Room Hysteresis"
+    unit_of_measurement: "°C"
+    min_value: 0.1
+    max_value: 2
+    step: 0.1
+    initial_value: 0.3
+    optimistic: true
+    restore_value: true
+    mode: box
+    entity_category: config
+  # Short-cycling protection: applies in every mode; only Heating off goes straight through it.
+  - platform: template
+    id: min_on_time
+    on_value:
+      - script.execute: control_run
+    name: "Min Run Time"
+    unit_of_measurement: "min"
+    min_value: 0
+    max_value: 120
+    step: 1
+    initial_value: 30
+    optimistic: true
+    restore_value: true
+    mode: box
+    entity_category: config
+  - platform: template
+    id: min_off_time
+    on_value:
+      - script.execute: control_run
+    name: "Min Off Time"
+    unit_of_measurement: "min"
+    min_value: 0
+    max_value: 120
+    step: 1
+    initial_value: 15
+    optimistic: true
+    restore_value: true
+    mode: box
+    entity_category: config
+  # Soft start: only ramp up (1 °C/min) if the gap to the target is larger than this; 0 = always immediately.
+  - platform: template
+    id: soft_start_above
+    name: "Soft Start Above"
+    unit_of_measurement: "°C"
+    min_value: 0
+    max_value: 20
+    step: 0.5
+    initial_value: 5
+    optimistic: true
+    restore_value: true
+    mode: box
+    entity_category: config
+    on_value:
+      - script.execute: control_run
+  # Room influence (only when the box steers itself): flow + factor x (room target - room), max ±5 °C.
+  - platform: template
+    id: room_influence
+    on_value:
+      - script.execute: control_run
+    name: "Room Influence"
+    unit_of_measurement: "°C/°C"
+    min_value: 0
+    max_value: 10
+    step: 0.5
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+    entity_category: config
+  - platform: template
+    id: flow_min
+    on_value:
+      - script.execute: control_run
+    name: "Min Flow"
+    unit_of_measurement: "°C"
+    min_value: 15
+    max_value: 45
+    step: 0.5
+    initial_value: 20
+    optimistic: true
+    restore_value: true
+    mode: box
+    entity_category: config
+  - platform: template
+    id: flow_max
+    name: "Max Flow"
+    unit_of_measurement: "°C"
+    min_value: 20
+    max_value: 45
+    step: 0.5
+    initial_value: 45
+    optimistic: true
+    restore_value: true
+    mode: box
+    entity_category: config
+    on_value:
+      - script.execute: control_run
+      - number.set: {id: ot_max_t_set, value: !lambda "const float ub = id(ot_max_t_set_ub).state; return (!std::isnan(ub) && ub >= 20 && ub < x) ? ub : x;"}
+  - platform: template
+    id: fixed_flow
+    on_value:
+      - script.execute: control_run
+    name: "Fixed Flow"
+    unit_of_measurement: "°C"
+    min_value: 20
+    max_value: 45
+    step: 0.5
+    initial_value: 30
+    optimistic: true
+    restore_value: true
+    mode: box
+    entity_category: config
+
+text:
+  # Heating curve as "outside:flow,..." (2-8 points, outside ascending). Invalid = previous one stays.
+  - platform: template
+    id: heating_curve
+    name: "Heating Curve"
+    mode: text
+    min_length: 7
+    max_length: 120
+    optimistic: true
+    restore_value: true
+    initial_value: "${default_curve}"
+    entity_category: config
+    on_value:
+      - script.execute: curve_parse
+
+# --------------------------------------------------------------- input from Home Assistant --
+text_sensor:
+  - platform: homeassistant
+    id: roost_curve_points
+    entity_id: ${curve_sensor}
+    attribute: points
+    internal: true
+    on_value:
+      - lambda: |-
+                // Roost: [[outside, flow, ...], ...] -> "outside:flow,..." (always kept; adopted when
+                // Follow Roost Curve is on, otherwise via the Copy Roost Curve button)
+                const std::string &s = x;
+                std::string out;
+                int n = 0;
+                for (size_t i = s.find('[', 1); i != std::string::npos && n < 8; i = s.find('[', i + 1)) {
+                  const char *p = s.c_str() + i + 1;
+                  char *e1, *e2;
+                  float a = strtof(p, &e1);
+                  if (e1 == p) break;
+                  while (*e1 == ',' || *e1 == ' ') e1++;
+                  float b = strtof(e1, &e2);
+                  if (e2 == e1) break;
+                  char buf[32];
+                  snprintf(buf, sizeof(buf), "%s%g:%g", n ? "," : "", a, b);
+                  out += buf;
+                  n++;
+                }
+                if (n < 2) return;
+                id(roost_curve) = out;
+                if (id(roost_curve_text).state != out) id(roost_curve_text).publish_state(out);
+                if (id(follow_roost_curve).state && out != id(heating_curve).state)
+                  id(heating_curve).make_call().set_value(out).perform();
+
+  # Roost's room temperature (comfort) for the heating curve: adopted when Follow Roost Curve is on, so that
+  # on fallback the box heats to the same room temperature as Roost (22-11-2026: box 21, Roost 20)
+  - platform: homeassistant
+    id: roost_room
+    entity_id: ${curve_sensor}
+    attribute: room
+    internal: true
+    on_value:
+      - lambda: |-
+                char *e;
+                float v = strtof(x.c_str(), &e);
+                if (e == x.c_str() || std::isnan(v) || v < 5 || v > 30) return;
+                v = roundf(v * 2.0f) / 2.0f;
+                if (id(follow_roost_curve).state && fabsf(v - id(room_setpoint).state) > 0.01f)
+                  id(room_setpoint).make_call().set_value(v).perform();
+
+  - platform: template
+    id: roost_curve_text
+    name: "Roost Curve" # last heating curve from Roost, for comparison
+    update_interval: never
+    entity_category: diagnostic
+    disabled_by_default: true
+
+  # ------------------------------------------------------------------------- status ---------
+  # Stable codes for Roost: home_assistant | curve | curve_ha_offline | curve_no_command | plan_ha_offline | plan_no_command | off
+  - platform: template
+    id: control_state
+    name: "Control State"
+    update_interval: never
+  # In plain language: what the box does when Roost is not steering (Room Setpoint and Heating Curve only apply then).
+  # The names of those two stay: ESPHome derives the entity id from the name, and Roost finds the box by it.
+  - platform: template
+    id: fallback_info
+    name: "Fallback"
+    icon: "mdi:backup-restore"
+    update_interval: never
+  - platform: template
+    id: outside_source
+    name: "Outside Source" # ot (pump air inlet) | ha (outside sensor) | none
+    update_interval: never
+    entity_category: diagnostic
+    disabled_by_default: true
+
+sensor:
+  - platform: template
+    id: plan_hours_left
+    name: "Plan Hours Left" # hours left in the Roost plan for when Roost drops out (0 = no plan)
+    unit_of_measurement: "h"
+    accuracy_decimals: 1
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: flow_active
+    name: "Flow Setpoint Active" # what is currently sent to the pump as ID 1
+    unit_of_measurement: "°C"
+    device_class: temperature
+    accuracy_decimals: 1
+    update_interval: never
+  - platform: template
+    id: curve_flow
+    name: "Curve Flow" # what the heating curve would give now
+    unit_of_measurement: "°C"
+    device_class: temperature
+    accuracy_decimals: 1
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: outside_used
+    name: "Outside Temperature (used)"
+    unit_of_measurement: "°C"
+    device_class: temperature
+    accuracy_decimals: 1
+    update_interval: never
+    entity_category: diagnostic
+    disabled_by_default: true
+  - platform: template
+    id: ot_error_rate
+    name: "OpenTherm Error Rate" # % failed exchanges in the last 10 min
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: ot_errors
+    name: "OpenTherm Errors" # since start
+    state_class: total_increasing
+    accuracy_decimals: 0
+    update_interval: never
+    entity_category: diagnostic
+    disabled_by_default: true
+  - platform: template
+    id: room_adjust
+    name: "Room Adjustment" # room influence on the flow now
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    update_interval: never
+    entity_category: diagnostic
+    disabled_by_default: true
+  - platform: template
+    id: demand_lock
+    name: "Demand Lock" # seconds the short-cycling protection still holds the heat demand
+    unit_of_measurement: "s"
+    accuracy_decimals: 0
+    update_interval: never
+    entity_category: diagnostic
+    disabled_by_default: true
+  - platform: template
+    id: command_age
+    name: "Command Age" # seconds since the last Flow Setpoint command (since start if there was none)
+    unit_of_measurement: "s"
+    accuracy_decimals: 0
+    update_interval: never
+    entity_category: diagnostic
+    disabled_by_default: true
+
+binary_sensor:
+  - platform: template
+    id: heat_demand
+    name: "Heat Demand"
+    device_class: heat
+  - platform: template
+    id: ha_connected
+    name: "Home Assistant Connected"
+    device_class: connectivity
+    entity_category: diagnostic
+    disabled_by_default: true
+    lambda: "return api::global_api_server->is_connected();"
+
+# ---------------------------------------------------------------------------- logic ------
+script:
+  - id: curve_parse
+    mode: queued
+    then:
+      - lambda: |-
+          const std::string s = id(heating_curve).state;
+          std::array<float, 8> xs{}, ys{};
+          int n = 0;
+          const char *p = s.c_str();
+          bool ok = true;
+          while (*p && n < 8) {
+            char *e;
+            float a = strtof(p, &e);
+            if (e == p || *e != ':') { ok = false; break; }
+            p = e + 1;
+            float b = strtof(p, &e);
+            if (e == p) { ok = false; break; }
+            if (a < -40 || a > 40 || b < 10 || b > 60 || (n > 0 && a <= xs[n - 1])) { ok = false; break; }
+            xs[n] = a; ys[n] = b; n++;
+            p = e;
+            while (*p == ',' || *p == ' ') p++;
+          }
+          if (ok && *p) ok = false; // more than 8 points or garbage at the end
+          if (!ok || n < 2) {
+            ESP_LOGW("control", "Heating curve invalid, previous one stays: '%s'", s.c_str());
+            if (id(curve_n) >= 2) {
+              std::string prev;
+              for (int k = 0; k < id(curve_n); k++) {
+                char buf[32];
+                snprintf(buf, sizeof(buf), "%s%g:%g", k ? "," : "", id(curve_x)[k], id(curve_y)[k]);
+                prev += buf;
+              }
+              id(heating_curve).make_call().set_value(prev).perform();
+            } else {
+              id(heating_curve).make_call().set_value("${default_curve}").perform();
+            }
+            return;
+          }
+          id(curve_x) = xs; id(curve_y) = ys; id(curve_n) = n;
+          ESP_LOGI("control", "Heating curve: %d points", n);
+      - script.execute: control_run
+
+  - id: control_run
+    mode: single
+    then:
+      - lambda: |-
+          const uint32_t now = millis();
+          // Time elapsed since a timestamp; never negative (stamps are millis() | 1).
+          auto since = [now](uint32_t t) -> uint32_t { return (uint32_t) std::max<int32_t>(0, (int32_t) (now - t)); };
+          const uint32_t dt = id(last_ctrl_ms) ? since(id(last_ctrl_ms)) : 30000;
+          id(last_ctrl_ms) = now;
+
+          // HA connection
+          const bool api_ok = api::global_api_server->is_connected();
+          if (api_ok) id(api_lost_ms) = 0;
+          else if (id(api_lost_ms) == 0) id(api_lost_ms) = now | 1;
+
+          // Outside temperature: chosen source first, the other as fallback, otherwise Fixed Flow.
+          // Fresh: pump air inlet (ID 27) < 10 min, outside sensor from HA < 2 hours.
+          const bool ot_ok = id(ot_out_ms) && since(id(ot_out_ms)) < 600000UL && !std::isnan(id(ot_t_outside).state);
+          // HA only sends changes: connected = current; gone = the clock runs from the disconnect.
+          const uint32_t ha_gone = id(api_lost_ms) ? since(id(api_lost_ms)) : 0;
+          const bool ha_fresh = id(outside_valid) && ha_gone < 7200000UL;
+          const bool ha_ok = ha_fresh && !std::isnan(id(ha_outside_temperature).state);
+          if (id(outside_valid) && !ha_fresh && id(outside_sensor_status).state == "ok") id(outside_sensor_status).publish_state("stale");
+          const bool sensor_first = id(outside_priority).active_index().value_or(0) == 1;
+          float out = NAN;
+          const char *osrc = "none";
+          if (sensor_first ? ha_ok : ot_ok) {
+            out = sensor_first ? id(ha_outside_temperature).state : id(ot_t_outside).state; osrc = sensor_first ? "ha" : "ot";
+          } else if (sensor_first ? ot_ok : ha_ok) {
+            out = sensor_first ? id(ot_t_outside).state : id(ha_outside_temperature).state; osrc = sensor_first ? "ot" : "ha";
+          }
+
+          // Heating curve
+          // Upper limit: Max Flow, hard 45, and the limit the pump itself reports (ID 49, Weheat 40)
+          float hi = std::min(45.0f, id(flow_max).state);
+          const float pump_ub = id(ot_max_t_set_ub).state;
+          if (!std::isnan(pump_ub) && pump_ub >= 20 && pump_ub < hi) hi = pump_ub;
+          const float lo = std::min(id(flow_min).state, hi);
+          const int n = id(curve_n);
+          // The heating curve at outside temperature x (without limits); without x or curve: Fixed Flow
+          auto curve_at = [&](float x) -> float {
+            if (std::isnan(x) || n < 2) return id(fixed_flow).state;
+            const auto &X = id(curve_x);
+            const auto &Y = id(curve_y);
+            if (x <= X[0]) return Y[0];
+            if (x >= X[n - 1]) return Y[n - 1];
+            for (int k = 1; k < n; k++)
+              if (x <= X[k]) return Y[k - 1] + (x - X[k - 1]) / (X[k] - X[k - 1]) * (Y[k] - Y[k - 1]);
+            return Y[n - 1];
+          };
+          float curve = std::max(lo, std::min(hi, curve_at(out)));
+
+          // Room: on at/below setpoint, off from setpoint + hysteresis; old (> 30 min) = ignore
+          const float room = id(ha_room_temperature).state;
+          if (id(room_valid) && ha_gone < 1800000UL && !std::isnan(room)) {
+            if (room <= id(room_setpoint).state) id(room_demand) = true;
+            else if (room >= id(room_setpoint).state + id(room_hysteresis).state) id(room_demand) = false;
+          } else {
+            id(room_demand) = true;
+            if (id(room_valid) && id(room_sensor_status).state == "ok") id(room_sensor_status).publish_state("stale");
+          }
+
+          // Room influence on the heating curve: only with a current room temperature
+          float room_adj = 0;
+          if (id(room_valid) && ha_gone < 1800000UL && !std::isnan(room) && id(room_influence).state > 0)
+            room_adj = std::max(-5.0f, std::min(5.0f, id(room_influence).state * (id(room_setpoint).state - room)));
+          const float curve_room = std::max(lo, std::min(hi, curve + room_adj));
+
+          // Roost plan: which hour it is now, and what it says (with guardrails; without a room temperature the box steers blind)
+          int pi = -1;                 // hour in the plan, -1 = no usable plan
+          float plan_want = NAN;
+          float plan_left = 0;         // hours left in the plan
+          // The outside temperature for comparison with the plan: the pump's air inlet (ID 27), which Roost calculated with
+          const float out_plan = ot_ok ? id(ot_t_outside).state : out;
+          if (id(plan_ms) && id(plan_n) > 0) {
+            const uint32_t el = since(id(plan_ms)) / 1000 + (uint32_t) id(plan_sec);
+            const int idx = (int) (el / 3600);
+            if (el >= 36UL * 3600UL || idx >= id(plan_n)) {
+              id(plan_ms) = 0; id(plan_n) = 0;      // used up or expired: gone (otherwise it would come back after a millis wraparound)
+            } else {
+              plan_left = id(plan_n) - el / 3600.0f;
+              const float f = id(plan_flow)[idx];
+              if (f > 0) {
+                float w = f;
+                const float po = id(plan_out)[idx];
+                if (!std::isnan(out_plan) && !std::isnan(po))   // colder than Roost calculated: slightly warmer, like the heating curve
+                  w += std::max(-3.0f, std::min(3.0f, curve_at(out_plan) - curve_at(po)));
+                plan_want = std::min(w, curve + 5.0f);    // never more than 5 °C above the heating curve
+                pi = idx;
+              } else {
+                // off: at most 3 hours in a row (below 0 °C outside, or without an outside temperature, 2), after that the heating curve.
+                // Counts: the off hours in the plan, and how long no heat demand has gone to the pump already (also from before the plan).
+                int k = idx;
+                while (k > 0 && id(plan_flow)[k - 1] <= 0) k--;
+                uint32_t off_s = el - (uint32_t) k * 3600UL;
+                if (!id(demand_on) && id(demand_ms)) off_s = std::max(off_s, since(id(demand_ms)) / 1000);
+                const uint32_t max_off = (std::isnan(out_plan) || out_plan < 0) ? 7200UL : 10800UL;
+                if (off_s < max_off) { plan_want = 0; pi = idx; }
+              }
+            }
+          }
+          if (id(plan_hours_left).state != roundf(plan_left * 10) / 10 || !id(plan_hours_left).has_state())
+            id(plan_hours_left).publish_state(roundf(plan_left * 10) / 10);
+
+          // Who steers
+          const uint32_t timeout = (uint32_t) (id(command_timeout).state * 60000.0f);
+          const uint32_t age = id(cmd_ms) ? since(id(cmd_ms)) : now;
+          const bool curve_mode = id(control_mode).active_index().value_or(0) == 1;
+          const char *state;
+          float want = curve_room;
+          bool demand;
+          if (!id(heating_enabled).state) {
+            state = "off"; demand = false;
+          } else if (curve_mode) {
+            state = "curve"; demand = id(room_demand);
+          } else if (id(api_lost_ms) && since(id(api_lost_ms)) > timeout) {
+            if (pi >= 0) { state = "plan_ha_offline"; want = plan_want; demand = plan_want > 0; }
+            else { state = "curve_ha_offline"; demand = id(room_demand); }
+          } else if (age > timeout) {
+            if (pi >= 0) { state = "plan_no_command"; want = plan_want; demand = plan_want > 0; }
+            else { state = "curve_no_command"; demand = id(room_demand); }
+          } else {
+            state = "home_assistant";
+            want = id(flow_setpoint).state;
+            demand = !std::isnan(want) && want > 0;
+          }
+
+          if (state[0] == 'h' || state[0] == 'p') room_adj = 0; // Roost (or its plan) steers: no room influence from the box
+
+          // Startup: for the first minute keep the heat demand from before the reboot (kept in ot_ch_enable)
+          // until room and outside values are in; otherwise a short demand would start the short-cycling protection.
+          if (now < 60000UL && id(heating_enabled).state) {
+            demand = id(ot_ch_enable).state;
+            id(demand_on) = demand;
+            id(demand_ms) = 0;
+          }
+          // Short-cycling protection: minimum on / minimum off (Heating off goes straight through it)
+          bool hold = false;
+          if (demand != id(demand_on) && id(heating_enabled).state && id(demand_ms)) {
+            const uint32_t min_ms = (uint32_t) ((id(demand_on) ? id(min_on_time).state : id(min_off_time).state) * 60000.0f);
+            if (since(id(demand_ms)) < min_ms) hold = true;
+          }
+          if (!hold && demand != id(demand_on)) { id(demand_on) = demand; id(demand_ms) = now | 1; }
+          const bool held_on = hold && id(demand_on); // demand is gone but must continue for a while: at Min Flow
+          demand = id(demand_on);
+          float lock = 0;
+          if (hold) lock = ((id(demand_on) ? id(min_on_time).state : id(min_off_time).state) * 60000.0f - since(id(demand_ms))) / 1000.0f;
+
+          // Apply: without heat demand CH off and flow at Min Flow (ready for a soft start)
+          float next = lo;
+          if (demand) {
+            const float target = held_on ? lo : std::max(lo, std::min(hi, want));
+            // Soft start: begin at return + 2 °C (then the pump starts right away), at least Min Flow, never above the target.
+            // If the difference to the target is at most Soft Start Above, go straight to the target; otherwise 1 °C per minute.
+            // (The Weheat always starts high itself; ramping up only helps with a large gap, against a long high compressor speed.)
+            float floor = lo;
+            const float ret = id(ot_t_return).state;
+            if (!id(bus_comm_error).state && !std::isnan(ret)) floor = std::max(lo, std::min(ret + 2.0f, hi));
+            floor = std::min(floor, target);
+            float cur = id(ot_t_set).state;
+            if (std::isnan(cur) || cur < floor) cur = floor;
+            const float step_lim = id(soft_start_above).state;
+            if (step_lim <= 0 || target - cur <= step_lim) {
+              next = target;
+            } else {
+              const float max_up = std::max(0.1f, dt / 60000.0f); // 1 °C per minute
+              next = cur + max_up;
+            }
+          }
+          next = roundf(next * 10.0f) / 10.0f;
+          if (std::isnan(id(ot_t_set).state) || fabsf(id(ot_t_set).state - next) >= 0.1f)
+            id(ot_t_set).make_call().set_value(next).perform();
+          if (id(ot_ch_enable).state != demand) {
+            if (demand) id(ot_ch_enable).turn_on(); else id(ot_ch_enable).turn_off();
+          }
+
+          // Keep what goes to the pump equal to the settings every round (after a reboot the
+          // OpenTherm layer would otherwise send the initial value): ID 16 room target, ID 24 room, ID 57 max flow.
+          auto keep = [](number::Number *n, float want) {
+            if (!std::isnan(want) && (std::isnan(n->state) || fabsf(n->state - want) >= 0.05f)) n->make_call().set_value(want).perform();
+          };
+          keep(id(ot_room_set), id(room_setpoint).state);
+          if (id(room_valid) && !std::isnan(room)) keep(id(ot_room), room);
+          keep(id(ot_max_t_set), hi);
+
+          // Status
+          auto pub = [](sensor::Sensor *s, float v) {
+            if (std::isnan(v) ? !std::isnan(s->state) : (std::isnan(s->state) || fabsf(s->state - v) >= 0.05f)) s->publish_state(v);
+          };
+          pub(id(flow_active), next);
+          pub(id(room_adjust), room_adj);
+          pub(id(demand_lock), roundf(lock));
+          pub(id(curve_flow), curve);
+          pub(id(outside_used), out);
+          pub(id(command_age), id(cmd_ms) ? roundf(age / 1000.0f) : NAN);
+          if (id(heat_demand).state != demand || !id(heat_demand).has_state()) id(heat_demand).publish_state(demand);
+          if (id(control_state).state != state) id(control_state).publish_state(state);
+          {
+            char fb[112];
+            const bool follow = id(follow_roost_curve).state;
+            if (state[0] == 'h')
+              snprintf(fb, sizeof(fb), "Roost steers. Without Roost: own curve to %.1f °C room%s", id(room_setpoint).state,
+                       follow ? " (both follow Roost)" : "");
+            else if (state[0] == 'o')
+              snprintf(fb, sizeof(fb), "Heating off");
+            else if (state[0] == 'p')
+              snprintf(fb, sizeof(fb), "Roost's plan, %.0f h left; then own curve to %.1f °C room", plan_left,
+                       id(room_setpoint).state);
+            else
+              snprintf(fb, sizeof(fb), "Own curve now, to %.1f °C room%s", id(room_setpoint).state,
+                       follow ? " (as Roost set them)" : "");
+            if (id(fallback_info).state != fb) id(fallback_info).publish_state(fb);
+          }
+          if (id(outside_source).state != osrc) id(outside_source).publish_state(osrc);
+
+interval:
+  - interval: 30s
+    then:
+      - script.execute: control_run
+  # OpenTherm error percentage over the last 10 minutes.
+  - interval: 10min
+    then:
+      - lambda: |-
+          // Errors come from the OpenTherm hub (protocol errors + timeouts); only a warning above 2 %.
+          const uint32_t total = id(ot_hub)->get_error_count();
+          const uint32_t err = total - id(ot_err_total);
+          id(ot_err_total) = total;
+          const uint32_t n = id(ot_ok_cnt) + err;
+          const float rate = n ? 100.0f * err / n : NAN;
+          id(ot_error_rate).publish_state(rate);
+          id(ot_errors).publish_state(total);
+          if (!std::isnan(rate) && rate > 2.0f)
+            ESP_LOGW("opentherm", "%.1f %% of the OpenTherm exchanges failed in the last 10 min (%u of %u)", rate, (unsigned) err, (unsigned) n);
+          id(ot_ok_cnt) = 0;

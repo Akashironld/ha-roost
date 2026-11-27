@@ -7,6 +7,7 @@ no passwords or tokens; the home location is left out.
 from __future__ import annotations
 
 import re
+import time
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
@@ -38,9 +39,11 @@ def _scrub(v: Any, numbers: tuple[str, ...]) -> Any:
 
 
 def _state(hass: HomeAssistant, entity_id: str | None) -> dict | None:
-    st = hass.states.get(entity_id) if entity_id else None
+    if not entity_id:
+        return None
+    st = hass.states.get(entity_id)
     if st is None:
-        return {"entity_id": entity_id, "state": "missing"} if entity_id else None
+        return {"entity_id": entity_id, "state": "missing"}
     a = st.attributes
     out = {"entity_id": entity_id, "state": st.state, "unit": a.get("unit_of_measurement"), "device_class": a.get("device_class"),
            "last_updated": st.last_updated.isoformat(), "attributes": sorted(a.keys())[:40]}
@@ -59,7 +62,7 @@ async def _version(hass: HomeAssistant, domain: str) -> str | None:
 
 async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: RoostConfigEntry) -> dict[str, Any]:
     m = entry.runtime_data
-    p = m.plan
+    p = m.held.plan
     conf = m.conf
     entity_ids = sorted({v for k, v in conf.items() if isinstance(v, str) and "." in v and k != "name"} | set(m.ent.values())
                         | {r.sensor for r in m.rooms})
@@ -69,27 +72,29 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: RoostCo
         "weheat_roles_missing": sorted(set(WEHEAT) - set(m.ent)),
         "entities": [_state(hass, e) for e in entity_ids],
         "now": {"room": m.room(), "thermostat_setpoint": m.thermostat_sp(), "thermostat_reading": m.thermostat_reading(),
-                "pump_state": m.pump_state(), "storage_kwh": m.storage_e, "following": m.following, "sources": m.sources,
+                "pump_state": m.pump_state(), "storage_kwh": m.meters.storage_e, "following": m.notices.following, "sources": m.sources,
                 "reason": m.reason.as_dict(), "decision": m.decision.as_dict() if m.decision else None, "control": m.mem.as_dict(),
                 "correction_kw": m.corr_kw, "correction_hours": m.corr_n},
         "models": {"house": m.house.as_dict(), "heat_pump": m.pump.as_dict(),
                    "rooms": {k: v.as_dict() for k, v in m.room_models.items()}, "building": m.building},
-        "learning": m.learn_info, "import": m.import_info,
-        "heating_curve": m.curve_advice.as_dict() if m.curve_advice else None, "weheat_settings": m.weheat_settings, "weheat_pump": m.weheat_pump, "hybrid": m.hybrid, "check": m.check, "ready_to_steer": m.ready, "still_missing": m.ready_missing,
-        "held": {"commit": m.commit.as_dict() if m.commit else None, "why": m.plan_why, "fallback": m.fallback,
-                 "unpriced_kwh_today": m.unpriced_kwh},
+        "learning": m.learn_info, "import": m.weheat.import_info,
+        "heating_curve": m.curve_advice.as_dict() if m.curve_advice else None, "opentherm": m.otc.info() if m.ot else None, "weheat_settings": m.weheat.settings, "weheat_pump": m.weheat.pump, "hybrid": m.hybrid, "check": m.check, "ready_to_steer": m.ready, "still_missing": m.ready_missing, "ready_muted": m.ready_muted,
+        "thermostat_writable": m.notices.thermostat_writable(), "following": m.notices.following_now(),
+        "control": m.card.control_view(time.time()),
+        "held": {"commit": m.held.commit.as_dict() if m.held.commit else None, "why": m.held.why, "fallback": m.held.fallback,
+                 "unpriced_kwh_today": m.meters.unpriced_kwh},
         "plan": {"settings": vars(m.settings()), "control": vars(m.control_settings()),
-                 "inputs": [vars(h) for h in m.plan_hours], "hours": [h.as_dict() for h in p.hours] if p else None,
-                 "tariff": m.plan_tariff, "tariff_guessed": m.plan_guess,
-                 "cost": p.cost if p else None, "steady_cost": p.baseline_cost if p else None, "rooms": m.room_status},
-        "hour_log": m.hour_log[-HOUR_LOG_KEPT:], "plan_log": m.plan_log[-PLAN_LOG_KEPT:], "saving_days": m.saving_days, "day_stats": m.day_stats,
-        "day_contexts": m.day_contexts,
-        "saving_explained": {"next_24h": m.next_breakdown(), "days": m.saving_detail}, "plan_changes": m.plan_changes,
-        "thermostat_history": {str(k): v for k, v in sorted(m.sp_hist.items())[-72:]},
+                 "inputs": [vars(h) for h in m.held.hours], "hours": [h.as_dict() for h in p.hours] if p else None,
+                 "tariff": m.held.tariff, "tariff_guessed": m.held.guess,
+                 "cost": p.cost if p else None, "steady_cost": p.baseline_cost if p else None, "rooms": m.held.room_status},
+        "hour_log": m.log.hour_log[-HOUR_LOG_KEPT:], "plan_log": m.log.plan_log[-PLAN_LOG_KEPT:], "saving_days": m.log.saving_days, "day_stats": m.log.day_stats,
+        "day_contexts": m.log.day_contexts,
+        "saving_explained": {"next_24h": m.hl.next_breakdown(), "days": m.log.saving_detail}, "plan_changes": m.log.plan_changes,
+        "thermostat_history": {str(k): v for k, v in sorted(m.log.sp_hist.items())[-72:]},
         "rooms": [vars(r) for r in m.rooms], "changes_by_hand": m.changes[-40:],
         "suggestion": m.suggestion.as_dict() if m.suggestion else None, "issues": sorted(m.health.issues),
         "events": list(m.events), "log": list(recent_log(hass).records),
-        "weheat_hours_imported": len(m._weheat_hours), "gas_boiler_hours": m.boiler_hours, "pv_k": m.pv_k, "load_profile": m.load_profile, "battery": m.battery.as_dict(),
+        "weheat_hours_imported": len(m.weheat.hours), "gas_boiler_hours": m.weheat.boiler_hours, "pv_k": m.pv_k, "load_profile": m.load_profile,
     }
     # the coordinates as Home Assistant has them, written out the ways a URL or message would (4+ decimals only: a
     # short number like 52.1 also occurs as a temperature or a price)

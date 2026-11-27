@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 
 from .reasons import Reason
+from .util import fill
 
 
 @dataclass
@@ -34,11 +35,7 @@ class ControlMemory:
 
     @classmethod
     def from_dict(cls, d: dict | None) -> "ControlMemory":
-        m = cls()
-        for k, v in (d or {}).items():
-            if hasattr(m, k):
-                setattr(m, k, v)
-        return m
+        return fill(cls(), d)
 
 
 @dataclass

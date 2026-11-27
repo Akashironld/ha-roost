@@ -146,7 +146,6 @@ def test_price_history_classification_and_fit():
     assert abs(a - 1.21) < 1e-9 and abs(b - 0.1) < 1e-9 and r2 > 0.999
     assert series.fit_line([(1.0, 2.0)] * 20) is None
 
-
 if __name__ == "__main__":
     run_all(globals())
 

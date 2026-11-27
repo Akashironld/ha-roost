@@ -119,7 +119,7 @@ next screen. Nothing else to fill in — see [The Weheat login](#the-weheat-logi
 | Field | What to fill in |
 |---|---|
 | Room temperature sensor | A sensor in the room of the thermostat. Roost proposes one in the same area, or in the living room. Leave empty to use the thermostat's own reading (many show only half degrees: Roost then sees a cooling room a step at a time) |
-| Heat emitters | Floor heating, radiators, or both. Only the starting values; Roost learns your house from its data |
+| Heat emitters | Floor heating, radiators, low-temperature radiators, fan coils: tick all the house has. Only the starting values; Roost learns your house from its data |
 | Building data from the Dutch building register (BAG) | Netherlands only, off by default. Sends your Home Assistant home location **once** to PDOK (Kadaster) to look up the construction year, floor area and outside walls: better starting values (useful without the Weheat import) and only the facade directions your house really has. No address is kept |
 | Window and door sensors (optional) | Roost recognises airing by itself (the room falling fast); with sensors it knows at once. See *Airing* in section 8 |
 
@@ -160,8 +160,10 @@ plans on one flat price. The same holds for the export price sensor.
 
 ### Screen 4 — Solar and home battery
 
-Two ticks: *I have solar panels*, *I have a home battery*. Roost ticks them already when it finds such sensors.
-Without either, the next screen is skipped.
+Two ticks: *I have solar panels*, *I have a home battery*. Roost ticks them already when it finds such sensors. It looks
+first in Home Assistant's **Energy dashboard**: the solar, grid and battery power sensors set there (or a power sensor
+on the device of the dashboard's kWh meter), the sign of the grid meter and the battery's charge. Without an Energy
+dashboard it searches the names of your sensors. Without either tick, the next screen is skipped.
 
 Then only the fields for what you ticked (all optional; found entities are filled in):
 
@@ -169,37 +171,58 @@ Then only the fields for what you ticked (all optional; found entities are fille
 |---|---|
 | Solar power | To see real solar surplus right now |
 | Solar forecast today / tomorrow | To plan heating on your own solar (Solcast, Predbat, Forecast.Solar, …) |
-| Grid power + its sign | To tell real solar export from a battery that sells to the grid |
-| Battery state of charge, battery power, capacity, max power, reserve | So energy from the battery is valued at what refilling it costs, and solar that fills the battery anyway is treated as free. Roost also learns how the battery is charged (from the grid or not, in which hours, how full) and the reserve it is seen to stop at, which replaces the setting. In an hour in which the battery usually charges from the grid it supplies nothing: extra use there costs that hour's price. Such a battery is steered by something that also decides when it discharges, so Roost follows its usual charge per hour of the day |
-| The heat pump and the home battery | *Keep the battery for the house* (default): energy the heat pump takes from the battery costs what the house misses later — the hour the battery would run empty — so Roost heats in grid hours and leaves the battery to the house. *Use the battery when that is cheaper*: when Roost has learned that the battery also charges from the grid (whoever steers it: Predbat, evcc, your supplier, a schedule), energy from it costs the cheapest of its usual charging hours ahead (with the battery's losses), as long as it is not full after that hour. For a battery whose steering plans ahead and has room |
-| House power | What your whole house uses, to learn its usage per hour of the day: with solar it tells which coming hours have a surplus. Shown with a battery; leave it empty and Roost works it out from grid power + solar power (+ battery power) |
+| Grid power | To tell real solar export from a battery that sells to the grid |
+| Home battery state of charge | So Roost follows the charge, and solar that fills the battery anyway is not counted as free |
+| Home battery power (+ = discharging) | To tell solar export from a battery selling to the grid |
+| Usable battery capacity | The size of the battery |
+| Solar for the heat pump from (battery charge) | Default 50 %. Solar surplus counts as free for the heat pump once the battery is at least this full; below that it goes into the battery first. Roost follows the charge with the solar forecast. Whoever steers the battery (Predbat, its app, your supplier) decides when it delivers; Roost does not count on it |
+| House power | What your whole house uses, to learn its usage per hour of the day: with solar it tells which coming hours have a surplus. Leave it empty and Roost works it out from grid power + solar power (+ battery power) |
+
+**Advanced** (folded away):
+
+| Field | Meaning |
+|---|---|
+| Sign of the grid power | Whether import is positive or negative on your grid meter. The Energy dashboard tells it, and Roost fills it in from there |
 | Preference for own energy | Extra cents per kWh from the grid, to prefer your own solar a bit more. 0 is fine |
 
 ### Screen 5 — Comfort
 
-Filled in from your thermostat's last days when Home Assistant still has them.
+Filled in from your thermostat's last weeks when Home Assistant still has them. Comfort is a **range**: in the comfort
+hours at least the comfort temperature, and warmer than that only when it saves money. Outside the comfort hours only
+the eco minimum counts.
+
+**Comfort hours.** One choice, then the times of that choice. Only the block you chose counts.
+
+| Choice | Times |
+|---|---|
+| The same every day | *Warm at* … *Until* |
+| Weekdays and weekend | *Weekdays warm at* … *Weekdays until*, *Weekend warm at* … *Weekend until* |
+| Per day | One text field per weekday, periods on the quarter hour as `07:00-09:00, 17:30-22:00`; a period may run through midnight (`22:00-02:00` continues the next day); empty = no comfort that day |
+
+**Temperatures.**
 
 | Field | Meaning |
 |---|---|
-| Comfort hours start / end | When you want the comfort temperature (e.g. 7 to 22) |
-| Weekly periods (optional) | Instead of one daily interval: comfort periods per weekday, on quarter hours, as `07:00-09:00, 17:30-22:00`; a period may run through midnight (`22:00-02:00` continues the next day). Off by default; when on, the comfort hours above are not used and the card's comfort-hour buttons are replaced by this form |
-| Comfort temperature | What you want in the comfort hours (Roost aims for this; it may go a little above while storing heat) |
-| Never below in the day | Hard minimum in the comfort hours |
-| Never below at night | Hard minimum outside them. Keep it within about 1.5 °C of the comfort temperature: a heat pump does badly with a deep night setback |
-| Warmest while storing heat | How warm the room may get when Roost charges the floor before an expensive period. Equal to the comfort temperature switches storing off |
+| Comfort: at least | What Roost keeps in the comfort hours. The room is warm at the *start* of each comfort period: Roost starts heating earlier by itself |
+| Comfort: may warm up to | The top of the range. Roost only goes warmer when that saves money: storing heat in a cheap hour for an expensive one. Each degree warmer loses some 5–7 % more heat, so a range of 1–2 °C is usually enough. Equal to *Comfort: at least* switches storing off |
+| Eco: at least (outside the comfort hours) | How far the room may cool outside the comfort hours. With a heat pump a deep setback rarely pays: warming up again takes more power at a lower COP |
+
+An error appears when eco is above comfort, or when the top of the range is below comfort.
 
 **Advanced** (folded away; the defaults suit most houses):
 
 | Field | Default | When to change |
 |---|---|---|
-| Lowest thermostat setting | 19 °C | Roost never sets the thermostat lower. Lower lets a slow heat pump stop sooner, but if Home Assistant is down the thermostat stays where Roost left it |
-| Setpoint at most this above the room | 1 °C | Keeps an OpenTherm thermostat asking for lukewarm water. Raise it if radiators upstairs stay cold. With a hybrid (a gas boiler next to the heat pump, as Weheat's heat pump data says; when that is unknown, a boiler asked for in Weheat's logs) Roost keeps it at 0.5 °C at most, so a storing step does not call the boiler |
-| At most one change per | 60 min | Less often if your thermostat or heat pump does not like frequent changes |
+| Hard floor in the comfort hours | follows comfort | Never colder than this in the comfort hours, not even in a very expensive hour. It follows the comfort temperature down by itself, to half a degree below it |
+| Lowest thermostat setting | 19 °C | Only with thermostat steering. Roost never sets the thermostat lower. Lower lets a slow heat pump stop sooner, but if Home Assistant is down the thermostat stays where Roost left it |
+| Setpoint at most this above the room | 1 °C | Only with thermostat steering. Keeps an OpenTherm thermostat asking for lukewarm water. Raise it if radiators upstairs stay cold. With a hybrid (a gas boiler next to the heat pump, as Weheat's heat pump data says; when that is unknown, a boiler asked for in Weheat's logs) Roost keeps it at 0.5 °C at most, so a storing step does not call the boiler |
+| At most one change per | 60 min | Only with thermostat steering. Less often if your thermostat or heat pump does not like frequent changes |
 | Pause after a change by hand | 2 h | How long Roost steps aside when you change the thermostat yourself |
 | Night setback of the thermostat to compare with | 0 | Only for the savings figure: the steady thermostat Roost compares with |
 | Weather forecast | Open-Meteo | Open-Meteo is free, needs no account, and gives radiation and wind (the house model uses both). A weather entity works too; radiation is then estimated from the sun's height and the cloud cover |
 
-Click **Submit**. Roost is set up — in shadow mode — and starts importing and learning.
+Click **Submit**. Roost is set up — in shadow mode — and starts importing and learning. Steering over OpenTherm instead of
+a thermostat is chosen afterwards, under *Configure → Steering* (section [7](#steering-over-opentherm-in-testing)).
 
 ---
 
@@ -220,10 +243,21 @@ Click **Submit**. Roost is set up — in shadow mode — and starts importing an
   room temperature expected with it).
   The planned setting is a **thermostat setting**: with a slow heat pump Roost may set 19 °C while the room stays at
   21 °C — that means *don't heat now*, not *make the room 19 °C*.
+- **Comfort line** (at the top of the settings, tap the sliders icon): the range in one line, for example *Comfort
+  20–23 °C · warm at 07:00 · outside that at least 18 °C · box on fallback 20 °C*. With per-weekday comfort hours it
+  says *per weekday* instead of a time. The last part shows only over OpenTherm with the box's *fallback curve follows
+  Roost* switch on: it is the room temperature the box heats towards when Roost drops out. Under it, once there are at
+  least 3 days with the same settings, an **advice line**, for example *Last 5 days, per week: storing heat saved €2.80 ·
+  up to 22 °C makes no difference · eco 17 °C saves €0.35, a little colder*. Every night Roost plans the day that is
+  over again in hindsight (same house model, weather and prices) with eco a degree lower and with the top of the range a
+  degree lower and switched off, and turns the difference into € per week. *Storing heat saved* is what the range
+  above comfort earns you; *up to …* and *eco …* say what one degree less would cost or save, and *a little colder*
+  that the room would have spent some time below comfort. Use it to decide whether a wider range or a deeper eco pays.
 - **Extra rooms** (if you added any): temperature, minimum and its hours; orange when below it.
 - **Next 24 hours**: the planned thermostat setting (orange), the expected room temperature (white), the tariff per
-  hour (bars, green to red from cheap to dear), own solar to use (yellow), the comfort hours (green band) and, under the
-  graph, the hours the heat pump is expected to heat (orange strip). **Slide over the graph** to
+  hour (bars, green to red from cheap to dear), own solar to use (yellow), the comfort hours (green band), a ❄ for each
+  defrost Roost expects (the heat pump melts ice off its evaporator; under the graph the defrosts of the last 48 hours
+  are listed) and, under the graph, the hours the heat pump is expected to heat (orange strip). **Slide over the graph** to
   read each hour; when the planner counts another price than the tariff (a battery's refill cost, own solar) it says so.
   The line under the graph says **why** that hour is what it is (e.g. *18:00 · expensive hour (47 ct): living off the
   heat in the floor*, *warm enough (21.2 °C): no heat needed*, or *room above the setpoint: keeping 21 °C ahead of
@@ -241,9 +275,10 @@ Click **Submit**. Roost is set up — in shadow mode — and starts importing an
 - **Mode**: tap the **ACTIVE / SHADOW / OFF** label to switch; *Active* asks for a second tap. Switching from *Active*
   to *Shadow* or *Off* (or removing Roost) sets the thermostat back to your comfort temperature. The menu also has
   *Pause 2 h*, *Resume now* while paused, *Away* (1 day / 3 days / 1 week, or *Home again*) and **⚙ Settings**: every
-  temperature and the comfort hours with − / + (comfort, minimum by day and at night, comfort hours, lowest setpoint,
-  store heat up to). They are Roost's own settings — the same as *Configure → Comfort*, which shows them too — and the
-  one you change wins: the others follow it (comfort never below the day minimum, for example).
+  temperature and the comfort hours with − / + , in this order: *Comfort: at least*, *Comfort: may warm up to*,
+  *Eco: at least*, the comfort hours, *Hard floor (comfort hours)* and, with thermostat steering, *Lowest setpoint*.
+  They are Roost's own settings — the same as *Configure → Comfort*, which shows them too — and the one you change wins:
+  the others follow it (the hard floor follows comfort down, for example).
   **Comfort per weekday**: *Same every day* or *Per weekday*. Per weekday shows a timeline for each day; tap a day,
   move a period's start and end by the quarter hour with − / +, remove it (×) or add one (*+ period*), copy the day to
   the weekdays, the weekend or every day, and **Save**. A period may run through midnight. Saving does not restart
@@ -268,7 +303,7 @@ Click **Submit**. Roost is set up — in shadow mode — and starts importing an
 
 ### Look back
 
-The switch **Overview / Table / Curve / Look back** in the card's header shows what happened instead of what is planned — in the same
+The switch **Overview / Table / Look back / Energy** in the card's header (and **Curve**, see above) shows what happened instead of what is planned — in the same
 place, so the card does not grow. Choose **24 h**, **48 h** or **7 d**:
 
 - **Four numbers**: what heating cost (and the saving against the equally comfortable steady thermostat), how well the
@@ -295,7 +330,7 @@ place, so the card does not grow. Choose **24 h**, **48 h** or **7 d**:
 Roost keeps a week of hours and 60 days of day numbers for this; the history starts when you install 0.5.5.
 
 Options (also in the visual editor): `compact: true` (header, status line and tiles, for a wall tablet), `show_status`,
-`show_tiles`, `show_chart`, `show_pumps` (the heat pump's runs), `show_curve`, `show_footer`, `view: table`, `view: curve` or `view: history` (open in the table, the curve or the look back — e.g. a
+`show_tiles`, `show_chart`, `show_pumps` (the heat pump's runs), `show_curve`, `show_footer`, `view: table`, `view: curve`, `view: history` or `view: energy` (open in the table, the curve, the look back or the energy tab — e.g. a
 second card on an analysis page),
 `history: false` (no look back switch), `language` (`en`, `nl`, `de`, `fr`), `time_format` (`24`, `12`), `title`.
 
@@ -304,6 +339,29 @@ type: custom:roost-card
 entity: sensor.roost_planned_setpoint
 compact: true
 ```
+
+### Energy tab
+
+The **Energy** tab shows what the heat pump took and gave, from Home Assistant's long-term statistics. Choose **Hour**,
+**Day**, **Week** or **Month**; newest first, with a *Total* row on top. A row opens to its details. A phone shows the
+columns that matter most, a wide card all of them.
+
+| Column | Meaning |
+|---|---|
+| Outdoor | Mean outdoor temperature (the details add the lowest) |
+| Flow | Mean flow temperature while heating |
+| Heat | Heat delivered (heating, hot water, and the part lost to defrosting) |
+| Electricity | What the heat pump used: heating, hot water, indoor unit and standby |
+| COP | The heat pump's own COP, as Weheat counts it. The details add heating, hot water and *with the indoor unit* |
+| Performance | The heating COP as a share of what Roost learned this heat pump does at the same outdoor temperature and output. 100 % = as expected. Clearly lower for weeks points at the unit (evaporator, pump setting), not at the weather |
+| Defrost | How many defrosts, counted from the unit's states (≈ = estimated from the defrost meter when Home Assistant no longer has the states), and the heat they cost |
+| Heating hours | Hours with heating |
+| Own sun | Solar the heat pump used, and from the battery. Own sun counts at the export price |
+| Cost | Total, split in the details per part: heating, hot water, indoor unit, standby |
+
+The details also show the status of an hour (heating, hot water, defrosting, idle; ❄ marks a defrost), the degree days
+and the electricity per degree day against the period before. The **CSV** button saves the rows for a spreadsheet. An
+hour in which the Weheat cloud caught up on missed hours is marked * and left out of *Performance*.
 
 ---
 
@@ -366,8 +424,10 @@ That is normal.
 
 Roost tells you itself when it is ready, in three places — and before that, **when it expects to be**: right after
 the Weheat import (plus about 15 minutes of learning) when the history is good enough, at the next nightly self-check,
-after more heating hours, or only when the heating season starts. A setting that blocks it (the heat pump does not
-follow the thermostat) is named instead of a time.
+after more heating hours, or only when the heating season starts. A setting that blocks it is named instead of a
+time: the heat pump does not follow the thermostat (it heats on its own heating curve: its log says so, or it does not
+answer a change in the requested water temperature), or Roost cannot set the thermostat (a `climate` entity without a
+target temperature, such as a read-only helper).
 
 - **Settings → Devices & services → Roost → Configure → Mode.** It shows what the nightly self-check says, point by
   point (✅ or ⏳), with *Expected:* when it thinks it will be ready and *Checked on:* the last week or, in mild weather,
@@ -376,7 +436,8 @@ follow the thermostat) is named instead of a time.
   *Active* and submit — or *Shadow* / *Off* — right there.
 - **The card** shows when it expects to be ready in its footer, and a green **Let Roost steer** button once it is
   (click twice, so it never happens by accident).
-- **Settings → Repairs** gets a notice *ready to steer the heat pump*, and the entity *Ready to steer*
+- **Settings → Repairs** gets a notice *ready to steer the heat pump* (open it: *Switch to active*, or *Do not show
+  this again* — that holds until you switch to active yourself), and the entity *Ready to steer*
   (`binary_sensor.roost_ready_to_steer`) turns on — handy for a notification on your phone. Its details hold
   *waiting_for*, *expected* and, in mild weather, *heating_weeks_check*.
 
@@ -393,6 +454,72 @@ Back to shadow or off: `select.roost_mode` → *Shadow* / *Off*. In *Off* Roost 
 
 ---
 
+### Steering over OpenTherm
+
+**Setting it up, step by step** (with the THRM ONE; another master that keeps the same agreement goes the same way
+from step 3):
+
+1. **The box.** Buy an [elvinhome THRM ONE](https://elvinhome.io/shop/thrm-one-60) and connect it to the heat pump's
+   OpenTherm terminals instead of the thermostat (elvinhome's manual shows how; keep the thermostat, you can always
+   go back). Power it over USB-C or 5–28 V.
+2. **The firmware for Roost.** Flash [firmware/thrm-one](../firmware/thrm-one/README.md) from this repository with
+   ESPHome 2026.10.1 (Wi-Fi in `secrets.yaml`, then `esphome run thrm-one-roost.yaml`). Do it while the heat pump stands
+   still or makes hot water, not while it heats: a Weheat rests an hour after the short silence of a restart.
+3. **In Home Assistant**: add the box (*Settings → Devices & services → ESPHome*, it is found by itself). On the box's
+   page set *Room Sensor* (and optionally *Outside Sensor*): the box uses them only when Roost is gone.
+4. **In the Weheat app**: set the heat pump's control to **OpenTherm** (not *OpenTherm smart*, not the heating curve).
+5. **In Roost**: *Configure → The house*: a room temperature sensor (required). Then *Configure → Steering: thermostat
+   or OpenTherm* → *OpenTherm*, and pick the box: Roost finds its entities. Check the lowest and highest flow (*Min Flow*,
+   *Max Flow* on the box; for floor heating 35–40 °C at most).
+6. **Shadow first.** Leave Roost in shadow mode for a few days: the setpoint sensor's `opentherm` attribute shows the
+   heat level and flow it would ask per hour, and the card the flow on its own scale. Meanwhile Roost learns the heat
+   pump's lowest output and the emitter from the box's readings.
+7. **Let it steer**: *Active*, as in [section 7](#7-letting-roost-steer). The box's *Control State* turns
+   `home_assistant`, and *Plan Hours Left* shows that the box holds Roost's plan for when Roost is gone.
+
+Back to the thermostat: *Configure → Steering → Thermostat* (the box goes back to its own curve), then reconnect the
+thermostat if you like.
+
+With an OpenTherm master in Home Assistant between Home Assistant and the heat pump, Roost can choose the **flow
+temperature** itself instead of a room setpoint (*Configure → Steering: thermostat or OpenTherm*). It needs a room
+temperature sensor (*The house*); a thermostat is then optional. Roost picks the box as a device and finds its
+entities on it.
+
+- The master must keep this agreement: a `number` for the flow setpoint (0 = no heat demand); a `sensor` with who steers
+  it; a `select` with its control mode. When nothing is written for a while, the master falls back and heats on its own
+  fallback curve. Roost writes the setpoint at least every 5 minutes, also when it stays the same. Any OpenTherm master
+  that keeps this agreement works; the entities and their values are set in the options.
+- Roost plans a heat output per hour: off, or at least the heat pump's lowest steady output. It turns that into a
+  flow with the emitter it learned, and corrects within the hour on the heat the unit makes.
+- In shadow mode nothing is written; the setpoint sensor shows the flow Roost would ask now, and its `opentherm`
+  attribute the levels and flows per hour, what it learned of the heat pump and the master's state.
+- Switching to active sets the master's control mode to Home Assistant; back to shadow or off sets it to its own
+  heating curve. A restart of Home Assistant changes nothing: the master keeps the last request until Roost writes again.
+- A notice *OpenTherm box not steered by Roost* means the box is in fallback (it heats on its own curve) while Roost
+  should steer it. The notice goes once Roost steers again.
+- In the card's settings (the sliders icon), with OpenTherm on: the steering (thermostat or OpenTherm), the lowest
+  and highest flow, the master's minimum on and off time (read from the master and changed there, when its entities are
+  chosen in the options), at most this many starts per 24 hours, quiet hours (on/off, from/until, a highest output:
+  against the noise of the outdoor unit at night), the master's state and what Roost learned of the heat pump, with *Learn again*.
+- Hot water: the Weheat makes it itself. While it does, and 15 minutes after, Roost neither learns from nor corrects on
+  the flow and heat (the pipes still hold hot water).
+- **The plan on the box, for when Roost or Home Assistant is gone.** A box with the action `set_plan` (the THRM ONE
+  from firmware 1.9.0) gets Roost's flow per hour and the outdoor temperature it planned with, on every new plan and else
+  every hour, while Roost steers. The box shows it as *Plan Hours Left*. When Roost stops writing or Home Assistant is
+  gone longer than the box's *Command Timeout*, its *Control State* becomes `plan_no_command` or `plan_ha_offline`
+  and it runs the plan hour by hour: corrected for the real outdoor temperature, never more than 5 °C above its own
+  heating curve, off for at most 3 hours in a row (2 below 0 °C or without an outdoor temperature). After the plan (at
+  most 36 hours), or after a restart of the box without Home Assistant, it heats on its own curve (`curve_…`). A box
+  that restarted gets the plan again as soon as Roost sees it lost it. Shadow, off, or removing Roost clears the plan
+  on the box. A box without the action works as before.
+- **Updating the box's firmware**: not while the heat pump heats. Some 15 seconds without OpenTherm make a Weheat stop
+  and wait about an hour before it starts again. When it stands still, or makes hot water (the Weheat does that itself),
+  it is fine.
+
+**Compatible hardware.** Tested: the elvinhome THRM ONE (the author's unit was provided free of charge) with its
+own firmware adapted for this agreement, on a Weheat Blackbird P80 set to *OpenTherm*. Any OpenTherm master that keeps
+the same agreement should work, but only this one has been tested.
+
 ## 8. Day to day
 
 - **The plan holds.** Roost does not make the plan afresh every few minutes: it keeps its setpoints and only works out
@@ -406,7 +533,7 @@ Back to shadow or off: `select.roost_mode` → *Shadow* / *Off*. In *Off* Roost 
 - **When something is missing.** Without an electricity price, room temperature or weather forecast Roost keeps the plan
   it holds for up to an hour. After that, without a price it plans on one flat price (comfort and weather, no moving to
   cheaper hours); without a room temperature or weather it follows your comfort schedule (comfort in the comfort hours,
-  the night minimum outside them). After three hours a notice says so. Such a day does not count for the saving.
+  the eco minimum outside them). After three hours a notice says so. Such a day does not count for the saving.
 - **Changing the thermostat yourself is fine.** Roost steps aside for 2 hours (*Paused* on the card), then plans again
   from where the house is.
 - **Comfort suggestions.** When you keep making the same change by hand (warmer in the evening, earlier in the
@@ -462,20 +589,88 @@ raises a notice when a room keeps staying too cold (then the water may be too lu
 
 ## 10. All settings
 
-Settings → Devices & services → Roost → **Configure**. The menu shows what is set now. Each part saves when you submit
-it and brings you back to the menu (*✅ Saved: …*), so you can go on to the next part; **Done** closes. Closing the
-window loses nothing that was submitted.
+Settings → Devices & services → Roost → **Configure**. The menu shows what is set now (for example comfort as
+*07–22 · 20–23 °C · eco 18 °C*): what you change often first, what you set once at the end. Each part saves when you
+submit it and brings you back to the menu (*✅ Saved: …*), so you can go on to the next part; **Close** closes. Closing
+the window loses nothing that was submitted. Only looking? Submit a part without changing anything: nothing is stored,
+Roost is not reloaded and the menu says *↩️ Nothing changed*.
 
 | Part | Holds |
 |---|---|
 | Mode | Off / shadow / active, with what the self-check says |
-| The house and the thermostat | Thermostat, room sensor, heat emitters, building register |
-| Electricity price | Dynamic or fixed, price sensors (a fixed rate on the next screen) |
-| Solar and home battery | One screen: a block for solar panels and the grid meter, one for the home battery, each with its tick and sensors |
-| Comfort | Comfort hours and temperatures, and under *Advanced* the regulation and the weather |
-| Notifications | Off until you fill in where they go: a notify entity or service (e.g. `notify.mobile_app_my_phone`). Roost then tells you when the thermostat cannot be reached or changed, when its check no longer passes while it steers, when learning fails or the Weheat login is needed (each at most every 12 hours); and, when ticked, a summary every Monday morning (heating, cost, saving, comfort, and where the heating electricity came from) |
+| Comfort | The comfort range and the comfort hours — the same every day, weekdays and weekend, or per day: a block each on the same screen, the chosen one open — and under *Advanced* the hard floor, the regulation and the weather |
+| Electricity price | One screen: the kind of price (a sensor, the built-in day-ahead prices, or fixed) and a block each; only the block of the chosen kind is stored, the others stay as they were |
+| Solar and home battery | One screen: a block for solar panels and the grid meter, one for the home battery, each with its tick and sensors; *Advanced* below |
+| Notifications | Where messages go, and a weekly summary |
+| The house and the thermostat | Thermostat, room sensor, heat emitters, building register, window sensors |
+| Steering | The thermostat, or the flow temperature through an OpenTherm box (picked as a device) |
+| Close | Closes the window |
 
 Extra rooms are on the integration page (*Add room*, and ⋮ → *Reconfigure* per room).
+
+**Mode.** One choice: *Off*, *Shadow* or *Active*, above it what the nightly self-check says (see section
+[7](#7-letting-roost-steer)). Switching to *Active* here is the same as the card's button.
+
+**Comfort.** The same fields as setup screen 5 (section [4](#screen-5--comfort)): the comfort hours choice and its times,
+*Comfort: at least*, *Comfort: may warm up to*, *Eco: at least (outside the comfort hours)*, and under *Advanced: regulation
+and weather* the *Hard floor in the comfort hours*, the weather and the other advanced fields. With OpenTherm steering
+the three thermostat-only fields (*Lowest thermostat setting*, *Setpoint at most this above the room*, *At most one change
+per*) are not shown.
+
+**Electricity price.** One screen: *Electricity price* (the kind) and a block for each kind. Only the block of the
+kind you chose is used.
+
+| Block | Fields |
+|---|---|
+| Dynamic price from a sensor | Electricity price sensor (with forecast), Export price |
+| Day-ahead prices (built in) | Bidding zone, Multiplier, Fixed amount per kWh; export: *Export has its own price*, Export: multiplier, Export: fixed amount per kWh |
+| Fixed price | Price per kWh (normal rate), Export price per kWh; folded: Low rate per kWh, Low rate from / until, Low rate all weekend |
+
+An error appears when *Dynamic* has no price sensor or *Fixed* has no price. See screen 3 in section
+[4](#screen-3--electricity-price) for what to fill in.
+
+**Solar and home battery.**
+
+| Block | Fields |
+|---|---|
+| Solar panels and the grid meter | *I have solar panels*, Solar power, Solar forecast today / tomorrow, Grid power |
+| Home battery | *I have a home battery*, State of charge, Power (+ = discharging), Usable capacity, Solar for the heat pump from (battery charge), House power |
+| Advanced | Sign of the grid power, Preference for own energy |
+
+Open a block to see and change its sensors. Turning a tick off forgets that block's sensors when you submit. A house
+that has not set this up yet gets the blocks opened and ticked from the Energy dashboard, when that knows the house.
+
+**Notifications.**
+
+| Field | What to fill in |
+|---|---|
+| Send notifications to | A notify entity or service, e.g. `notify.mobile_app_my_phone`. Empty: no notifications. Roost then tells you when the thermostat cannot be reached or changed, when its check no longer passes while it steers, when learning fails or the Weheat login is needed (each at most every 12 hours) |
+| Weekly summary (Monday morning) | Heating, cost, saving, comfort, and where the heating electricity came from, last week |
+
+**The house and the thermostat.**
+
+| Field | What to fill in |
+|---|---|
+| Thermostat that drives the heat pump | Required with thermostat steering; optional over OpenTherm |
+| Room temperature sensor | Optional with a thermostat, **required** over OpenTherm |
+| Heat emitters | Tick everything the house has |
+| Building data from the Dutch building register (BAG) | Netherlands only. Turning it off removes the data |
+| Window and door sensors (optional) | Airing is then known at once |
+
+**Steering.** See [Steering over OpenTherm](#steering-over-opentherm-in-testing) for how it works.
+
+| Field | What to fill in |
+|---|---|
+| Steering | *Thermostat* (Roost sets a room temperature) or *OpenTherm* (Roost asks for a flow temperature) |
+| OpenTherm box | Pick the box as a **device**. Roost finds its entities on it and lists what it found |
+| Pick by hand (folded) | Another box, or to correct what was found: flow setpoint (`number`), state of the box (`sensor`), control mode (`select`) — these three are required over OpenTherm — and optional: highest flow the heat pump accepts, communication error, minimum on / off time, lowest / highest flow on the box, whether the fallback curve follows Roost, flow temperature, heating active, hot water active |
+| At most this many starts per 24 hours | 0 = no limit (starts then only cost their extra electricity) |
+| Lowest flow / Highest flow (folded away when the box keeps its own limits) | Never above what the heat pump accepts (Weheat: 40 °C) |
+| Quiet hours | On/off, from, until and the highest output in those hours: against the noise of the outdoor unit at night |
+| Advanced | Starting values Roost replaces with what it measures (lowest steady heat output, extra electricity per start) and the texts of the box's states (state value for *steered by Home Assistant*, the control mode options for Home Assistant and for the fallback curve) |
+
+Errors: the flow setpoint, state and control mode must be chosen; OpenTherm needs a room temperature sensor (set it
+under *The house* first); thermostat steering needs a thermostat; the lowest flow must be below the highest.
 
 ### The Weheat login
 
@@ -525,7 +720,7 @@ Switched off by default (enable them on the device page under *+ disabled entiti
 | `roost.resume` | — | End a pause and plan again |
 | `roost.away` | `until` or `days`, `minimum` (default 16) | Nobody home: only the minimum, no comfort hours; warm again in time |
 | `roost.home` | — | End away |
-| `roost.set_settings` | any of `comfort`, `day_min`, `night_min`, `store_max`, `lowest_setpoint`, `day_from`, `day_to`, `weekly_comfort` (on/off), `comfort_schedule` (per weekday, e.g. `monday: "07:00-09:00, 17:30-22:00"`) | Roost's own temperatures, comfort hours and weekly periods (as in *Configure → Comfort*, not the thermostat); the one changed wins, the others follow. Also in the card: mode menu → ⚙ Settings |
+| `roost.set_settings` | any of `comfort`, `day_min`, `night_min` (eco), `store_max` (may warm up to), `lowest_setpoint`, `day_from`, `day_to`, `weekly_comfort` (on/off), `comfort_schedule` (per weekday, e.g. `monday: "07:00-09:00, 17:30-22:00"`) | Roost's own temperatures, comfort hours and weekly periods (as in *Configure → Comfort*, not the thermostat); the one changed wins, the others follow. Also in the card: mode menu → ⚙ Settings |
 | `roost.import_history` | `days` (default 365) | Read the heat pump's history from Weheat again and learn |
 | `roost.explain_saving` | `day`: `yesterday` (default), `next_24h` or a date of the last week (`2026-10-19`) | Returns where the saving comes from, per hour against the steady thermostat, plus the plan changes and why (*Developer tools → Actions*, tick *return response*). The same as in the report |
 
@@ -568,7 +763,7 @@ automation:
 
 | Notice | Meaning | What to do |
 |---|---|---|
-| Ready to steer the heat pump | The self-check says Roost predicts well enough | Submit to switch to active, or ignore |
+| Ready to steer the heat pump | The self-check says Roost predicts well enough, Roost can set the thermostat and the heat pump follows it | *Switch to active*, or *Do not show this again* |
 | The heat pump does not follow the thermostat | It heats while the thermostat asks for nothing: it runs on its own heating curve | In the Weheat app, set the heat pump to follow the thermostat |
 | The setpoint hardly moves the heat pump | Learned: changing the thermostat barely changes the heat pump's output | As above; or the thermostat does not pass the setpoint on |
 | The thermostat is also changed by a schedule | Changes Roost did not make come back at the same time every day | Turn off the thermostat's own schedule or the automation |
@@ -580,6 +775,7 @@ automation:
 | The thermostat cannot be changed | Changing the thermostat failed three times in a row | Check the thermostat's integration (the error is in the notice) |
 | Learning failed | The nightly learning hit an error; the previous model stays | Usually passes by itself; if it stays, report it (section [14](#14-reporting-a-problem)) |
 | Steering without a full plan | For three hours no electricity price, room temperature or weather forecast; Roost plans on one flat price, or follows the comfort schedule | Check the price, room and weather sensors |
+| OpenTherm box not steered by Roost | While Roost steers over OpenTherm, the box is in fallback: its own curve or Roost's plan (*Control State*) | Check that the box is online and its control mode is *Home Assistant*; the notice goes once Roost steers again |
 | The house stays below its minimum | The room has been well below its minimum for an hour while Roost steers | Check the heat pump and the thermostat |
 | The price sensor has no forecast | The price sensor gives only the current price and it changes every hour; Roost estimates the hours ahead from day-ahead prices, or plans on one flat price | Choose a sensor with at least 24 hours of prices, or the built-in day-ahead prices with your contract's formula |
 
@@ -592,7 +788,7 @@ automation:
 | Card: *Not available* / *no plan yet* | No price, no weather or no room temperature | Check the price sensor has a forecast in its attributes; Open-Meteo reachable; room sensor working |
 | Header: *no price* | The price sensor is unavailable or has no prices | Check the sensor; or switch to a fixed price |
 | The thermostat shows 19 °C while it is cold outside | It is a lever: the floor is warm, the evening is expensive | Look at *room expected*. If the room really gets too cold, raise *Lowest thermostat setting* |
-| The room gets too warm in the afternoon | Roost charges the floor | Lower *Warmest while storing heat* (equal to comfort switches it off) |
+| The room gets too warm in the afternoon | Roost charges the floor | Lower *Comfort: may warm up to* (equal to *Comfort: at least* switches it off) |
 | Bedroom upstairs gets cold | Radiators get no water while the heat pump rests | Add the bedroom as an extra room (section [9](#9-extra-rooms-radiators-upstairs-a-bedroom)) |
 | Savings negative | Heat stored at the end of the day counts for only part of what it cost until it is used; in mild weather there is little to save | Look at the month figure, not one day; the report (or `roost.explain_saving`) shows per hour where it went |
 | *Weheat import*: waiting for the Weheat login | Roost has no Weheat login yet, or Weheat refused it | *Re-authenticate* at Roost on the integration page (section [10](#the-weheat-login)) |
@@ -638,6 +834,42 @@ diagnostics.
 - Shadow mode and *Off* are always one click away.
 
 ---
+
+### The saving, in parts
+
+The card's saving panel shows the month in three parts:
+- **Heating in cheaper hours (measured)**: the price paid per heating kWh against the same kWh spread like a steady
+  thermostat, from the meters and your tariff, no model.
+- **Own solar and the home battery (measured)**: how much of the heating electricity came from them and what that
+  was worth (with net metering own solar is worth the same as grid power).
+- **Less electricity (worked out)**: the house model against a steady thermostat at equal comfort, with ± how far the
+  model's energy was off this week. This part cannot be measured: a day's heating varies too much with the weather.
+  In shadow mode it reads *would have saved*: Roost only planned.
+
+### A battery optimiser (Predbat, EMHASS and others)
+
+`sensor.<name>_planned_electricity` holds the heat pump's planned electricity per hour (`hours`) and, for Predbat,
+the cumulative form it reads (`predbat`): `load_forecast: sensor.roost_planned_electricity$predbat` in apps.yaml.
+Predbat adds this to its own load estimate, so that estimate must leave the heat pump out, or it is counted twice.
+
+### Known limitations
+
+- **One heat pump per entry**, and it has to be a Weheat (the Weheat integration supplies its meters and state).
+- **Hot water is the heat pump's own.** Roost plans around the hot-water hours it learned, but cannot move them; over
+  OpenTherm the Weheat does not take a hot-water setpoint.
+- **Steering by thermostat** needs a thermostat the heat pump follows (OpenTherm thermostat, or the Weheat's own);
+  on its own heating curve the heat pump ignores the setpoint and Roost can only watch.
+- **Steering over OpenTherm** needs a master that keeps the agreement (a flow setpoint written every few minutes, a
+  state, a control mode). Tested with the elvinhome THRM ONE on a Weheat Blackbird P80. A restart of the master stops
+  a Weheat for about an hour.
+- **Prices**: Roost plans as far as prices are published (usually until the end of tomorrow after ~13:00); it never
+  plans on guessed prices.
+- **Learning takes heating days.** A new install starts from generic values; the self-check says when the model is
+  good enough to steer.
+- **Extra rooms are watched, not steered**: Roost keeps their minimums by heating the main room more, it does not
+  set their valves.
+- **A hybrid** (a gas boiler beside the heat pump) gets a lower limit above the room, so storing heat never calls the
+  boiler.
 
 ## 16. FAQ
 
@@ -685,4 +917,5 @@ Assistant was down. A restart over the hour leaves that hour partly measured, so
 ## 17. Removing Roost
 
 Settings → Devices & services → Roost → ⋮ → **Delete**. If Roost was steering it sets the thermostat back to your
-comfort temperature; turn your usual schedule back on if you had one. Then remove Roost in HACS if you like.
+comfort temperature; turn your usual schedule back on if you had one. Over OpenTherm it sets the box back to its own
+heating curve and clears the plan it left on the box. Then remove Roost in HACS if you like.

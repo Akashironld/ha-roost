@@ -1,0 +1,477 @@
+diff -ruN '--exclude=__pycache__' opentherm/hub.cpp opentherm/hub.cpp
+--- opentherm/hub.cpp	2026-11-20 07:56:31.000000000 +0100
++++ opentherm/hub.cpp	2026-11-20 11:41:38.887663925 +0100
+@@ -145,6 +145,9 @@
+ 
+ void OpenthermHub::setup() {
+   this->opentherm_ = make_unique<OpenTherm>(this->in_pin_, this->out_pin_);
++  this->opentherm_->set_edge_decoder(this->edge_decoder_);
++  this->opentherm_->set_edge_stats(this->edge_stats_);
++  this->opentherm_->set_rmt_capture(this->rmt_capture_);
+   if (!this->opentherm_->initialize()) {
+     ESP_LOGE(TAG, "Failed to initialize OpenTherm protocol. See previous log messages for details.");
+     this->mark_failed();
+@@ -187,6 +190,10 @@
+ }
+ 
+ void OpenthermHub::loop() {
++  if (this->edge_stats_ && millis() - this->last_stats_log_ > 60000) {
++    this->last_stats_log_ = millis();
++    this->opentherm_->log_stats();
++  }
+   if (this->sync_mode_) {
+     this->sync_loop_();
+     return;
+@@ -348,6 +355,7 @@
+ 
+ void OpenthermHub::read_response_() {
+   OpenthermData response;
++  this->opentherm_->collect_stats(false);
+   if (!this->opentherm_->get_message(response)) {
+     ESP_LOGW(TAG, "Couldn't get the response, but flags indicated success. This is a bug.");
+     this->stop_opentherm_();
+@@ -370,14 +378,19 @@
+ void OpenthermHub::handle_protocol_error_() {
+   OpenThermError error;
+   this->opentherm_->get_protocol_error(error);
+-  ESP_LOGW(TAG, "Protocol error occured while receiving response: %s",
++  // Edge-decoder extension: count single errors (get_error_count()) instead of warning every time; the message is
++  // requested again in the next round. The config can warn on a high error rate instead.
++  this->error_count_++;
++  ESP_LOGD(TAG, "Protocol error occured while receiving response: %s",
+            this->opentherm_->protocol_error_to_str(error.error_type));
++  this->opentherm_->collect_stats(true);
+   this->opentherm_->debug_error(error);
+   this->stop_opentherm_();
+ }
+ 
+ void OpenthermHub::handle_timeout_error_() {
+-  ESP_LOGW(TAG, "Timeout while waiting for response from device");
++  this->error_count_++;
++  ESP_LOGD(TAG, "Timeout while waiting for response from device");
+   this->stop_opentherm_();
+ }
+ 
+diff -ruN '--exclude=__pycache__' opentherm/hub.h opentherm/hub.h
+--- opentherm/hub.h	2026-11-20 07:56:31.000000000 +0100
++++ opentherm/hub.h	2026-11-20 11:41:38.887848309 +0100
+@@ -76,6 +76,12 @@
+   // we are talking to the boiler. Enable if you experience random intermittent invalid response errors.
+   // Very likely to happen while using Dallas temperature sensors.
+   bool sync_mode_ = false;
++  // Edge-decoder extension: edge-timestamp decoder, RMT capture and pulse statistics
++  bool edge_decoder_ = false;
++  bool edge_stats_ = false;
++  bool rmt_capture_ = false;
++  uint32_t last_stats_log_ = 0;
++  uint32_t error_count_ = 0;  // protocol errors + timeouts since boot
+ 
+   CallbackManager<void(OpenthermData &)> before_send_callback_;
+   CallbackManager<void(OpenthermData &)> before_process_response_callback_;
+@@ -158,6 +164,10 @@
+   void set_summer_mode_active(bool value) { this->summer_mode_active = value; }
+   void set_dhw_block(bool value) { this->dhw_block = value; }
+   void set_sync_mode(bool sync_mode) { this->sync_mode_ = sync_mode; }
++  void set_edge_decoder(bool v) { this->edge_decoder_ = v; }
++  void set_edge_stats(bool v) { this->edge_stats_ = v; }
++  void set_rmt_capture(bool v) { this->rmt_capture_ = v; }
++  uint32_t get_error_count() const { return this->error_count_; }
+ 
+   template<typename F> void add_on_before_send_callback(F &&callback) {
+     this->before_send_callback_.add(std::forward<F>(callback));
+diff -ruN '--exclude=__pycache__' opentherm/__init__.py opentherm/__init__.py
+--- opentherm/__init__.py	2026-11-20 07:56:31.000000000 +0100
++++ opentherm/__init__.py	2026-11-20 11:41:38.887973359 +0100
+@@ -23,6 +23,9 @@
+ CONF_SUMMER_MODE_ACTIVE = "summer_mode_active"
+ CONF_DHW_BLOCK = "dhw_block"
+ CONF_SYNC_MODE = "sync_mode"
++CONF_EDGE_DECODER = "edge_decoder"  # decode responses from edge timestamps
++CONF_EDGE_STATS = "edge_stats"  # log pulse-width statistics (tag otedge)
++CONF_RMT_CAPTURE = "rmt_capture"  # capture responses with the RMT peripheral (ESP32)
+ CONF_BEFORE_SEND = "before_send"
+ CONF_BEFORE_PROCESS_RESPONSE = "before_process_response"
+ 
+@@ -50,6 +53,9 @@
+             cv.Optional(CONF_SUMMER_MODE_ACTIVE, False): cv.boolean,
+             cv.Optional(CONF_DHW_BLOCK, False): cv.boolean,
+             cv.Optional(CONF_SYNC_MODE, False): cv.boolean,
++            cv.Optional(CONF_EDGE_DECODER, False): cv.boolean,
++            cv.Optional(CONF_EDGE_STATS, False): cv.boolean,
++            cv.Optional(CONF_RMT_CAPTURE, False): cv.boolean,
+             cv.Optional(CONF_BEFORE_SEND): automation.validate_automation(
+                 {
+                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(BeforeSendTrigger),
+@@ -82,6 +88,7 @@
+ async def to_code(config: dict[str, Any]) -> None:
+     if CORE.is_esp32:
+         include_builtin_idf_component("esp_driver_gptimer")
++        include_builtin_idf_component("esp_driver_rmt")
+ 
+     var = cg.new_Pvariable(config[CONF_ID])
+     await cg.register_component(var, config)
+diff -ruN '--exclude=__pycache__' opentherm/opentherm.cpp opentherm/opentherm.cpp
+--- opentherm/opentherm.cpp	2026-11-20 07:56:31.000000000 +0100
++++ opentherm/opentherm.cpp	2026-11-20 11:41:38.888831770 +0100
+@@ -52,6 +52,13 @@
+   this->out_pin_->digital_write(true);
+ 
+ #ifdef USE_ESP32
++  // Edge-decoder extension: timestamp every edge on the input (for the edge decoder and pulse statistics)
++  if (this->rmt_capture_) {
++    if (!this->init_rmt_())
++      return false;
++  } else if (this->edge_decoder_ || this->edge_stats_) {
++    this->in_pin_->attach_interrupt(OpenTherm::edge_isr, this, gpio::INTERRUPT_ANY_EDGE);
++  }
+   return this->init_esp32_timer_();
+ #else
+   return true;
+@@ -65,12 +72,18 @@
+   this->mode_ = OperationMode::LISTEN;
+   this->data_ = 0;
+   this->bit_pos_ = 0;
++  this->edge_n_ = 0;
++  this->read_ticks_ = 0;
++  this->capture_on_ = true;
++  if (this->rmt_capture_)
++    this->arm_rmt_();
+ 
+   this->start_read_timer_();
+ }
+ 
+ void OpenTherm::send(OpenthermData &data) {
+   this->stop_timer_();
++  this->capture_on_ = false;
+   this->data_ = data.type;
+   this->data_ = (this->data_ << 12) | data.id;
+   this->data_ = (this->data_ << 8) | data.valueHB;
+@@ -146,6 +159,15 @@
+     if (arg->timeout_counter_ > 0) {
+       arg->timeout_counter_--;
+     }
++  } else if (arg->mode_ == OperationMode::READ && arg->edge_decoder_) {
++    // Edge decoder: wait until the whole response (34 bits = 34 ms) is in, then decode it from the edges.
++    ++arg->read_ticks_;
++    // After 36 ms (180 x 0.2 ms) the response is complete. With RMT, wait until the peripheral closes the capture
++    // (2 ms idle after the stop bit), at most 60 ms.
++    bool const ready = arg->rmt_capture_ ? (arg->rmt_done_ || arg->read_ticks_ >= 300) : arg->read_ticks_ >= 180;
++    if (ready && arg->read_ticks_ >= 180) {
++      arg->decode_edges_();
++    }
+   } else if (arg->mode_ == OperationMode::READ) {
+     bool const value = arg->isr_in_pin_.digital_read();
+     uint8_t const last = (arg->capture_ & 1);
+@@ -566,4 +588,241 @@
+   this->valueHB = (value >> 8) & 0xFF;
+ }
+ 
++
++// ------------------------------------------------------------------------------------------------------------------
++// Edge-decoder extension: decode from edge timestamps.
++//
++// Why: the stock decoder samples at 5 kHz (every 200 µs) and tells a half bit (500 µs = 2-3 samples) from a full
++// bit (1000 µs = 5 samples) with a threshold at 4 samples. An edge shifted by 100-200 µs (asymmetric opto-coupler
++// response, late start detection, interrupt latency) then yields a false NO_TRANSITION. Measured on a THRM ONE v0.2
++// with a Weheat P80: high half-bits 600 µs, low half-bits 400 µs, ±3 µs jitter, no glitches.
++// This decoder looks for the mandatory mid-bit transition within ±330 µs of where it is expected and uses the edge
++// it finds as the reference for the next bit. Glitches shorter than 100 µs are filtered out.
++
++void IRAM_ATTR OpenTherm::edge_isr(OpenTherm *arg) {
++  if (!arg->capture_on_)
++    return;
++  uint8_t const n = arg->edge_n_;
++  if (n >= MAX_EDGES)
++    return;
++  arg->edge_t_[n] = (uint32_t) esp_timer_get_time();
++  arg->edge_lvl_[n] = arg->isr_in_pin_.digital_read();
++  arg->edge_n_ = n + 1;
++}
++
++// Filters glitches and returns the edge times from the first rising edge (start of the start bit).
++static uint8_t IRAM_ATTR ot_filter_edges(const volatile uint32_t *t, const volatile uint8_t *lvl, uint8_t n,
++                                         uint32_t *f, uint32_t *glitches) {
++  uint8_t i = 0;
++  while (i < n && lvl[i] == 0)  // first rising edge = start
++    i++;
++  uint8_t m = 0;
++  while (i < n) {
++    if (i + 1 < n && (t[i + 1] - t[i]) < 100) {  // pulse shorter than 100 µs: glitch, drop both edges
++      if (glitches != nullptr)
++        (*glitches)++;
++      i += 2;
++      continue;
++    }
++    f[m++] = t[i++];
++  }
++  return m;
++}
++
++// Decodes 34 bits (start, 32 data, stop). The level after edge k is high if k is even (k = 0: rising).
++// Bit value = level in the first half = level before the mid-bit transition.
++static ProtocolErrorType IRAM_ATTR ot_decode_times(const uint32_t *f, uint8_t m, uint32_t *data, uint8_t *bit_pos) {
++  if (m < 2) {
++    *bit_pos = 0;
++    return ProtocolErrorType::NO_TRANSITION;
++  }
++  uint32_t ref = f[0];
++  uint8_t k = 1;
++  uint32_t d = 0;
++  for (uint8_t bit = 0; bit < 34; bit++) {
++    *bit_pos = bit;
++    // Window ±330 µs around the expected mid-bit: wide enough for the measured skew (high 600 / low 400 µs) and
++    // still ~170 µs away from the bit-boundary edges at ±500 µs.
++    uint32_t const lo = ref + 170, hi = ref + 830;
++    while (k < m && (int32_t) (f[k] - lo) < 0)
++      k++;
++    if (k >= m || (int32_t) (f[k] - hi) > 0)
++      return ProtocolErrorType::NO_TRANSITION;
++    uint8_t const value = (k % 2 == 0) ? 0 : 1;  // high after an even edge -> low before it
++    if (bit == 0 && value != 1)
++      return ProtocolErrorType::NO_TRANSITION;  // no valid start bit
++    if (bit >= 1 && bit <= 32)
++      d = (d << 1) | value;
++    if (bit == 33 && value != 1)
++      return ProtocolErrorType::INVALID_STOP_BIT;
++    ref = f[k] + 500;
++    k++;
++  }
++  *data = d;
++  return ProtocolErrorType::NO_ERROR;
++}
++
++void IRAM_ATTR OpenTherm::decode_edges_() {
++  this->capture_on_ = false;
++  this->stop_timer_();
++  if (this->rmt_capture_) {
++    // Convert RMT symbols (level + duration) into timestamped edges; t = 0 at the first (rising) edge.
++    uint8_t n = 0;
++    uint32_t t = 0;
++    int prev = -1;
++    size_t const ns = this->rmt_done_ ? this->rmt_n_ : 0;
++    for (size_t i = 0; i < ns && n < MAX_EDGES; i++) {
++      for (uint8_t h = 0; h < 2 && n < MAX_EDGES; h++) {
++        uint32_t const dur = h == 0 ? this->rmt_buf_[i].duration0 : this->rmt_buf_[i].duration1;
++        uint8_t const lvl = h == 0 ? this->rmt_buf_[i].level0 : this->rmt_buf_[i].level1;
++        if (dur == 0)
++          break;  // end of capture
++        if ((int) lvl != prev) {
++          this->edge_t_[n] = t;
++          this->edge_lvl_[n] = lvl;
++          n++;
++          prev = lvl;
++        }
++        t += dur;
++      }
++    }
++    if (n < MAX_EDGES && prev == 1) {  // final edge back to low (end of stop bit)
++      this->edge_t_[n] = t;
++      this->edge_lvl_[n] = 0;
++      n++;
++    }
++    this->edge_n_ = n;
++  }
++  uint32_t f[MAX_EDGES];
++  uint8_t const m = ot_filter_edges(this->edge_t_, this->edge_lvl_, this->edge_n_, f, nullptr);
++  uint32_t d = 0;
++  uint8_t pos = 0;
++  ProtocolErrorType const err = ot_decode_times(f, m, &d, &pos);
++  this->bit_pos_ = pos;
++  if (err == ProtocolErrorType::NO_ERROR) {
++    this->data_ = d;
++    this->mode_ = OperationMode::RECEIVED;
++  } else {
++    this->error_type_ = err;
++    this->capture_ = 0;
++    this->mode_ = OperationMode::ERROR_PROTOCOL;
++  }
++}
++
++static const char *const TAG_EDGE = "otedge";
++
++void OpenTherm::collect_stats(bool failed) {
++  this->capture_on_ = false;
++  if (!this->edge_stats_)
++    return;
++  uint8_t const n = this->edge_n_;
++  uint32_t f[MAX_EDGES];
++  uint8_t const m = ot_filter_edges(this->edge_t_, this->edge_lvl_, n, f, &this->st_glitches_);
++  this->st_frames_++;
++  if (failed)
++    this->st_failed_++;
++  uint32_t d = 0;
++  uint8_t pos = 0;
++  bool const dec_ok = ot_decode_times(f, m, &d, &pos) == ProtocolErrorType::NO_ERROR;
++  if (!dec_ok)
++    this->st_dec_fail_++;
++  for (uint8_t k = 0; k + 1 < m; k++) {
++    uint32_t const w = f[k + 1] - f[k];
++    uint8_t const level = (k % 2 == 0) ? 1 : 0;
++    uint8_t const cls = w < 750 ? 0 : 1;
++    PulseStats &p = this->st_[level][cls];
++    p.n++;
++    p.sum += w;
++    if (w < p.min)
++      p.min = w;
++    if (w > p.max)
++      p.max = w;
++    int32_t const base = cls == 0 ? 250 : 750;
++    int32_t idx = ((int32_t) w - base) / 50;
++    if (idx < 0)
++      idx = 0;
++    if (idx > 15)
++      idx = 15;
++    p.hist[idx]++;
++  }
++  if (failed || !dec_ok) {
++    // Full edge list of a rejected response: H/L = high/low, in µs
++    char buf[420];
++    int len = snprintf(buf, sizeof(buf), "%s%s n=%u m=%u pos=%u:", failed ? "rejected" : "", dec_ok ? "" : " edge-decoder-fail",
++                       n, m, pos);
++    for (uint8_t k = 0; k + 1 < m && len < (int) sizeof(buf) - 8; k++)
++      len += snprintf(buf + len, sizeof(buf) - len, " %c%u", (k % 2 == 0) ? 'H' : 'L', (unsigned) (f[k + 1] - f[k]));
++    ESP_LOGI(TAG_EDGE, "%s", buf);
++  }
++}
++
++void OpenTherm::log_stats() {
++  ESP_LOGI(TAG_EDGE, "frames=%u rejected=%u edge-decoder-would-fail=%u glitches=%u", (unsigned) this->st_frames_,
++           (unsigned) this->st_failed_, (unsigned) this->st_dec_fail_, (unsigned) this->st_glitches_);
++  static const char *const names[2][2] = {{"L short", "L long"}, {"H short", "H long"}};
++  for (uint8_t level = 0; level < 2; level++) {
++    for (uint8_t cls = 0; cls < 2; cls++) {
++      PulseStats &p = this->st_[level][cls];
++      if (p.n == 0)
++        continue;
++      char hist[120];
++      int len = 0;
++      for (uint8_t i = 0; i < 16; i++)
++        len += snprintf(hist + len, sizeof(hist) - len, "%s%u", i ? "," : "", p.hist[i]);
++      ESP_LOGI(TAG_EDGE, "%s n=%u min=%u avg=%u max=%u bins(50us from %u)=%s", names[level][cls], (unsigned) p.n,
++               (unsigned) p.min, (unsigned) (p.sum / p.n), (unsigned) p.max, cls == 0 ? 250 : 750, hist);
++      p = PulseStats();
++    }
++  }
++  this->st_frames_ = this->st_failed_ = this->st_glitches_ = this->st_dec_fail_ = 0;
++}
++
++
++bool IRAM_ATTR OpenTherm::rmt_done_cb(rmt_channel_handle_t chan, const rmt_rx_done_event_data_t *edata, void *ctx) {
++  auto *arg = static_cast<OpenTherm *>(ctx);
++  arg->rmt_n_ = edata->num_symbols;
++  arg->rmt_done_ = true;
++  arg->rmt_armed_ = false;
++  return false;
++}
++
++bool OpenTherm::init_rmt_() {
++  rmt_rx_channel_config_t cfg = {};
++  cfg.gpio_num = (gpio_num_t) this->in_pin_->get_pin();
++  cfg.clk_src = RMT_CLK_SRC_DEFAULT;
++  cfg.resolution_hz = 1000000;  // 1 µs per tick
++  cfg.mem_block_symbols = 48;
++  cfg.flags.invert_in = this->in_pin_->is_inverted();
++  esp_err_t err = rmt_new_rx_channel(&cfg, &this->rmt_rx_);
++  if (err != ESP_OK) {
++    ESP_LOGE(TAG, "Failed to create RMT channel: %s", esp_err_to_name(err));
++    return false;
++  }
++  rmt_rx_event_callbacks_t cbs = {};
++  cbs.on_recv_done = OpenTherm::rmt_done_cb;
++  rmt_rx_register_event_callbacks(this->rmt_rx_, &cbs, this);
++  err = rmt_enable(this->rmt_rx_);
++  if (err != ESP_OK) {
++    ESP_LOGE(TAG, "Failed to enable RMT channel: %s", esp_err_to_name(err));
++    return false;
++  }
++  ESP_LOGI(TAG, "RMT capture active on GPIO%d", (int) cfg.gpio_num);
++  return true;
++}
++
++void OpenTherm::arm_rmt_() {
++  if (this->rmt_armed_) {  // previous capture not finished (e.g. no response): restart
++    rmt_disable(this->rmt_rx_);
++    rmt_enable(this->rmt_rx_);
++    this->rmt_armed_ = false;
++  }
++  this->rmt_done_ = false;
++  this->rmt_n_ = 0;
++  rmt_receive_config_t rc = {};
++  rc.signal_range_min_ns = 1000;     // pulses < 1 µs: glitch
++  rc.signal_range_max_ns = 2000000;  // 2 ms without an edge: end of response (longest pulse ~1.1 ms)
++  if (rmt_receive(this->rmt_rx_, this->rmt_buf_, sizeof(this->rmt_buf_), &rc) == ESP_OK)
++    this->rmt_armed_ = true;
++}
++
+ }  // namespace esphome::opentherm
+diff -ruN '--exclude=__pycache__' opentherm/opentherm.h opentherm/opentherm.h
+--- opentherm/opentherm.h	2026-11-20 07:56:31.000000000 +0100
++++ opentherm/opentherm.h	2026-11-20 11:41:38.888170999 +0100
+@@ -14,6 +14,8 @@
+ 
+ #ifdef USE_ESP32
+ #include "driver/gptimer.h"
++#include "esp_timer.h"
++#include "driver/rmt_rx.h"
+ #endif
+ 
+ namespace esphome::opentherm {
+@@ -331,6 +333,20 @@
+ 
+   bool is_active() { return mode_ == LISTEN || mode_ == READ || mode_ == WRITE; }
+ 
++  // --- Edge-decoder extension ---------------------------------------------------------------------------------
++  // edge_decoder: decode a response from the timestamps of its edges (mid-bit transition searched within ±330 µs,
++  // re-sync on every bit) instead of from 5 kHz sampling.
++  // edge_stats: collect pulse widths and log a summary every minute (tag otedge).
++  void set_edge_decoder(bool v) { this->edge_decoder_ = v; }
++  void set_edge_stats(bool v) { this->edge_stats_ = v; }
++  // rmt_capture: the RMT peripheral records the response (1 µs resolution) independently of CPU interrupts, so
++  // interrupt latency (Wi-Fi on a single core, flash writes) can no longer drop edges.
++  void set_rmt_capture(bool v) { this->rmt_capture_ = v; }
++  static bool rmt_done_cb(rmt_channel_handle_t chan, const rmt_rx_done_event_data_t *edata, void *ctx);
++  void collect_stats(bool failed);  // after every response (outside the ISR)
++  void log_stats();
++  static void edge_isr(OpenTherm *arg);
++
+   OperationMode get_mode() { return mode_; }
+ 
+   void debug_data(OpenthermData &data);
+@@ -387,6 +403,37 @@
+ 
+   void stop_timer_();
+ 
++  // Edge-decoder extension
++  static constexpr uint8_t MAX_EDGES = 100;
++  volatile uint32_t edge_t_[MAX_EDGES]{};
++  volatile uint8_t edge_lvl_[MAX_EDGES]{};
++  volatile uint8_t edge_n_{0};
++  volatile bool capture_on_{false};
++  bool edge_decoder_{false};
++  bool edge_stats_{false};
++  bool rmt_capture_{false};
++  rmt_channel_handle_t rmt_rx_{nullptr};
++  rmt_symbol_word_t rmt_buf_[48]{};
++  volatile size_t rmt_n_{0};
++  volatile bool rmt_done_{false};
++  bool rmt_armed_{false};
++  bool init_rmt_();
++  void arm_rmt_();
++  uint16_t read_ticks_{0};
++  void decode_edges_();
++  struct PulseStats {
++    uint32_t n{0};
++    uint32_t min{UINT32_MAX};
++    uint32_t max{0};
++    uint64_t sum{0};
++    uint16_t hist[16]{};  // 50 µs bins (short pulses from 250 µs, long pulses from 750 µs)
++  };
++  PulseStats st_[2][2];  // [level 0/1][short/long]
++  uint32_t st_frames_{0};
++  uint32_t st_failed_{0};
++  uint32_t st_glitches_{0};
++  uint32_t st_dec_fail_{0};  // frames the edge decoder would reject (for comparison)
++
+   void read_();               // data detected start reading
+   void start_read_timer_();   // reading timer_ to sample at 1/5 of manchester code bit length (at 5kHz)
+   void start_write_timer_();  // writing timer_ to send manchester code (at 2kHz)

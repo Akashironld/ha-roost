@@ -36,6 +36,7 @@ unzip it into `custom_components/roost` in your Home Assistant configuration fol
   there and restart. Your settings and what Roost learned stay (Home Assistant keeps them, not that folder).
 - Updating from 0.5.2: Home Assistant shows *Re-authenticate* at Roost once — click it and log in with your Weheat
   account.
+- Updating to 0.9.0: your comfort settings show as a range (*Configure → Comfort*), nothing to redo. Testing with an OpenTherm box: see [Steering over OpenTherm](GUIDE.md#steering-over-opentherm); tell what the box reports (*Control State*) when something looks off.
 - Updating to 0.6.0: Roost reads the past year of hourly logs from Weheat once more, in the background (about half an
   hour); the heating curve advice appears after that.
 - Updating to 0.8.0: savings of the days before the update are no longer counted (they were not checked against what

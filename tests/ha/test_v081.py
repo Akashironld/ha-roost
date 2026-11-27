@@ -1,5 +1,6 @@
 """v0.8.1: the remaining points of the 0.7.8 review — restarts (R18, R19), daylight saving time (R06, R15), price and
 solar coverage (R05, R09, R14), weather units (R12) and a change by hand right after Roost's own (R20)."""
+from dataclasses import replace
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -21,13 +22,13 @@ async def test_a_restart_within_the_hour_goes_on_counting(hass, entry):
     m = entry.runtime_data
     t = dt_util.utcnow().timestamp()
     hour = int(t // 3600 * 3600)
-    m._acc_hour, m._elec_acc, m._cost_acc, m._heat_acc, m._dhw_acc, m._obs_acc = hour, 0.6, 0.18, 2.0, 1200.0, 1500.0
-    m._last_elec = 1801.4
-    saved = m._acc_state()
-    m._acc_hour, m._elec_acc, m._last_elec = None, 0.0, None
-    m._restore_acc(saved, t + 60)
-    assert m._acc_hour == hour and m._elec_acc == 0.6 and m._cost_acc == 0.18 and m._obs_acc == 1500.0
-    assert m._last_elec == 1801.4
+    m.acc = replace(m.acc, hour=hour, elec=0.6, cost=0.18, heat=2.0, dhw=1200.0, obs=1500.0)
+    m.meters = replace(m.meters, last_elec=1801.4)
+    saved = m.hl.stored_acc()
+    m.acc = replace(m.acc, hour=None, elec=0.0)
+    m.meters = replace(m.meters, last_elec=None)
+    assert m.hl.restore(saved, t + 60)[0] == 1801.4          # what the manager goes on counting from
+    assert m.acc.hour == hour and m.acc.elec == 0.6 and m.acc.cost == 0.18 and m.acc.obs == 1500.0
 
 
 async def test_a_restart_over_the_hour_closes_it_as_partial(hass, entry):
@@ -35,15 +36,15 @@ async def test_a_restart_over_the_hour_closes_it_as_partial(hass, entry):
     m = entry.runtime_data
     t = dt_util.utcnow().timestamp()
     hour = int(t // 3600 * 3600) - 3600
-    m.hour_log = [{"ts": hour, "T": 20.5}]
-    m._acc_hour, m._elec_acc, m._cost_acc, m._heat_acc, m._dhw_acc, m._obs_acc = hour, 0.6, 0.18, 2.0, 0.0, 1500.0
-    m._last_elec = 1801.4
-    saved = m._acc_state()
-    m._last_elec = None
-    m._restore_acc(saved, t)
-    e = m.hour_log[0]
+    m.log = replace(m.log, hour_log=[{"ts": hour, "T": 20.5}])
+    m.acc = replace(m.acc, hour=hour, elec=0.6, cost=0.18, heat=2.0, dhw=0.0, obs=1500.0)
+    m.meters = replace(m.meters, last_elec=1801.4)
+    saved = m.hl.stored_acc()
+    m.meters = replace(m.meters, last_elec=None)
+    assert m.hl.restore(saved, t) is None                     # a later hour: the meter starts afresh
+    e = m.log.hour_log[0]
     assert e["e"] == 0.6 and e["cost"] == 0.18 and e["partial"] and e["obs"] == 1500
-    assert m._acc_hour is None and m._last_elec is None
+    assert m.acc.hour is None and m.meters.last_elec is None
     q = savings.assess_day([{**e, "ts": hour}], {"hours": [], "kwh": 0.6}, 1, hour, True)
     assert "partial_hours" in q["reasons"]
 
@@ -53,15 +54,15 @@ async def test_stored_heat_is_aged_over_the_downtime(hass, entry):
     m = entry.runtime_data
     t = dt_util.utcnow().timestamp()
     m.house.lag = 1.0
-    m.storage_e = 4.0
+    m.meters = replace(m.meters, storage_e=4.0)
     m._age_storage(t - 60, t)
-    assert 3.9 < m.storage_e <= 4.0
-    m.storage_e = 4.0
+    assert 3.9 < m.meters.storage_e <= 4.0
+    m.meters = replace(m.meters, storage_e=4.0)
     m._age_storage(t - 3 * 3600, t)
-    assert m.storage_e == pytest.approx(4.0 * 0.5 ** 3)
-    m.storage_e = 4.0
+    assert m.meters.storage_e == pytest.approx(4.0 * 0.5 ** 3)
+    m.meters = replace(m.meters, storage_e=4.0)
     m._age_storage(None, t)
-    assert m.storage_e == 4.0
+    assert m.meters.storage_e == 4.0
 
 
 def test_day_lists_follow_the_real_day_length():
@@ -96,7 +97,8 @@ async def test_the_load_profile_follows_local_hours_over_dst(hass, entry):
     try:
         m.load_profile = [float(h) for h in range(24)]
         now = datetime(2026, 10, 24, 22, 30, tzinfo=timezone.utc)       # 00:30 local, summer time
-        with patch.object(type(m), "_price_series", return_value=[0.3] * 6):
+        from custom_components.roost import prices
+        with patch.object(prices, "sensor_series", side_effect=lambda p, *a: (p, [0.3] * 6)):
             inp, _ = m._energy(now, 6)
         assert inp.load_kwh == [0.0, 1.0, 2.0, 2.0, 3.0, 4.0]
     finally:
@@ -123,13 +125,14 @@ async def test_weather_entity_units_are_converted(hass, entry):
     hass.states.async_set("weather.home", "sunny", {"temperature_unit": "°F", "wind_speed_unit": "m/s"})
     ts = dt_util.utcnow().replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
     resp = {"weather.home": {"forecast": [{"datetime": ts.isoformat(), "temperature": 69.8, "wind_speed": 9.0, "cloud_coverage": 0}]}}
-    m._weather, m._weather_at = {}, 0.0
+    from custom_components.roost.core import weather as cweather
+    m.weather = cweather.Weather()
 
     async def call(self, *a, **k):
         return resp
     with patch.object(ServiceRegistry, "async_call", call):
-        await m._async_weather_entity()
-    t, _rad, wind = m._weather[int(ts.timestamp())]
+        await m._async_weather()
+    t, _rad, wind = m.weather.forecast[int(ts.timestamp())]
     assert t == pytest.approx(21.0) and wind == pytest.approx(9.0)
 
 
@@ -148,3 +151,32 @@ async def test_a_change_by_a_user_right_after_roost_still_pauses(hass, entry):
     hass.states.async_set(THERMOSTAT, "heat", {"temperature": 18.5, "current_temperature": 20.6}, context=Context(user_id="abc"))
     await hass.async_block_till_done()
     assert m.mem.pause_until and m.mem.pause_until > time.time()
+
+
+async def test_a_partial_hour_seen_half_or_more_adds_to_the_thermostat_history(hass, entry):
+    """25-11-2026: an hour cut off by a restart was closed as partial, but the stored thermostat history was put back
+    over it, so the hour's mean setpoint and reading were lost. Seen for half an hour or more, it counts now."""
+    m = entry.runtime_data
+    t = dt_util.utcnow().timestamp()
+    hour = int(t // 3600 * 3600) - 3600
+    m.log = replace(m.log, hour_log=[{"ts": hour, "T": 20.5}], sp_hist={})
+    m.acc = replace(m.acc, hour=hour, obs=2400.0, sp=(20.0 * 2400, 2400.0, 19.5 * 2400, 2400.0))
+    data = {**m.log.stored(t), "acc": m.hl.stored_acc()}
+    m.acc = replace(m.acc, hour=None)
+    with patch.object(m._store, "async_load", return_value=data), patch.object(m._hist_store, "async_load", return_value={}):
+        await m.async_start()
+    assert m.log.sp_hist.get(hour) == [20.0, 19.5]
+    assert m.log.hour_log[-1]["partial"] and m.log.hour_log[-1]["sp_mean"] == 20.0
+
+
+async def test_a_failing_what_if_never_stops_closing_the_day(hass, entry):
+    """25-11-2026: the what-if is only the card's advice; an error in it must not keep the day from being saved."""
+    m = entry.runtime_data
+    start = dt_util.start_of_local_day() - timedelta(days=1)
+    day = dt_util.as_local(start).date().isoformat()
+    entries = [{"ts": int(start.timestamp()) + i * 3600, "T": 20.5, "E": 1.0, "w": 0.0, "sp": 20.0, "t_out": 5.0,
+                "p_grid": 0.3, "day": True, "e": 0.3, "q": 1.2} for i in range(24)]
+    m.log = replace(m.log, hour_log=entries)
+    with patch("custom_components.roost.planner.what_if_day", side_effect=RuntimeError("boom")):
+        await m.hl.async_close_day(day)
+    assert day in m.log.day_stats and "what_if" not in m.log.day_stats[day]

@@ -1,4 +1,4 @@
-"""What the parts of the Roost runtime share: imports, constants and small helpers (manager.py and its mixins)."""
+"""What the parts of the Roost runtime share: imports, constants and small helpers (manager.py and the parts it holds)."""
 from __future__ import annotations
 
 import asyncio
@@ -11,33 +11,125 @@ from datetime import datetime, timedelta, timezone
 from functools import partial
 from typing import Any, Callable
 
-from homeassistant.components.recorder import get_instance, history as rh
+from aiohttp import ClientTimeout
+from homeassistant.components.recorder import get_instance
+from homeassistant.components.recorder import history as rh
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
-    ATTR_ENTITY_ID, ATTR_UNIT_OF_MEASUREMENT, EVENT_HOMEASSISTANT_STOP, STATE_UNAVAILABLE, STATE_UNKNOWN, UnitOfTemperature,
+    ATTR_ENTITY_ID,
+    ATTR_UNIT_OF_MEASUREMENT,
+    EVENT_HOMEASSISTANT_STOP,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+    UnitOfTemperature,
 )
-from homeassistant.core import Context, Event, HomeAssistant, State, callback
-from homeassistant.helpers import entity_registry as er, issue_registry as ir
+from homeassistant.core import (
+    Context,
+    Event,
+    EventStateChangedData,
+    HomeAssistant,
+    State,
+    callback,
+)
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.event import async_track_state_change_event, async_track_time_change, async_track_time_interval
+from homeassistant.helpers.event import (
+    async_track_state_change_event,
+    async_track_time_change,
+    async_track_time_interval,
+)
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from . import schedule, stick, battery, building, check, comfort, control, epex, lookback, window, heatpump, history, model, planner, response, rooms, series, sun, value, weather as om
-from .const import (
-    CONF_BASELINE_NIGHT, CONF_BATTERY_KW, CONF_BATTERY_KWH, CONF_BATTERY_POWER, CONF_BATTERY_RESERVE, CONF_BATTERY_SOC, CONF_BATTERY_USE,
-    CONF_COMFORT, CONF_DAY_FROM, CONF_DAY_MIN, CONF_DAY_TO, CONF_EXPORT_PRICE, CONF_GRID_POWER, CONF_GRID_PREFERENCE,
-    CONF_GRID_SIGN, CONF_HEAT_PUMP, CONF_IMPORT_ON_SETUP, CONF_IMPORT_PRICE, CONF_MAX_ABOVE,
-    CONF_MIN_INTERVAL, CONF_NIGHT_MIN, CONF_PAUSE_HOURS, CONF_PV_FORECAST, CONF_PV_FORECAST_TOMORROW, CONF_PV_POWER,
-    CONF_ROOM, CONF_STORE_MAX, CONF_THERMOSTAT, CONF_WEATHER, CONF_WEATHER_SOURCE, DEFAULTS, DOMAIN,
-    CONF_FIXED_EXPORT_PRICE, CONF_FIXED_LOW_PRICE, CONF_FIXED_PRICE, CONF_LOW_FROM, CONF_LOW_TO, CONF_LOW_WEEKEND, CONF_PRICE_MODE,
-    CONF_EMITTER, CONF_SP_MIN, CONF_USE_BAG, CONF_WINDOW_SENSORS, CONF_EPEX_ZONE, CONF_IMPORT_MULT, CONF_IMPORT_ADD, CONF_EXPORT_FORMULA,
-    CONF_EXPORT_MULT, CONF_EXPORT_ADD,
-    LEARN_HOUR, LEARN_MINUTE, PLAN_MINUTES, STORAGE_VERSION, TICK_SECONDS, WEATHER_MINUTES, WEHEAT, WEHEAT_IMPORT_DAYS,
+from . import (
+    building,
+    check,
+    comfort,
+    control,
+    epex,
+    heatpump,
+    history,
+    lookback,
+    model,
+    planner,
+    response,
+    rooms,
+    schedule,
+    series,
+    stick,
+    sun,
+    value,
+    window,
 )
-from .const import AWAY_MIN
+from . import weather as om
+from .const import (
+    AWAY_MIN,
+    CONF_BASELINE_NIGHT,
+    CONF_BATTERY_KWH,
+    CONF_BATTERY_POWER,
+    CONF_BATTERY_SOC,
+    CONF_COMFORT,
+    CONF_DAY_FROM,
+    CONF_DAY_MIN,
+    CONF_DAY_TO,
+    CONF_EMITTER,
+    CONF_EPEX_ZONE,
+    CONF_EXPORT_ADD,
+    CONF_EXPORT_FORMULA,
+    CONF_EXPORT_MULT,
+    CONF_EXPORT_PRICE,
+    CONF_FIXED_EXPORT_PRICE,
+    CONF_FIXED_LOW_PRICE,
+    CONF_FIXED_PRICE,
+    CONF_GRID_POWER,
+    CONF_GRID_PREFERENCE,
+    CONF_GRID_SIGN,
+    CONF_HEAT_PUMP,
+    CONF_IMPORT_ADD,
+    CONF_IMPORT_MULT,
+    CONF_IMPORT_ON_SETUP,
+    CONF_IMPORT_PRICE,
+    CONF_LOW_FROM,
+    CONF_LOW_TO,
+    CONF_LOW_WEEKEND,
+    CONF_MAX_ABOVE,
+    CONF_MIN_INTERVAL,
+    CONF_NIGHT_MIN,
+    CONF_PAUSE_HOURS,
+    CONF_PRICE_MODE,
+    CONF_PV_FORECAST,
+    CONF_PV_FORECAST_TOMORROW,
+    CONF_PV_POWER,
+    CONF_ROOM,
+    CONF_SOLAR_FROM_SOC,
+    CONF_SP_MIN,
+    CONF_STORE_MAX,
+    CONF_THERMOSTAT,
+    CONF_USE_BAG,
+    CONF_WEATHER,
+    CONF_WEATHER_SOURCE,
+    CONF_WINDOW_SENSORS,
+    DEFAULTS,
+    DOMAIN,
+    LEARN_HOUR,
+    LEARN_MINUTE,
+    PLAN_MINUTES,
+    STORAGE_VERSION,
+    TICK_SECONDS,
+    WEATHER_MINUTES,
+    WEHEAT,
+    WEHEAT_IMPORT_DAYS,
+)
 from .reasons import Reason
-from .weheat_api import WeheatLoginNeeded, WeheatUnavailable, async_fetch_history, async_fetch_months, heat_pump_id
+from .util import num as _f
+from .weheat_api import (
+    WeheatLoginNeeded,
+    WeheatUnavailable,
+    async_fetch_history,
+    async_fetch_months,
+    heat_pump_id,
+)
 
 _LOGGER = logging.getLogger(f"{__package__}.manager")   # the name it always had (log settings, bug reports)
 HOUR_LOG_KEPT = 7 * 24 + 2                       # a week of hours: the replay of yesterday and the look back
@@ -73,12 +165,6 @@ def _i(v: Any) -> int | None:
     return None if x is None else int(x)
 
 
-def _f(v: Any) -> float | None:
-    try:
-        x = float(v)
-    except (TypeError, ValueError):
-        return None
-    return x if x == x else None
 
 
 @dataclass
@@ -87,3 +173,30 @@ class Health:
     room_missing_since: float | None = None
     house_cold_since: float | None = None
     issues: set = field(default_factory=set)
+
+__all__ = [  # what the parts of the runtime take from here (explicit imports, no star)
+    "ATTR_ENTITY_ID", "ATTR_UNIT_OF_MEASUREMENT", "AWAY_MIN", "Any", "CONF_BASELINE_NIGHT",
+    "CONF_BATTERY_KWH", "CONF_BATTERY_POWER", "CONF_BATTERY_SOC", "CONF_SOLAR_FROM_SOC",
+    "CONF_COMFORT", "CONF_DAY_FROM", "CONF_DAY_MIN", "CONF_DAY_TO", "CONF_EMITTER", "CONF_EPEX_ZONE",
+    "CONF_EXPORT_ADD", "CONF_EXPORT_FORMULA", "CONF_EXPORT_MULT", "CONF_EXPORT_PRICE", "CONF_FIXED_EXPORT_PRICE",
+    "CONF_FIXED_LOW_PRICE", "CONF_FIXED_PRICE", "CONF_GRID_POWER", "CONF_GRID_PREFERENCE", "CONF_GRID_SIGN",
+    "CONF_HEAT_PUMP", "CONF_IMPORT_ADD", "CONF_IMPORT_MULT", "CONF_IMPORT_ON_SETUP", "CONF_IMPORT_PRICE",
+    "CONF_LOW_FROM", "CONF_LOW_TO", "CONF_LOW_WEEKEND", "CONF_MAX_ABOVE", "CONF_MIN_INTERVAL", "CONF_NIGHT_MIN",
+    "CONF_PAUSE_HOURS", "CONF_PRICE_MODE", "CONF_PV_FORECAST", "CONF_PV_FORECAST_TOMORROW", "CONF_PV_POWER",
+    "CONF_ROOM", "CONF_SP_MIN", "CONF_STORE_MAX", "CONF_THERMOSTAT", "CONF_USE_BAG", "CONF_WEATHER",
+    "CONF_WEATHER_SOURCE", "CONF_WINDOW_SENSORS", "Callable", "ClientTimeout", "ConfigEntry", "Context", "DEFAULTS",
+    "DHW_STATES",
+    "DHW_WEEKS", "DOMAIN", "EVENTS_KEPT", "EVENT_HOMEASSISTANT_STOP", "Event", "EventStateChangedData", "FALLBACK_MIN",
+    "FALLBACK_NOTICE_H",
+    "HISTORY_KEEP_DAYS", "HOUR_LOG_KEPT", "HOUSE_COLD_K", "HOUSE_COLD_MIN", "HYBRID_MAX_ABOVE", "Health",
+    "HomeAssistant", "LEARN_HOUR", "LEARN_MINUTE", "MIN_RUN_MIN", "NOT_FOLLOWING_MIN", "NO_LEVER_KW",
+    "PLAN_LOG_KEPT", "PLAN_MINUTES", "ROOM_SILENT_MIN", "Reason", "SAVING_DETAIL_DAYS", "SP_HIST_DAYS",
+    "STATE_UNAVAILABLE", "STATE_UNKNOWN", "STORAGE_VERSION", "State", "Store", "TICK_SECONDS", "UnitOfTemperature",
+    "WEATHER_MINUTES", "WEHEAT", "WEHEAT_FIELDS", "WEHEAT_IMPORT_DAYS", "WeheatLoginNeeded", "WeheatUnavailable",
+    "_LOGGER", "_f", "_i", "_iso_ts", "async_fetch_history", "async_fetch_months", "async_get_clientsession",
+    "async_track_state_change_event", "async_track_time_change", "async_track_time_interval", "asyncio",
+    "building", "callback", "check", "comfort", "control", "datetime", "deque", "dt_util", "epex", "er",
+    "get_instance", "heat_pump_id", "heatpump", "history", "ir", "lookback", "model", "om", "partial", "planner",
+    "replace", "response", "rh", "rooms", "schedule", "series", "stick", "sun", "time", "timedelta", "timezone",
+    "traceback", "value", "window",
+]

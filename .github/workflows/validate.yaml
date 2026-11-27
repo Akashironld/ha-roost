@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: node --check custom_components/roost/frontend/roost-card.js
-      - run: node --test tests/frontend_savings.test.mjs
+      - run: node --test tests/frontend_savings.test.mjs tests/frontend_card.test.mjs
   hassfest:
     runs-on: ubuntu-latest
     steps:
@@ -35,7 +35,7 @@ jobs:
           python-version: "3.13"
       - run: pip install pytest && python -m pytest -q tests --ignore=tests/ha
   ha-tests:
-    # the integration inside a real (test) Home Assistant: setup, entities, a shower, washing up, repairs, flows
+    # the integration inside a real (test) Home Assistant: setup, entities, the plan, repairs, flows
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

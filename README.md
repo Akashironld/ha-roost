@@ -44,6 +44,14 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
 - **Dynamic or fixed price**, solar, home battery (energy from the battery is valued at what refilling it costs), net
   metering or not. Only published prices steer the plan; a price sensor without a forecast works too (a fixed rate is
   repeated, a dynamic price is estimated from the day-ahead prices).
+- **Or it chooses the water temperature itself.** With an OpenTherm gateway between Home Assistant and the heat pump
+  (tested: the THRM ONE), Roost plans a heat output per hour and asks for the flow temperature that makes it, instead of
+  steering a thermostat: long, low runs in the cheap hours, whole hours off, the lowest output it learned. The gateway
+  can also take the plan, so it carries on with it when Home Assistant is gone ([below](#steering-the-water-temperature-directly-opentherm-gateway)).
+- **Comfort as a range**: at least your comfort temperature in the comfort hours, a little warmer only when storing
+  heat pays, and an eco minimum outside them (*Comfort 20–22 °C · warm at 07:00 · outside that at least 18 °C*). Every
+  night Roost replays the last day with eco and the top of the range a degree different, and the card shows what that
+  would have cost per week.
 - **Comfort per weekday**: one daily interval, or several comfort periods per weekday on quarter hours (also through
   midnight) — set in the card or in *Configure → Comfort*.
 - **Extra rooms**: radiators upstairs or a bedroom get a minimum in their own hours, so Roost never lets the heat pump
@@ -68,7 +76,8 @@ Plans your thermostat 24 hours ahead on price, weather and the heat your house s
   plan with the expected room temperature, the tariff per hour, own solar and the hours the heat pump will heat, **why
   each hour is what it is**, the heat pump's starts and run length today, and what it saves with a calendar of the
   days that count; the plan and the last week as a **table**; and a **look back**: what was planned beside what
-  happened, how well it predicted, a log of every change and why, and a report to keep.
+  happened, how well it predicted, a log of every change and why, and a report to keep; and an **Energy** tab per hour,
+  day, week or month: heat, electricity, COP, defrosts and cost from Home Assistant's statistics, with a CSV.
 - **Explains its saving.** Per hour, for yesterday and the next 24 hours, Roost beside the equally comfortable steady
   thermostat it is compared with, and every change of the plan with why (in the report and as `roost.explain_saving`).
   A day's saving only counts when Roost's replay of that day matches the heating electricity and room temperatures
@@ -109,8 +118,9 @@ Everything else — every screen, every setting, the card, repairs, troubleshoot
 
 - Home Assistant **2025.3** or newer, with the recorder.
 - A **Weheat** heat pump with the official Weheat integration.
-- The **thermostat** that drives it, as a `climate` entity in Home Assistant (OpenTherm best; on/off works). The heat
-  pump must follow the thermostat, not only its own heating curve — Roost checks this.
+- The **thermostat** that drives it, as a `climate` entity in Home Assistant that Roost can set (OpenTherm best; on/off
+  works). The heat pump must follow the thermostat, not only its own heating curve — Roost checks this and only offers
+  to steer when both hold. **Or** an OpenTherm gateway with a room temperature sensor ([below](#steering-the-water-temperature-directly-opentherm-gateway)).
 - An **electricity price**: a sensor with the prices of the coming hours (evcc, Nord Pool, Tibber, ENTSO-e, Frank
   Energie, Zonneplan, … are read automatically) — or, without one, the **built-in day-ahead prices** with your
   supplier's formula — or your fixed contract's rate. A sensor with only the current price works, but plans less well.
@@ -129,6 +139,46 @@ Roost speaks English, Dutch, German and French (the setup, the card and the noti
 
 Floor heating stores the most heat, so Roost can shift the most; with radiators the house itself is the buffer and the
 saving is smaller. A thermostat with its own schedule or learning works against Roost: turn that off (Roost notices it).
+
+## Steering the water temperature directly (OpenTherm gateway)
+
+Instead of a thermostat's setpoint, Roost can ask the heat pump for a **flow temperature** each hour through an
+OpenTherm gateway between Home Assistant and the heat pump. That is the most precise way: Roost then chooses the heat
+output itself, without a thermostat in between. Any gateway works that has these in Home Assistant:
+
+| What | Entity | Notes |
+|---|---|---|
+| The flow temperature to ask for | `number` | Roost sets it; 0 means no heat demand |
+| The gateway's state | `sensor` | The value that means "steered by Home Assistant" is a setting (default `home_assistant`) |
+| Steered by Home Assistant, or on the gateway's own heating curve | `select` or `input_select` | The two option names are settings (default `Home Assistant` / `Heating curve`) |
+| The room temperature | `sensor` | Required: Roost steers on the room, not on a thermostat |
+
+Optional: the gateway's lowest and highest flow temperature (`number`; Roost then keeps within them and shows them),
+its communication status (`binary_sensor`) and the heat pump's maximum capacity (`sensor`).
+
+- **Tested: the [elvinhome THRM ONE](https://elvinhome.io/shop/thrm-one-60)** (ESP32-C6, ESPHome) on a Weheat
+  Blackbird P80, with the **firmware for Roost in [firmware/thrm-one](firmware/thrm-one/README.md)** (GPL-3.0, built on
+  elvinhome's [open firmware](https://codeberg.org/elvinhome/thrm-one)): it has all of the above, takes Roost's plan and
+  falls back to its own heating curve when Home Assistant is gone. Step by step: the
+  [guide](docs/GUIDE.md#steering-over-opentherm). The author's unit was provided free of charge by elvinhome.
+- **Another ESPHome gateway** with the OpenTherm component: add a template `select` and `sensor` for the mode and the
+  state, and it has all of the above.
+- **The OpenTherm Gateway (OTGW, `opentherm_gw` integration)**: sets the flow temperature through a service rather
+  than a `number`, so it needs a helper in between. **Not tested yet.**
+- **Safety:** the gateway itself must fall back to its own heating curve when Home Assistant goes away (a restart, a
+  crash, the network). Roost cannot make it do that. Check this before you let Roost steer.
+- **Optional: Roost's plan on the gateway.** A gateway with an ESPHome action `set_plan` (`flows: float[]`, the flow
+  per hour from the current hour, 0 = off; `outside: float[]`, the outdoor temperature Roost planned with per hour, as the
+  heat pump's own air sensor reads it; `sec_into_hour: int`) gets the plan from Roost on every new plan and else every
+  hour, while Roost steers. When Home Assistant or Roost goes away it can run that plan instead of its plain heating
+  curve. An empty plan means "forget it": Roost sends one when it stops steering (shadow, off, removed). Without the
+  action Roost sends nothing. The THRM ONE firmware runs the plan hour by hour, corrected for the real outdoor
+  temperature, never more than 5 °C above its heating curve and off for at most 3 hours in a row (2 below 0 °C).
+- **ESPHome gateways: no reboot when Home Assistant is gone.** ESPHome restarts a device after 15 minutes without Wi-Fi
+  or without Home Assistant (`reboot_timeout`). A restart means some 15 seconds without OpenTherm, and a Weheat then
+  stops and waits about an hour before it starts again — every 15 minutes, as long as Home Assistant is away. Set
+  `reboot_timeout: 0s` under `api:` and `wifi:`. The same goes for updating the firmware: not while the heat pump heats
+  (during hot water it is fine; the Weheat makes that itself).
 
 ## Reporting a problem
 
@@ -153,6 +203,12 @@ plan, which is then refined with the heat pump's real delay. The plan holds and 
 only for a reason (new prices, the room off the plan, a changed forecast, a change of yours). More in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Credits
+
+**Thank you, Elvin** ([elvinhome](https://elvinhome.io)), for the THRM ONE: an open OpenTherm controller with open
+firmware and hardware, the unit you sponsored for developing Roost's OpenTherm steering, and for taking the Weheat-proof
+decoder into ESPHome ([esphome/esphome#23245](https://github.com/esphome/esphome/pull/23245)).
+Roost is not affiliated with elvinhome, Weheat or The OpenTherm Association; OpenTherm is a trademark of The OpenTherm
+Association.
 
 Built-in day-ahead prices: [Energy-Charts](https://energy-charts.info) (Fraunhofer ISE), licensed
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Weather: [Open-Meteo](https://open-meteo.com) (CC BY 4.0).

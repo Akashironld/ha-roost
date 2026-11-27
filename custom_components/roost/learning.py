@@ -6,19 +6,32 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
+from aiohttp import ClientTimeout
 from homeassistant.components.recorder import get_instance, statistics
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import dt as dt_util
 
-from . import battery, history, value, weather as om
-from .const import (CONF_BATTERY_KWH, CONF_BATTERY_POWER, CONF_BATTERY_SOC, CONF_GRID_POWER, CONF_GRID_SIGN, CONF_HOUSE_POWER, CONF_PV_POWER,
-                    CONF_ROOM, HISTORY_DAYS)
+from . import history, value
+from . import weather as om
+from .const import (
+    CONF_BATTERY_POWER,
+    CONF_BATTERY_SOC,
+    CONF_GRID_POWER,
+    CONF_GRID_SIGN,
+    CONF_HOUSE_POWER,
+    CONF_PV_POWER,
+    CONF_ROOM,
+    HISTORY_DAYS,
+)
+from .core import weather as cweather
 
 if TYPE_CHECKING:
-    from .manager import RoostManager
+    from .manager import (
+        RoostManager,  # for the type checker only: no import cycle at run time
+    )
 
 _LOGGER = logging.getLogger(__name__)
-ENERGY_ROLES = ("heat", "heat_defrost", "elec", "elec_defrost", "elec_dhw")
+ENERGY_ROLES = ("heat", "heat_defrost", "elec", "elec_defrost", "elec_dhw", "elec_indoor")
 
 
 def _ts(v) -> int:
@@ -39,7 +52,7 @@ def _derive_house(conf: dict) -> bool:
 
 async def _async_archive(mgr: "RoostManager", start: datetime, end: datetime) -> None:
     """Fill the weather cache for [start, end) from the Open-Meteo archive (90 days per request)."""
-    have = mgr._weather_hist
+    have = mgr.weather.hist
     t = start
     session = async_get_clientsession(mgr.hass)
     changed = False
@@ -52,9 +65,10 @@ async def _async_archive(mgr: "RoostManager", start: datetime, end: datetime) ->
         url = om.ARCHIVE.format(lat=mgr.hass.config.latitude, lon=mgr.hass.config.longitude,
                                 start=t.date().isoformat(), end=(t2 - timedelta(hours=1)).date().isoformat())
         try:
-            async with session.get(url, timeout=60) as r:
+            async with session.get(url, timeout=ClientTimeout(total=60)) as r:
                 r.raise_for_status()
-                have.update(om.parse(await r.json()))
+                mgr.weather = cweather.with_history(mgr.weather, om.parse(await r.json()))
+                have = mgr.weather.hist
                 changed = True
         except Exception as err:  # noqa: BLE001 - learn with what there is
             _LOGGER.warning("Roost: weather archive %s – %s not available: %s", t.date(), t2.date(), err)
@@ -69,43 +83,16 @@ async def async_hourly_means(mgr: "RoostManager", entity_ids: list[str], days: i
     start = end - timedelta(days=days)
     stats = await get_instance(mgr.hass).async_add_executor_job(
         statistics.statistics_during_period, mgr.hass, start, end, set(entity_ids), "hour", None, {"mean"})
-    return {eid: {_ts(r["start"]): float(r["mean"]) for r in stats.get(eid, []) if r.get("mean") is not None} for eid in entity_ids}
-
-
-async def async_battery(mgr: "RoostManager", days: int = 14) -> battery.BatteryHabits | None:
-    """The home battery's habits (battery.py) from the 5-minute statistics Home Assistant keeps (about ten days, as
-    long as the recorder keeps its history). None without a battery or without statistics."""
-    conf, hass = mgr.conf, mgr.hass
-    ids = {role: conf[key] for role, key in (("battery", CONF_BATTERY_POWER), ("grid", CONF_GRID_POWER), ("pv", CONF_PV_POWER),
-                                             ("soc", CONF_BATTERY_SOC)) if conf.get(key)}
-    if "soc" not in ids and "battery" not in ids:
-        return None
-    end = dt_util.utcnow().replace(second=0, microsecond=0)
-    stats = await get_instance(hass).async_add_executor_job(
-        statistics.statistics_during_period, hass, end - timedelta(days=days), end, set(ids.values()), "5minute", None, {"mean"})
-    k = {role: (1.0 if role == "soc" else _to_kw(hass, eid)) for role, eid in ids.items()}
-    sign = 1.0 if conf.get(CONF_GRID_SIGN, "import_positive") == "import_positive" else -1.0
-    by_t: dict[int, dict] = defaultdict(dict)
-    for role, eid in ids.items():
-        for r in stats.get(eid, []):
-            if r.get("mean") is not None:
-                by_t[_ts(r["start"])][role] = float(r["mean"]) * k[role] * (sign if role == "grid" else 1.0)
-    if not by_t:
-        return None
-    samples = []
-    for t in sorted(by_t):
-        v, loc = by_t[t], dt_util.as_local(datetime.fromtimestamp(t, tz=timezone.utc))
-        samples.append(battery.Sample(t, loc.date().isoformat(), loc.hour, v.get("battery"), v.get("grid"), v.get("pv"), v.get("soc")))
-    cap = conf.get(CONF_BATTERY_KWH)
-    return await hass.async_add_executor_job(battery.learn, samples, float(cap) if cap else None)
+    return {eid: {_ts(r["start"]): float(m) for r in stats.get(eid, []) if (m := r.get("mean")) is not None}
+            for eid in entity_ids}
 
 
 async def async_rows(mgr: "RoostManager") -> tuple[list, dict]:
     hass = mgr.hass
     end = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
     start = end - timedelta(days=HISTORY_DAYS)
-    if mgr._weheat_hours:
-        start = min(start, datetime.fromtimestamp(min(mgr._weheat_hours), tz=timezone.utc))
+    if mgr.weheat.hours:
+        start = min(start, datetime.fromtimestamp(min(mgr.weheat.hours), tz=timezone.utc))
     conf = mgr.conf
     ids: dict[str, str] = {}
     if conf.get(CONF_ROOM):
@@ -128,16 +115,19 @@ async def async_rows(mgr: "RoostManager") -> tuple[list, dict]:
     for role, eid in ids.items():
         for r in stats.get(eid, []):
             t = _ts(r["start"])
-            v = r.get("change") if role in ENERGY_ROLES else r.get("mean")
-            if v is not None:
-                ha[t][role] = float(v)
-    for t, v in ha.items():
+            val = r.get("change") if role in ENERGY_ROLES else r.get("mean")
+            if val is not None:
+                ha[t][role] = float(val)
+    for v in ha.values():
         if "heat" in v:
             v["q"] = v["heat"] + v.get("heat_defrost", 0.0)
+            v["qd"] = max(0.0, -v.get("heat_defrost", 0.0))        # the defrost meter counts negative
         if "elec" in v:
             v["e"] = v["elec"] + v.get("elec_defrost", 0.0)
         if "elec_dhw" in v:
             v["dhw_e"] = v["elec_dhw"]
+        if "elec_indoor" in v:
+            v["ei"] = max(0.0, v["elec_indoor"])
         if "outdoor" in v:
             v["sensor_out"] = v["outdoor"]
         if "thermostat_setpoint" in v and history.BAD_LOW < v["thermostat_setpoint"] < history.BAD_HIGH:
@@ -149,9 +139,8 @@ async def async_rows(mgr: "RoostManager") -> tuple[list, dict]:
     recent_from = end - timedelta(days=88)
     if start < recent_from:
         await _async_archive(mgr, start, min(recent_from, end - timedelta(days=5)))
-    wx = dict(mgr._weather_hist)
-    wx.update(mgr._weather)
-    rows = history.build_rows(mgr._weheat_hours, dict(ha), wx)
+    wx = cweather.learning_rows(mgr.weather)
+    rows = history.build_rows(mgr.weheat.hours, dict(ha), wx)
 
     extra: dict = {}
     pv = [(v["pv"], wx[t][1]) for t, v in ha.items() if "pv" in v and t in wx and wx[t][1] >= 0.3]
@@ -176,7 +165,7 @@ async def async_rows(mgr: "RoostManager") -> tuple[list, dict]:
         per: dict[int, list[float]] = defaultdict(list)
         for t, kwh in house.items():
             if t >= end.timestamp() - 21 * 86400:
-                hp_kwh = ha[t].get("e", 0.0) + ha[t].get("dhw_e", 0.0)
+                hp_kwh = ha[t].get("e", 0.0) + ha[t].get("dhw_e", 0.0) + ha[t].get("ei", 0.0)
                 per[dt_util.as_local(datetime.fromtimestamp(t, tz=timezone.utc)).hour].append(max(0.0, kwh - hp_kwh))
         if len(per) == 24 and all(len(x) >= 3 for x in per.values()):
             extra["load_profile"] = [round(sorted(per[h])[len(per[h]) // 2], 3) for h in range(24)]

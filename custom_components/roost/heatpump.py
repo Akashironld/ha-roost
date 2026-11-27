@@ -23,12 +23,26 @@ Without learned values (k None) it is a thermostat that closes a gap within the 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from typing import TypedDict
+
+from . import defrost
+from .util import fill, solve
 
 Q_REF = 3.5
 COP_MIN, COP_MAX = 1.6, 7.5
 
 # per model family: COP start values and the maximum heat output line (kW) = a + b * T_out, clamped
-PROFILES = {
+class _Profile(TypedDict):
+    alpha: float
+    beta: float
+    gamma: float
+    pmax_a: float
+    pmax_b: float
+    pmax_lo: float
+    pmax_hi: float
+
+
+PROFILES: dict[str, _Profile] = {
     "p80": {"alpha": 3.04, "beta": 0.19, "gamma": -0.27, "pmax_a": 5.7, "pmax_b": 0.15, "pmax_lo": 5.3, "pmax_hi": 7.0},
     "p60": {"alpha": 3.04, "beta": 0.19, "gamma": -0.35, "pmax_a": 4.3, "pmax_b": 0.11, "pmax_lo": 4.0, "pmax_hi": 5.3},
     "generic": {"alpha": 3.0, "beta": 0.18, "gamma": -0.3, "pmax_a": 4.5, "pmax_b": 0.12, "pmax_lo": 3.5, "pmax_hi": 7.0},
@@ -36,7 +50,7 @@ PROFILES = {
 
 
 # radiators need warmer water than a floor: a lower COP to start from (the unit's own meters take over)
-EMITTER_COP = {"floor": 0.0, "radiators": -0.7, "both": -0.35}
+EMITTER_COP = {"floor": 0.0, "radiators": -0.7, "both": -0.35}     # by kind; curve.emitter_profile weighs the ticks
 
 
 def profile_for(model_name: str | None) -> str:
@@ -47,6 +61,10 @@ def profile_for(model_name: str | None) -> str:
         return "p60"
     return "generic"
 
+
+# Weheat manual 6.3 (23-11-2026): below 5 °C outside the circulation pump runs all the time against frost (measured on
+# the P80: the indoor unit 55 W idle above ~6 °C, 108 W below ~4 °C). In such hours heating adds no pump electricity.
+FROST_PUMP = 5.0
 
 @dataclass
 class HeatPumpModel:
@@ -74,6 +92,14 @@ class HeatPumpModel:
     resp_source: str = "default"
     dhw: list[float] | None = None     # 168 values: share of the hour on hot water, Monday 00:00 first (local time)
     dhw_weeks: float = 0.0
+    dhw_fixed: float | None = None     # how fixed the hot-water times are (1 = a timer, low = the unit picks its own)
+    # the indoor unit's electricity (its own meter, outside the COP): when idle, and on top of that per hour running
+    indoor_idle_kw: float | None = None
+    indoor_run_kw: float | None = None
+    # defrosting: share of the heat lost per °C below defrost.T0 in damp air (defrost.py). The COP above is learned on
+    # the heat after defrosting, so it holds an hour of typical humidity; cop_net corrects it for the hour's own
+    defrost_a: float = defrost.A_PRIOR
+    defrost_hours: int = 0
 
     @classmethod
     def for_profile(cls, name: str) -> "HeatPumpModel":
@@ -85,16 +111,31 @@ class HeatPumpModel:
 
     @classmethod
     def from_dict(cls, d: dict | None, profile: str = "p80") -> "HeatPumpModel":
-        m = cls.for_profile(profile)
-        for k, v in (d or {}).items():
-            if hasattr(m, k):
-                setattr(m, k, v)
-        return m
+        return fill(cls.for_profile(profile), d)
 
     def cop(self, t_out: float, q_kw: float) -> float:
         """COP at the weather service's outdoor temperature (bias added) and a heat output in kW."""
         c = self.alpha + self.beta * (t_out + self.bias) + self.gamma * max(0.0, q_kw - Q_REF)
         return max(COP_MIN, min(COP_MAX, c))
+
+    def pumps_anyway(self, t_out: float, t_adj: float = 0.0) -> bool:
+        """The unit's circulation pump runs on its own in this hour (frost protection below FROST_PUMP at its own
+        sensor), so the indoor unit uses no more electricity while the unit heats than while it waits."""
+        return t_out + self.bias + t_adj < FROST_PUMP
+
+    def defrost_factor(self, t_out: float, rh: float | None) -> float:
+        """This hour's defrosting against an hour of typical humidity (what cop() was learned on): below 1 in damp air,
+        above 1 in dry air, 1 without a humidity forecast (22-11-2026: counting all of it again on top of the learned
+        COP took the cheap cold nights away in the simulations)."""
+        if rh is None:
+            return 1.0
+        return (1.0 - defrost.share(t_out, rh, self.defrost_a)) / (1.0 - defrost.share(t_out, defrost.RH_UNKNOWN, self.defrost_a))
+
+    def cop_net(self, t_out: float, q_kw: float, rh: float | None = None, t_adj: float = 0.0) -> float:
+        """COP of the heat that reaches the house in this hour's humidity (cop() is that of a typical hour); t_adj:
+        today's correction of the forecast for the air at the unit (defrost.anomaly_ahead), for defrosting only."""
+        f = self.defrost_factor(t_out + t_adj, rh)
+        return self.cop(t_out, q_kw) if f == 1.0 else max(COP_MIN, min(COP_MAX, self.cop(t_out, q_kw) * f))
 
     def pmax(self, t_out: float) -> float:
         return max(self.pmax_lo, min(self.pmax_hi, self.pmax_a + self.pmax_b * t_out))
@@ -111,20 +152,6 @@ class HeatPumpModel:
         return self.dhw[(weekday % 7) * 24 + hour % 24]
 
 
-def _solve(A: list[list[float]], b: list[float]) -> list[float] | None:
-    n = len(b)
-    M = [A[i][:] + [b[i]] for i in range(n)]
-    for c in range(n):
-        p = max(range(c, n), key=lambda r: abs(M[r][c]))
-        if abs(M[p][c]) < 1e-12:
-            return None
-        M[c], M[p] = M[p], M[c]
-        for r in range(n):
-            if r != c:
-                f = M[r][c] / M[c][c]
-                for k in range(c, n + 1):
-                    M[r][k] -= f * M[c][k]
-    return [M[i][n] / M[i][i] for i in range(n)]
 
 
 def learn(rows, previous: HeatPumpModel, prior_hours: float = 200.0) -> tuple[HeatPumpModel, str]:
@@ -138,7 +165,7 @@ def learn(rows, previous: HeatPumpModel, prior_hours: float = 200.0) -> tuple[He
         y = [r.Q / r.E for r in use]
         A = [[0.0] * 3 for _ in range(3)]
         b = [0.0] * 3
-        for xi, yi in zip(X, y):
+        for xi, yi in zip(X, y, strict=False):
             for i in range(3):
                 b[i] += xi[i] * yi
                 for j in range(3):
@@ -147,7 +174,7 @@ def learn(rows, previous: HeatPumpModel, prior_hours: float = 200.0) -> tuple[He
             lam = prior_hours * max(1e-6, sum(x[i] ** 2 for x in X) / len(X))
             A[i][i] += lam
             b[i] += lam * theta0[i]
-        th = _solve(A, b)
+        th = solve(A, b)
         if th and 2.0 <= th[0] <= 6.0 and 0.03 <= th[1] <= 0.4 and -0.8 <= th[2] <= 0.0:
             m.alpha, m.beta, m.gamma = (round(v, 3) for v in th)
             m.hours, m.source = len(use), "learned"
@@ -171,4 +198,48 @@ def learn(rows, previous: HeatPumpModel, prior_hours: float = 200.0) -> tuple[He
             m.pmax_a = round(m.pmax_a + lift, 2)
             m.pmax_hi = round(m.pmax_hi + lift, 2)
             notes.append(f"maximum output raised {lift:+.1f} kW ({len(pts)} hours above the profile)")
+    a, n_def = defrost.learn(rows, m.defrost_a, m.bias)
+    if n_def >= defrost.MIN_HOURS:
+        m.defrost_a, m.defrost_hours = a, n_def
+        notes.append(f"defrost {a:.3f} per °C ({n_def} cold hours)")
+    else:
+        notes.append(f"defrost: {n_def} cold heating hours with humidity, need {defrost.MIN_HOURS}")
+    idle, run = learn_indoor(rows, m.bias)
+    if idle is not None and run is not None:
+        m.indoor_idle_kw, m.indoor_run_kw = idle, run
+        notes.append(f"indoor unit {idle * 1000:.0f} W idle, +{run * 1000:.0f} W running")
     return m, "; ".join(notes)
+
+
+INDOOR_MIN_HOURS = 24
+
+
+def learn_indoor(rows, bias: float = 0.0) -> tuple[float | None, float | None]:
+    """The indoor unit's meter (HourRow.Ei) against the share of the hour the unit heated: idle kW (the intercept) and
+    the extra kW of a whole hour running (the slope). Hours with hot water are left out (its pump runs then too), and
+    hours with heat but no heating seconds (those seconds come only from the Weheat logs) say nothing about the share,
+    and cold hours neither (the pump runs against frost then, heating or not: HeatPumpModel.pumps_anyway)."""
+    pts = []
+    for r in rows:
+        if r.Ei is None or r.dhw_s > 60 or not 0.0 <= r.Ei < 1.0:
+            continue
+        # below ~5 °C at the unit its pump runs all the time (frost protection): idle then is not idle
+        t_air = r.T_out_sensor if r.T_out_sensor is not None else r.T_out + bias
+        if t_air < FROST_PUMP + 1.0:          # a degree of margin: hours around the switch are mixed
+            continue
+        if r.heating_s > 0:
+            pts.append((min(1.0, r.heating_s / 3600.0), r.Ei))
+        elif r.Q < 0.05 and r.E < 0.02:
+            pts.append((0.0, r.Ei))
+    idle = [e for f, e in pts if f == 0.0]
+    full = [e for f, e in pts if f >= 0.5]
+    if len(idle) < INDOOR_MIN_HOURS or len(full) < INDOOR_MIN_HOURS:
+        return None, None
+    n = len(pts)
+    mf, me = sum(f for f, _ in pts) / n, sum(e for _, e in pts) / n
+    sff = sum((f - mf) ** 2 for f, _ in pts)
+    if sff <= 0:
+        return None, None
+    slope = sum((f - mf) * (e - me) for f, e in pts) / sff
+    a = me - slope * mf
+    return round(max(0.0, min(0.5, a)), 3), round(max(0.0, min(0.5, slope)), 3)

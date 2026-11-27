@@ -158,3 +158,56 @@ What these say:
 | The saving shown was against a steady thermostat that could be colder than Roost's plan, making a comfortable plan look expensive | The steady thermostat to compare with is now the lowest that is as comfortable as the plan (card, *expected saving*, *saving yesterday*) |
 | A unit whose thermostat asks nothing stops within minutes, but the planner let its output fade with the learned delay: the plan counted on heat that never came and lowered the setpoint each time the unit ran (on a real mild night six runs of 14–42 minutes). On a year of a Blackbird P80's hourly logs, stopping at once predicts the heat 5 % better | v0.8.0: the output stops at once when the thermostat asks nothing (`stops`); in the closed loop (31 scenarios × 2 seeds × 7 days, a true unit that stops) 4 % fewer heat pump starts and 6 % less time below comfort at the same cost |
 | Planning afresh every 15 minutes followed every small change in what Roost measures; holding the plan between real reasons (stick.py) cut thermostat changes, but with a room 0.4 °C off and a plan up to 12 hours old, fast houses (apartment, radiators) spent 47 % more time below comfort | v0.8.0: plan afresh when the room is 0.25 °C off the plan, and at least every 6 hours: the fewest heat pump starts (311 against 325), 2 % fewer changes, about the same cost and comfort. The hourly closed loop cannot show changes within the hour, where planning every 15 minutes did most harm |
+
+## OpenTherm steering (November 2026)
+
+`SIM_OT=1` adds two more ways of steering to every scenario, against a true OpenTherm heat pump (`OTPump` in
+`tools/sim/sim.py`, as measured on a Weheat P80): it makes the flow asked within minutes but not below its lowest
+output (2.8 kW); asked lower it overshoots, stops itself and rests an hour; a start runs at 82 % of its COP for 20 min.
+
+- **OT R**: Roost choosing a heat level per hour and the flow for it (planner.plan_ot, opentherm.decide), every 10 min.
+- **curve**: the master's own heating curve with room influence, switched by the room.
+
+```bash
+SIM_OT=1 python3 tools/sim/sim.py home,cold,spring,volatile,fixed,mismatch,radiators 7
+SIM_OT=1 SIM_OT_QMIN=2.0 python3 tools/sim/sim.py home 7     # another make: Roost learns its lowest output
+```
+
+7 scenarios × 2 seeds and a winter month (20-11-2026, comfort weight 0.2 below comfort): OpenTherm was 4.9–23 %
+cheaper than Roost on the thermostat (mean ~11 %), 10–32 % cheaper than a steady thermostat, never below a minimum.
+Radiators were 2–3× further below comfort; with the comfort weight over OpenTherm at 1.0 (`ot_penalty_soft`) every
+scenario is as comfortable as the thermostat steering or more, for about half a percent of the saving.
+Learning finds a lowest output of 2.0 or 3.5 kW exactly. OpenTherm starts the unit more often (winter: 46 against 13
+in 28 days, ~1.6 a day).
+
+## Regression check
+
+`tools/sim/regress.py` runs a fixed set (home ×2, radiators, cold, spring, volatile, fixed; 3 days) with both ways
+of steering and compares with `tools/sim/baseline.json`: a run more than 1 % dearer, 0.2 °C·h further below comfort or
+more hours below a minimum fails. `--update` writes the baseline after a change meant to change the results.
+`tools/ci_local.sh` runs it after lint, types, the tests, the card and hassfest.
+
+## Solar, the end of net metering, a home battery (November 2026)
+
+`SIM_SITE` adds what the house has besides the heat pump: `solar_net` (6 kWp, own solar worth the import price),
+`solar_export` (after net metering: own solar worth 5 ct exported), `battery` (a battery filled in the night covers
+17–23 h at its refill cost) and `solar_export_battery`. Saving against a steady thermostat in the same house, 7 days:
+
+| House | Grid only | Solar, net metering | Solar after net metering | Battery | Solar after + battery |
+|---|---|---|---|---|---|
+| floor, January: thermostat / OpenTherm | 6.3 / 14.8 % | 6.3 / 14.8 % | 6.6 / 15.7 % | 5.6 / 14.7 % | 6.6 / 15.6 % |
+| spring, sunny | 8.9 / 22.5 % | 8.9 / 22.5 % | 15.7 / 46.2 % | 7.2 / 21.1 % | 11.9 / 45.4 % |
+| radiators | 10.9 / 13.0 % | 10.9 / 13.0 % | 11.4 / 13.5 % | 9.0 / 13.5 % | 9.4 / 14.1 % |
+
+With net metering own solar changes nothing (it is worth the import price). After it, storing cheap own solar in the
+floor is the largest single saving in spring and autumn. A battery lowers the cost of heating in absolute terms but
+leaves Roost less to shift: it already flattens the evening price.
+
+## What was measured (the author's house, 2025–2026)
+
+From the meters and the paid tariff, no model: with Roost steering the thermostat (October 2026) the heating
+electricity cost 3.4 % less per kWh than the same kWh spread like a steady thermostat; the ceiling with perfect
+foresight and the floor as buffer was about 2.5 ct per kWh (EUR 44 over the year). A saving in kWh cannot be measured
+against the weather: a day's heating electricity is predicted from degree days and sun to within 39 % only, so even
+112 days could not show 10 %. That is why the card keeps measured and worked-out parts apart.
+

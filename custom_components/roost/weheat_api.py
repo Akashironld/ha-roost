@@ -13,13 +13,15 @@ import logging
 import time
 from datetime import datetime, timedelta, timezone
 
-from aiohttp import ClientResponseError
-
+from aiohttp import ClientResponseError, ClientTimeout
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.config_entry_oauth2_flow import (
-    AbstractOAuth2Implementation, OAuth2Session, async_get_config_entry_implementation, async_get_implementations,
+    AbstractOAuth2Implementation,
+    OAuth2Session,
+    async_get_config_entry_implementation,
+    async_get_implementations,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -34,8 +36,10 @@ class WeheatLoginNeeded(WeheatUnavailable):
     """No Weheat login, or Weheat refused it: the user has to log in (reauth)."""
 
 
-def heat_pump_id(hass: HomeAssistant, device_id: str) -> tuple[str | None, str | None]:
+def heat_pump_id(hass: HomeAssistant, device_id: str | None) -> tuple[str | None, str | None]:
     """(Weheat heat pump id, config entry id of the Weheat integration) for a device."""
+    if device_id is None:
+        return None, None
     dev = dr.async_get(hass).async_get(device_id)
     if dev is None:
         return None, None
@@ -53,7 +57,9 @@ async def _access(hass: HomeAssistant, entry_id: str) -> str:
         raise WeheatLoginNeeded("not logged in to Weheat yet")
     try:
         if entry.data.get("auth_from") == "weheat":       # logged in with the Weheat integration's app registration
-            impl = (await async_get_implementations(hass, "weheat")).get(entry.data.get("auth_implementation"))
+            impls = await async_get_implementations(hass, "weheat")
+            impl_id = entry.data.get("auth_implementation")
+            impl = impls.get(impl_id) if impl_id is not None else None
             if impl is None:
                 raise WeheatLoginNeeded("the Weheat integration's app registration is gone")
         else:
@@ -93,7 +99,7 @@ async def _get(hass: HomeAssistant, entry_id: str, path: str, params: dict) -> l
                 raise
             await asyncio.sleep(40)             # Weheat's login server did not answer: a little later
             continue
-        async with async_get_clientsession(hass).get(f"{API_URL}{path}", params=params, timeout=60,
+        async with async_get_clientsession(hass).get(f"{API_URL}{path}", params=params, timeout=ClientTimeout(total=60),
                                                      headers={"Authorization": f"Bearer {token}"}) as r:
             if r.status == 401:
                 raise WeheatLoginNeeded("Weheat refused the token (401)")
@@ -101,6 +107,26 @@ async def _get(hass: HomeAssistant, entry_id: str, path: str, params: dict) -> l
             data = await r.json()
             return data if isinstance(data, list) else []
     return []
+
+
+async def async_latest(hass: HomeAssistant, entry_id: str, pump_id: str) -> dict | None:
+    """The unit's last log (read-only): among others the control method it runs on now (currentControlMethod) and the
+    one for the hot water tank (dhwControlMethod). None when Weheat does not answer; a refused login raises."""
+    try:
+        token = await _access(hass, entry_id)
+        async with async_get_clientsession(hass).get(f"{API_URL}/api/v1/heat-pumps/{pump_id}/logs/latest",
+                                                     timeout=ClientTimeout(total=30),
+                                                     headers={"Authorization": f"Bearer {token}"}) as r:
+            if r.status == 401:
+                raise WeheatLoginNeeded("Weheat refused the token (401)")
+            r.raise_for_status()
+            data = await r.json()
+    except WeheatLoginNeeded:
+        raise
+    except Exception as err:  # noqa: BLE001 - shown as unknown, tried again later
+        _LOGGER.debug("Roost: Weheat latest log not read: %s", err)
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def _fmt(t: datetime) -> str:
@@ -126,7 +152,7 @@ async def async_settings(hass: HomeAssistant, entry_id: str, pump_id: str) -> di
     try:
         token = await _access(hass, entry_id)
         session, auth = async_get_clientsession(hass), {"Authorization": f"Bearer {token}"}
-        async with session.get(f"{API_URL}/api/v1/installations", timeout=30, headers=auth) as r:
+        async with session.get(f"{API_URL}/api/v1/installations", timeout=ClientTimeout(total=30), headers=auth) as r:
             if r.status != 200:
                 return {"available": False, "status": r.status}
             listed = await r.json()
@@ -134,7 +160,8 @@ async def async_settings(hass: HomeAssistant, entry_id: str, pump_id: str) -> di
         inst = next((x.get("id") for x in items if isinstance(x, dict) and x.get("heatPumpId") == pump_id), None)
         if not inst:
             return {"available": False, "status": "no installation for this heat pump"}
-        async with session.get(f"{API_URL}/api/v1/installations/{inst}/settings", timeout=30, headers=auth) as r:
+        async with session.get(f"{API_URL}/api/v1/installations/{inst}/settings", headers=auth,
+                               timeout=ClientTimeout(total=30)) as r:
             if r.status != 200:
                 return {"available": False, "status": r.status}
             data = await r.json()
@@ -144,9 +171,10 @@ async def async_settings(hass: HomeAssistant, entry_id: str, pump_id: str) -> di
     if not isinstance(data, dict):
         return {"available": False, "status": "no object"}
     xs, ys = data.get("heatingCurveX"), data.get("heatingCurveY")
-    curve = ([[float(x), float(y)] for x, y in zip(xs, ys)]
+    curve = ([[float(x), float(y)] for x, y in zip(xs, ys, strict=False)]
              if isinstance(xs, list) and isinstance(ys, list) and len(xs) == len(ys) and xs else None)
-    return {"available": True, "control": CONTROL_METHODS.get(data.get("controlMethod"), data.get("controlMethod")),
+    method = data.get("controlMethod")
+    return {"available": True, "control": CONTROL_METHODS.get(method, method) if method is not None else None,
             "curve": curve}
 
 
@@ -155,7 +183,8 @@ async def async_pump_info(hass: HomeAssistant, entry_id: str, pump_id: str) -> d
     boiler_type (0 unknown, 1 none, 2 on/off, 3 OpenTherm), dhw_type (1 hot water tank, 2 none), commissioned (ISO).
     None on an error."""
     try:
-        async with async_get_clientsession(hass).get(f"{API_URL}/api/v1/heat-pumps/{pump_id}", timeout=30,
+        async with async_get_clientsession(hass).get(f"{API_URL}/api/v1/heat-pumps/{pump_id}",
+                                                     timeout=ClientTimeout(total=30),
                                                      headers={"Authorization": f"Bearer {await _access(hass, entry_id)}"}) as r:
             r.raise_for_status()
             data = await r.json()

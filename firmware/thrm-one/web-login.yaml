@@ -1,0 +1,84 @@
+# Change the web page login without new firmware.
+# The new username and password are stored in flash and take precedence over the default (admin / Roost).
+# The password can never be read back: the input field is cleared after every attempt.
+# Forgotten? "Reset Web Login" in Home Assistant sets the login back to admin / Roost.
+# The web server checks the login on every request, so a change takes effect immediately.
+
+globals:
+  - {id: web_user, type: "std::array<char, 33>", restore_value: yes} # empty = default admin / Roost
+  - {id: web_pass, type: "std::array<char, 65>", restore_value: yes}
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: |-
+            if (id(web_user)[0] != 0 && id(web_pass)[0] != 0) {
+              web_server_base::global_web_server_base->set_auth_username(id(web_user).data());
+              web_server_base::global_web_server_base->set_auth_password(id(web_pass).data());
+              id(web_login_status).publish_state("custom");
+            } else {
+              id(web_login_status).publish_state("default");
+            }
+
+text:
+  - platform: template
+    id: web_new_user
+    name: "Web Username"
+    mode: text
+    min_length: 0
+    max_length: 32
+    optimistic: true
+    entity_category: config
+  - platform: template
+    id: web_new_pass
+    name: "Web Password"
+    mode: password
+    min_length: 0
+    max_length: 64
+    optimistic: true
+    entity_category: config
+
+button:
+  - platform: template
+    id: web_login_apply
+    name: "Apply Web Login"
+    entity_category: config
+    on_press:
+      - lambda: |-
+          const std::string u = id(web_new_user).state, p = id(web_new_pass).state;
+          const bool ok = !u.empty() && u.size() <= 32 && u.find_first_of(" :\"") == std::string::npos &&
+                          p.size() >= 8 && p.size() <= 64;
+          if (ok) {
+            std::array<char, 33> nu{};
+            std::array<char, 65> np{};
+            memcpy(nu.data(), u.data(), u.size());
+            memcpy(np.data(), p.data(), p.size());
+            id(web_user) = nu; id(web_pass) = np;
+            web_server_base::global_web_server_base->set_auth_username(id(web_user).data());
+            web_server_base::global_web_server_base->set_auth_password(id(web_pass).data());
+            global_preferences->sync(); // straight to flash, not only after a minute
+            id(web_login_status).publish_state("changed");
+            ESP_LOGI("web", "Web page login changed (user %s)", u.c_str());
+          } else {
+            id(web_login_status).publish_state("invalid");
+          }
+      - text.set: {id: web_new_pass, value: ""}
+  - platform: template
+    id: web_login_reset
+    name: "Reset Web Login"
+    entity_category: config
+    on_press:
+      - lambda: |-
+          id(web_user) = std::array<char, 33>{};
+          id(web_pass) = std::array<char, 65>{};
+          global_preferences->sync();
+          id(web_login_status).publish_state("reset");
+      - delay: 2s
+      - lambda: "App.safe_reboot();" # the default login is only in the startup code
+
+text_sensor:
+  - platform: template
+    id: web_login_status
+    name: "Web Login Status" # default | custom | changed | invalid | reset
+    entity_category: diagnostic

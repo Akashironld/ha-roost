@@ -1,5 +1,6 @@
 """v0.8.0 in Home Assistant: the plan held, fallbacks, airing with a window sensor, the unit's minimum run, a house that
 stays cold, and the fixes from the 0.7.8 review (R01, R04, R07, R08, R10, R16, R17, R21, R22)."""
+from dataclasses import replace
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -7,7 +8,7 @@ import pytest
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 
-from custom_components.roost import diagnostics, rooms, schedule, stick
+from custom_components.roost import diagnostics, rooms, schedule
 from custom_components.roost.sensor import SavingMonthSensor
 
 from .conftest import THERMOSTAT, thermostat
@@ -28,12 +29,12 @@ async def test_the_plan_is_held_until_a_reason(hass, entry):
     m = entry.runtime_data
     now = dt_util.utcnow().replace(minute=5, second=0, microsecond=0)    # +20 min stays in the same hour
     await m._async_plan(now, "first")
-    held = list(m.commit.sp)
-    m.storage_e += 1.5                                   # a small change: the plan made afresh might differ
+    held = list(m.held.commit.sp)
+    m.meters = replace(m.meters, storage_e=m.meters.storage_e + 1.5)                                  # a small change: the plan made afresh might differ
     await m._async_plan(now + timedelta(minutes=20))
-    assert [x.sp for x in m.plan.hours] == held[:len(m.plan.hours)] and m.plan_why == "first"
+    assert [x.sp for x in m.held.plan.hours] == held[:len(m.held.plan.hours)] and m.held.why == "first"
     await m._async_plan(now + timedelta(minutes=40), "settings")
-    assert m.plan_why == "settings" and m.commit.at == pytest.approx((now + timedelta(minutes=40)).timestamp())
+    assert m.held.why == "settings" and m.held.commit.at == pytest.approx((now + timedelta(minutes=40)).timestamp())
 
 
 async def test_why_plan_sees_new_prices(hass, entry):
@@ -43,9 +44,22 @@ async def test_why_plan_sees_new_prices(hass, entry):
     e = m._energy(now, 36)
     assert m._why_plan(now, e, None) is None
     short = (type(e[0])(import_price=e[0].import_price[:10]), e[1])
-    m.commit.tariff = m.commit.tariff[:10]
+    m.held.commit.tariff = m.held.commit.tariff[:10]
     assert m._why_plan(now, e, None) == "prices"
     assert m._why_plan(now, short, None) is None
+
+
+async def test_a_plan_held_from_before_a_restart_is_made_afresh_once(hass, entry):
+    # 21-11-2026: the first round after a restart had no prices yet; the plan held from before stayed for hours
+    m = entry.runtime_data
+    now = dt_util.utcnow()
+    await m._async_plan(now, "first")
+    e = m._energy(now, 36)
+    m._replan_on_start = True                   # as async_start sets it when a plan held was restored
+    assert m._why_plan(now, None, None) == "restart"        # no prices yet: nothing made, it stays wanted
+    assert m._why_plan(now, e, None) == "restart"
+    await m._async_plan(now, "restart", e)
+    assert m.held.why == "restart" and m._why_plan(now, e, None) is None
 
 
 async def test_no_room_falls_back_to_the_comfort_schedule(hass, entry):
@@ -53,15 +67,15 @@ async def test_no_room_falls_back_to_the_comfort_schedule(hass, entry):
     now = dt_util.utcnow()
     with patch.object(type(m), "room", return_value=None):
         await m._async_plan(now)
-        assert m.fallback is None and m.reason.code == "no_room"
+        assert m.held.fallback is None and m.reason.code == "no_room"
         later = now + timedelta(minutes=61)
         await m._async_plan(later)
-        assert m.fallback == "schedule" and m.plan is None
+        assert m.held.fallback == "schedule" and m.held.plan is None
         assert m.planned_sp(later.timestamp()) == m.fallback_sp(later.timestamp())
         await m._async_plan(now + timedelta(hours=3, minutes=5))
         assert issue(hass, entry, "fallback") is not None
     await m._async_plan(now + timedelta(hours=3, minutes=10))
-    assert m.fallback is None and issue(hass, entry, "fallback") is None
+    assert m.held.fallback is None and issue(hass, entry, "fallback") is None
 
 
 async def test_a_failed_write_is_tried_again_soon(hass, entry):
@@ -110,7 +124,7 @@ async def test_a_window_sensor_lowers_the_thermostat_and_closing_restores_the_pl
     m.mode = "active"
     hass.states.async_set("binary_sensor.window", "on")
     t = dt_util.utcnow().timestamp()
-    m._watch_window(t)
+    m.notices.watch_window(t)
     await m._async_control(t)
     assert climate_calls[-1].data["temperature"] == 19.0 and m.decision.why.code == "airing"
     n = len(climate_calls)
@@ -123,7 +137,7 @@ async def test_a_window_sensor_lowers_the_thermostat_and_closing_restores_the_pl
     hass.states.async_set("binary_sensor.window", "off")
     with patch.object(type(m), "_async_tick") as tick:
         for k in range(1, 4):
-            m._watch_window(t + k * 3600)
+            m.notices.watch_window(t + k * 3600)
         assert tick.call_args.kwargs.get("force_plan") == "window"
     assert m._airing_from is None and m.mem.last_write is None
 
@@ -133,11 +147,11 @@ async def test_a_house_below_its_minimum_gets_a_notice(hass, entry):
     m.mode = "active"
     t = dt_util.utcnow().timestamp()
     with patch.object(type(m), "room", return_value=17.5):
-        m._check_health(t)
+        m.notices.check(t)
         assert issue(hass, entry, "house_cold") is None
-        m._check_health(t + 61 * 60)
+        m.notices.check(t + 61 * 60)
         assert issue(hass, entry, "house_cold") is not None
-    m._check_health(t + 62 * 60)
+    m.notices.check(t + 62 * 60)
     assert issue(hass, entry, "house_cold") is None
 
 
@@ -147,12 +161,12 @@ async def test_a_missing_meter_makes_no_phantom_use(hass, entry):
     now = dt_util.utcnow()
     defrost = m.ent["elec_defrost"]
     m._count_cost(now)
-    before = m.kwh_today
+    before = m.meters.kwh_today
     hass.states.async_set(defrost, "unavailable")
     m._count_cost(now + timedelta(minutes=2))
     hass.states.async_set(defrost, "4.0", {"device_class": "energy", "unit_of_measurement": "kWh"})
     m._count_cost(now + timedelta(minutes=4))
-    assert m.kwh_today == before
+    assert m.meters.kwh_today == before
 
 
 async def test_energy_without_a_plan_is_priced_or_marked_unpriced(hass, entry):
@@ -161,15 +175,15 @@ async def test_energy_without_a_plan_is_priced_or_marked_unpriced(hass, entry):
     now = dt_util.utcnow()
     elec = m.ent["elec"]
     m._count_cost(now)
-    m.plan, m.plan_hours, m.plan_at = None, [], None
-    m._tariff_now = 0.30
+    m.held = replace(m.held, plan=None, hours=[], at=None)
+    m.prices = replace(m.prices, tariff_now=0.30)
     hass.states.async_set(elec, "1801.0", {"device_class": "energy", "unit_of_measurement": "kWh"})
     m._count_cost(now + timedelta(minutes=2))
-    assert m.cost_today == pytest.approx(0.30)
-    m._tariff_now = None
+    assert m.meters.cost_today == pytest.approx(0.30)
+    m.prices = replace(m.prices, tariff_now=None)
     hass.states.async_set(elec, "1802.0", {"device_class": "energy", "unit_of_measurement": "kWh"})
     m._count_cost(now + timedelta(minutes=4))
-    assert m.cost_today == pytest.approx(0.30) and m.unpriced_kwh == pytest.approx(1.0)
+    assert m.meters.cost_today == pytest.approx(0.30) and m.meters.unpriced_kwh == pytest.approx(1.0)
 
 
 async def test_a_change_undone_within_the_hour_still_marks_the_day(hass, entry):
@@ -177,16 +191,16 @@ async def test_a_change_undone_within_the_hour_still_marks_the_day(hass, entry):
     m = entry.runtime_data
     now = dt_util.utcnow()
     day = dt_util.as_local(now).date().isoformat()
-    m.day_contexts[day] = {"settings": vars(m.settings()), "room_settings": [], "comfort_schedule": schedule.context(m.conf)}
-    m.hour_log.append({"ts": int(now.timestamp() // 3600 * 3600)})      # this hour is logged already
-    m._log_hour(now)
-    assert not m.day_contexts[day].get("settings_changed")
+    m.log.day_contexts[day] = {"settings": vars(m.settings()), "room_settings": [], "comfort_schedule": schedule.context(m.conf)}
+    m.log.hour_log.append({"ts": int(now.timestamp() // 3600 * 3600)})      # this hour is logged already
+    m.hl.log_hour(now)
+    assert not m.log.day_contexts[day].get("settings_changed")
     old = m.conf["comfort"]
     m.conf["comfort"] = old + 1
-    m._log_hour(now + timedelta(seconds=30))
+    m.hl.log_hour(now + timedelta(seconds=30))
     m.conf["comfort"] = old
-    m._log_hour(now + timedelta(seconds=60))
-    assert m.day_contexts[day]["settings_changed"]
+    m.hl.log_hour(now + timedelta(seconds=60))
+    assert m.log.day_contexts[day]["settings_changed"]
 
 
 async def test_failed_learning_keeps_the_models_it_had(hass, entry):
@@ -201,7 +215,7 @@ async def test_failed_learning_keeps_the_models_it_had(hass, entry):
          patch("custom_components.roost.response.learn", side_effect=lambda rows, h, p: (p, "")), \
          patch.object(type(m), "_async_tick"):
         learn.return_value.model = type(house)(C=40.0)
-        await m.async_learn()
+        await m.learner.async_learn()
     assert m.house is house and m.pump is pump and m.check == chk
 
 
@@ -212,8 +226,8 @@ async def test_month_coverage_counts_absent_days(hass, entry):
     if today.day < 3:
         pytest.skip("needs two completed days in this month")
     first = today.replace(day=1).isoformat()
-    m.day_stats = {first: {"saving": 0.1}}
-    m.saving_days = {first: 0.1}
+    m.log = replace(m.log, day_stats={first: {"saving": 0.1}})
+    m.log = replace(m.log, saving_days={first: 0.1})
     a = SavingMonthSensor(m).extra_state_attributes
     assert a["partial"] and len(a["absent_days"]) == today.day - 2 and a["days_expected"] == today.day - 1
 
@@ -272,21 +286,21 @@ async def test_weekly_on_without_periods_starts_from_the_comfort_hours(hass, ent
     m = entry.runtime_data
     m.conf.pop(schedule.WEEK, None)
     with patch.object(type(m), "_async_tick"):
-        await m.async_set_settings(weekly_comfort=True)
+        await m.care.async_set_settings(weekly_comfort=True)
     assert entry.options[schedule.WEEK]["friday"] == [[int(m.conf["day_from"]) * 60, int(m.conf["day_to"]) * 60]]
 
 
 async def test_runs_of_the_unit_are_counted_per_day(hass, entry):
     m = entry.runtime_data
-    t = dt_util.utcnow().timestamp()
-    m.runs = []
-    m._track_runs(t - 3600, True)
-    m._track_runs(t - 1800, False)
-    m._track_runs(t - 600, True)
+    # midday local time: with "now" the runs straddled midnight in the test time zone right after it (22-11-2026)
+    t = dt_util.start_of_local_day().timestamp() + 12 * 3600
+    from custom_components.roost.core import meters as cmeters
+    m.meters = replace(m.meters, runs=())
+    for at, on in ((t - 3600, True), (t - 1800, False), (t - 600, True)):
+        m.meters = cmeters.track_runs(m.meters, at, on)
     s = m.run_stats(t)
-    assert s["heating"] and s["today"]["starts"] in (1, 2)
-    if s["today"]["starts"] == 2:                                    # not just after midnight
-        assert s["today"]["minutes"] == round((30 + 10) / 2)
+    assert s["heating"] and s["today"]["starts"] == 2
+    assert s["today"]["minutes"] == round((30 + 10) / 2)
 
 
 async def test_an_install_from_v077_starts_and_drops_unchecked_savings(hass, weheat, climate_calls, hass_storage):
@@ -309,6 +323,6 @@ async def test_an_install_from_v077_starts_and_drops_unchecked_savings(hass, weh
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     m = entry.runtime_data
-    assert m.mode == "active" and m.commit is not None and m.plan is not None and isinstance(m.runs, list)   # it planned at once
-    assert day not in m.saving_days and m.saving_month() is None
-    assert m.day_stats[day]["quality"]["reasons"] == ["missing_context"]
+    assert m.mode == "active" and m.held.commit is not None and m.held.plan is not None and isinstance(m.meters.runs, tuple)   # it planned at once
+    assert day not in m.log.saving_days and m.hl.saving_month() is None
+    assert m.log.day_stats[day]["quality"]["reasons"] == ["missing_context"]

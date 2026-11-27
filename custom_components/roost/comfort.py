@@ -80,7 +80,8 @@ def from_history(samples: list[tuple[int, float]]) -> dict | None:
     if hi - lo >= 0.5:
         mid = (hi + lo) / 2
         warm = [h for h in range(24) if med.get(h, lo) >= mid]
-        best, cur = [], []
+        best: list[int] = []
+        cur: list[int] = []
         for h in list(range(24)) * 2:                       # twice round: a run may pass midnight
             cur = cur + [h] if h in warm and len(cur) < 24 else ([h] if h in warm else [])
             if len(cur) > len(best):
@@ -150,21 +151,33 @@ def suggest(changes: list[dict], local: Callable[[float], tuple[str, int]], now_
 
 def adjust_settings(c: dict, changed: set[str]) -> dict | None:
     """The temperatures and comfort hours after a change from the card: the setting that was changed wins, the others
-    follow it (comfort never below the day minimum, storing never below comfort, the lowest setpoint never above
-    comfort). c: comfort, day_min, night_min, store_max, lowest_setpoint, day_from, day_to. None when the comfort hours
+    follow it (comfort never below the day minimum, storing never below comfort, eco and the lowest setpoint never above
+    comfort). The day minimum (the hard floor, folded away since the comfort range of 25-11-2026) follows comfort down
+    to half a degree under it. c: comfort, day_min, night_min, store_max, lowest_setpoint, day_from, day_to. None when the comfort hours
     would end before they start."""
     if int(c["day_to"]) <= int(c["day_from"]):
         return None
     f = {k: round(float(c[k]) * 2) / 2 for k in ("comfort", "day_min", "night_min", "store_max", "lowest_setpoint")}
     if "day_min" in changed and f["day_min"] > f["comfort"]:
         f["comfort"] = f["day_min"]
-    f["day_min"] = min(f["day_min"], f["comfort"])
+    if f["day_min"] > f["comfort"]:
+        f["day_min"] = f["comfort"] - 0.5
     if f["store_max"] < f["comfort"]:
         if "store_max" in changed:
             f["comfort"] = f["store_max"]
-            f["day_min"] = min(f["day_min"], f["comfort"])
+            if f["day_min"] > f["comfort"]:
+                f["day_min"] = f["comfort"] - 0.5
         else:
             f["store_max"] = f["comfort"]
+    # eco never above comfort once one of them moves (also comfort pulled down by storing, above); a value kept from
+    # before the comfort range stays as it was
+    moved = bool(changed & {"comfort", "night_min"}) or f["comfort"] != round(float(c["comfort"]) * 2) / 2
+    if f["night_min"] > f["comfort"] and moved:
+        if "night_min" in changed:
+            f["comfort"] = f["night_min"]
+            f["store_max"] = max(f["store_max"], f["comfort"])
+        else:
+            f["night_min"] = f["comfort"]
     if f["lowest_setpoint"] > f["comfort"]:
         if "lowest_setpoint" in changed:
             f["comfort"] = f["lowest_setpoint"]

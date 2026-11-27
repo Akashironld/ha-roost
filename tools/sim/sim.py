@@ -36,11 +36,112 @@ response = load("response")
 rooms_mod = load("rooms")
 value = load("value")
 stick = load("stick")
+ot = load("opentherm")
+otlearn = load("otlearn")
 
 # A/B switches: SIM_FADE=1 Roost plans as if the unit's output fades after the thermostat stops asking (before v0.8.0;
 # the true unit stops at once), SIM_HOLD=1 the plan is held between reasons to plan afresh (stick.py, v0.8.0)
 FADE = os.environ.get("SIM_FADE") == "1"
 HOLD = os.environ.get("SIM_HOLD") == "1"
+# SIM_OT=1: also Roost steering the flow over OpenTherm (planner.plan_ot + opentherm.decide) and the master's own
+# heating curve, against a true OpenTherm heat pump (OTPump). SIM_OT_K: Roost's emitter k against the true one.
+OT_ON = os.environ.get("SIM_OT") == "1"
+OT_K_BIAS = float(os.environ.get("SIM_OT_K", "0.8"))
+OT_QMIN = float(os.environ.get("SIM_OT_QMIN", "2.8"))      # the true unit's lowest output (Roost starts at 2.8)
+OT_LEARN = os.environ.get("SIM_OT_LEARN", "1") == "1"         # learn the unit's properties from its samples (otlearn.py)
+# SIM_SITE: what the house has besides the heat pump. grid (default) | solar_net (solar, net metering: own solar worth
+# the import price) | solar_export (after net metering: own solar worth EXPORT_PRICE) | battery (a home battery covers
+# the evening at its refill cost) | solar_export_battery
+SITE = os.environ.get("SIM_SITE", "grid")
+PV_KWP, HOUSE_KW, EXPORT_PRICE, BATTERY_LOSS = 6.0, 0.5, 0.05, 1.12
+SLOW = os.environ.get("SIM_SLOW", "1") == "1"           # yesterday's missed heat in the plan (check.slow_correction)
+# SIM_OT_RAMP=1: the true unit behaves like the Weheat P80 on 21-11-2026: its output follows the flow asked over
+# minutes (not at once), it speeds up on its own to near full output when it stays well below the flow asked for
+# ~20 min, and it defrosts every few hours in the cold (no heat reported, the flow falls). Use with SIM_OT_STEP=120.
+OT_RAMP = os.environ.get("SIM_OT_RAMP") == "1"
+OT_STEP_S = int(os.environ.get("SIM_OT_STEP", "600"))   # the control's round (2 min in Home Assistant)
+# SIM_PUBLISH=1: day-ahead prices as published: tomorrow's come at 13:00, so before that the plan ends at 23:00 today
+PUBLISH = os.environ.get("SIM_PUBLISH") == "1"
+
+
+def horizon(ts: int) -> int:
+    """Hours the plan sees from `ts` (36, or up to 23:00 today / tomorrow with SIM_PUBLISH)."""
+    if not PUBLISH:
+        return 36
+    h = ts % 86400 // 3600
+    return min(36, (24 - h) if h < 13 else (48 - h))
+
+
+class OTPump:
+    """A true heat pump on OpenTherm, as measured on a Weheat P80 (19/20-11-2026): it makes the flow asked within
+    minutes, but not below q_min (900 rpm): asked lower, the flow overshoots, it stops itself after STOP_AFTER_S and
+    then rests REST_S. A start runs at START_COP of the COP for START_S."""
+    STOP_AFTER_S = 1500
+    REST_S = 3600
+    START_S = 1200
+    START_COP = 0.82
+    MARGIN = 0.3                 # kW: asked this little below q_min it stays at q_min
+    # SIM_OT_RAMP: the unit's own control, as seen on 21-11-2026
+    TAU_S = 600                  # its output moves towards the flow asked with this time constant
+    BOOST_GAP, BOOST_AFTER_S, BOOST_S, BOOST_SHARE = 1.0, 1200, 1200, 0.9   # well below the flow asked this long: speeds up
+    DEFROST_EVERY_S, DEFROST_S, DEFROST_KW, DEFROST_BELOW = 3 * 3600, 600, -2.5, 5.0
+
+    def __init__(self, k: float, n: float, q_min: float, hp, cop_low: float, ramp: bool = False) -> None:
+        self.k, self.n, self.q_min, self.hp, self.cop_low = k, n, q_min, hp, cop_low
+        self.running, self.on_at, self.low_since, self.rest_until, self.starts = False, None, None, -1.0, 0
+        self.ramp, self.q, self.gap_since, self.boost_until, self.defrost_at = ramp, 0.0, None, -1.0, None
+        self.reported, self.boost_s, self.defrosts = 0.0, 0.0, 0
+
+    def step(self, now: float, flow: float, T: float, t_out: float, dt: float) -> tuple[float, float, float | None]:
+        """-> (heat kW, electricity kWh, flow made)."""
+        want = 0.0 if flow <= 0 else ot.level_for(flow, T, self.k, self.n)
+        if flow <= 0 or now < self.rest_until or want <= 0.05:
+            if self.running:
+                self.running, self.rest_until = False, now + self.REST_S
+            self.low_since, self.q, self.reported, self.gap_since = None, 0.0, 0.0, None
+            return 0.0, 0.0, None
+        if not self.running:
+            self.running, self.on_at = True, now
+            self.starts += 1
+        q = min(self.hp.pmax(t_out), max(self.q_min, want))
+        if self.ramp:
+            if self.defrost_at is None:
+                self.defrost_at = now
+            if t_out < self.DEFROST_BELOW and now - self.defrost_at >= self.DEFROST_EVERY_S:
+                self.defrost_at = now
+                self.defrosts += 1
+            if t_out < self.DEFROST_BELOW and self.defrosts and now - self.defrost_at < self.DEFROST_S:
+                self.q, self.reported, self.gap_since = 0.0, 0.0, None      # defrost: heat taken from the water
+                e = 1.0 * dt / 3600
+                return self.DEFROST_KW, e, T + 1.0
+            made_flow = T + (max(self.q, 0.01) / self.k) ** (1 / self.n)
+            if flow > made_flow + self.BOOST_GAP:
+                self.gap_since = self.gap_since if self.gap_since is not None else now
+                if now - self.gap_since >= self.BOOST_AFTER_S:
+                    self.boost_until, self.gap_since = now + self.BOOST_S, None
+            else:
+                self.gap_since = None
+            if now < self.boost_until:
+                q = self.BOOST_SHARE * self.hp.pmax(t_out)
+                self.boost_s += dt
+            else:
+                q = self.q + (q - self.q) * min(1.0, dt / self.TAU_S)
+                q = max(self.q_min, q)
+            self.q = q
+            self.reported = q
+        if want < self.q_min - self.MARGIN:
+            self.low_since = self.low_since if self.low_since is not None else now
+            if now - self.low_since >= self.STOP_AFTER_S:          # overshoot: it stops itself
+                self.running, self.rest_until, self.low_since = False, now + self.REST_S, None
+                self.q, self.reported = 0.0, 0.0
+                return 0.0, 0.0, None
+        else:
+            self.low_since = None
+        cop = self.hp.cop(t_out, q) + self.cop_low * max(0.0, heatpump.Q_REF - q)
+        if now - self.on_at < self.START_S:
+            cop *= self.START_COP
+        self.reported = q
+        return q, q * dt / 3600 / cop, T + (q / self.k) ** (1 / self.n)
 
 DAY0 = 20_450                     # 2025-12-29 (a Monday)
 HIST_DAYS = 40
@@ -184,6 +285,18 @@ def prices(rnd: random.Random, kind: str, ts: int, day_scale: float) -> float:
     return round(shape * day_scale, 4)
 
 
+def site(ts: int, rad: float, p: float, price: dict) -> tuple[float, float, float]:
+    """(price from the grid or battery, value of own solar, own solar kW free for the heat pump) for SIM_SITE."""
+    own = max(0.0, rad * PV_KWP * 0.85 - HOUSE_KW) if SITE.startswith("solar") else 0.0
+    p_own = EXPORT_PRICE if "export" in SITE else p
+    p_grid = p
+    if SITE.endswith("battery") and 17 <= ts % 86400 // 3600 < 23:
+        night = [price[t] for t in range(ts // 86400 * 86400, ts // 86400 * 86400 + 6 * 3600, 3600) if t in price]
+        if night:
+            p_grid = min(p, min(night) * BATTERY_LOSS)        # the battery, filled in the night, covers the evening
+    return p_grid, p_own, own
+
+
 def true_models(sc: Scenario):
     house = model.HouseModel(**sc.house, source="learned")
     hp = heatpump.HeatPumpModel.for_profile("p80")
@@ -258,7 +371,6 @@ def run(name: str, days: int = 7, seed: int = 1) -> dict:
     scale = {d: rnd.uniform(0.85, 1.2) for d in range(DAY0, DAY0 + days + 3)}
     price = {ts: prices(rnd, sc.prices, ts, scale[ts // 86400]) for ts in wx}
     gains = {ts: internal(rnd, ts % 86400 // 3600) for ts in wx}
-    err_walk = {ts: 0.0 for ts in wx}
 
     room_true = rooms_mod.RoomModel(**sc.room["model"]) if sc.room else None
     room_known = None
@@ -288,16 +400,19 @@ def run(name: str, days: int = 7, seed: int = 1) -> dict:
             day = 7 <= h < 22
             if roost:
                 hours = []
-                for j in range(36):
+                for j in range(horizon(ts)):
                     t2 = ts + j * 3600
                     t, rad, wind = wx.get(t2, wx[max(wx)])
                     fc_err = rnd.gauss(0, sc.forecast_sd * min(1.0, j / 24))
                     p = price.get(t2, price[max(price)])
-                    hours.append(planner.HourIn(t_out=t + fc_err, wind=wind, rad=rad * (1 + rnd.gauss(0, 0.2 * min(1, j / 12))),
-                                                p_grid=p, p_own=p, day=7 <= (t2 % 86400 // 3600) < 22, hour=t2 % 86400 // 3600,
+                    rad_f = rad * (1 + rnd.gauss(0, 0.2 * min(1, j / 12)))
+                    pg, po, own = site(t2, rad_f, p, price)
+                    hours.append(planner.HourIn(t_out=t + fc_err, wind=wind, rad=rad_f, own_kw=own,
+                                                p_grid=pg, p_own=po, day=7 <= (t2 % 86400 // 3600) < 22, hour=t2 % 86400 // 3600,
                                                 dhw=0.0))
                 corr, _n = check.correction(log, house, pump, ts)
-                hours = [replace(x, extra_kw=check.fade(corr, j)) for j, x in enumerate(hours)]
+                slow = check.slow_correction(log, house, pump, ts) if SLOW else 0.0
+                hours = [replace(x, extra_kw=check.fade(corr, j) + slow) for j, x in enumerate(hours)]
                 room_in = None
                 if sc.room:
                     act = [rooms_mod.active(x.hour, sc.room["from"], sc.room["to"]) for x in hours]
@@ -321,13 +436,14 @@ def run(name: str, days: int = 7, seed: int = 1) -> dict:
             else:
                 sp_t = fixed                       # one setting day and night, as advised for heat pumps
             t, rad, wind = wx[ts]
-            hin = planner.HourIn(t_out=t, wind=wind, rad=rad, p_grid=price[ts], p_own=price[ts], day=day, hour=h, extra_kw=gains[ts])
+            pg, po, own = site(ts, rad, price[ts], price)
+            hin = planner.HourIn(t_out=t, wind=wind, rad=rad, p_grid=pg, p_own=po, own_kw=own, day=day, hour=h, extra_kw=gains[ts])
             T1, E1, c, e, q, _pen = truth.hour(T, E, sp_t, hin, w)
             w = truth.w_end
             out["starts"] += q > 0.05 and q_prev <= 0.05
             q_prev = q
             log.append({"ts": ts, "T": T, "E": E, "sp_t": sp_t, "t_out": t, "wind": wind, "rad": rad, "dhw": 0.0, "q": q, "hour": h})
-            log = log[-12:]
+            log = log[-30:]
             if room_true:
                 Tr = room_true.step(Tr, q, t, (T + T1) / 2)
                 if rooms_mod.active(h, sc.room["from"], sc.room["to"]):
@@ -343,6 +459,121 @@ def run(name: str, days: int = 7, seed: int = 1) -> dict:
                 out["hours_below_min"] += 1
             out["low"] = min(out["low"], T1)
             T, E = T1, E1
+        out["end"] = (T, E)
+        return out
+
+    def run_ot(curve: bool = False):
+        """Roost over OpenTherm (curve False) or the master's own heating curve with the room switching it (curve True),
+        against the true OpenTherm pump. Hours of OT_STEP_S steps; the house runs each hour on the mean heat."""
+        n = 1.1
+        k_true = 0.3 * (0.6 if sc.house["lag"] < 0.5 else 1.0) * (sc.house["H"] / 0.15)   # radiators: less area, a leakier house: more
+        k_true = max(0.1, k_true)
+        s_ot = replace(s, ot=True)
+        pump_t = OTPump(k_true, n, OT_QMIN, true_hp, s_ot.ot_cop_low, ramp=OT_RAMP)
+        obs, stops, was = [], [], False
+        cs = ot.OTSettings(q_min=s_ot.ot_q_min, k=k_true * OT_K_BIAS, n=n)
+        mem = ot.OTMemory()
+        sim_ot = planner.Simulator(true_house, true_hp, s_ot)
+        T, E = T0, E0
+        q_prev = 0.0
+        log = []
+        demand = False
+        out = {"trace": [], "cost": 0.0, "kwh": 0.0, "deg_below": 0.0, "hours_below_min": 0, "low": 99.0, "changes": 0,
+               "room_below": 0, "room_low": 99.0, "max_sp": 0.0, "starts": 0, "replans": 0, "flows": [], "levels": []}
+        start = DAY0 * 86400
+        made = (0.0, None)
+        for k_h in range(days * 24):
+            ts = start + k_h * 3600
+            h = ts % 86400 // 3600
+            day = 7 <= h < 22
+            t, rad, wind = wx[ts]
+            level = level_next = None
+            if not curve and OT_LEARN and k_h % 24 == 0 and k_h:
+                L = otlearn.learn(obs, stops, pump, n)
+                out["learned"] = L.as_dict()
+                if L.q_min:
+                    s_ot = replace(s_ot, ot_q_min=L.q_min)
+                    cs = replace(cs, q_min=L.q_min)
+                if L.start_kwh is not None:
+                    s_ot = replace(s_ot, ot_start_kwh=L.start_kwh)
+                if L.cop_low is not None:
+                    s_ot = replace(s_ot, ot_cop_low=L.cop_low)
+                if L.k:
+                    cs = replace(cs, k=L.k)
+                    mem.k_factor = 1.0
+            if not curve:
+                hours = []
+                for j in range(horizon(ts)):
+                    t2 = ts + j * 3600
+                    tt, rr, ww = wx.get(t2, wx[max(wx)])
+                    rad_f = rr * (1 + rnd.gauss(0, 0.2 * min(1, j / 12)))
+                    pg, po, own = site(t2, rad_f, price.get(t2, price[max(price)]), price)
+                    hours.append(planner.HourIn(t_out=tt + rnd.gauss(0, sc.forecast_sd * min(1.0, j / 24)), wind=ww,
+                                                rad=rad_f, p_grid=pg, p_own=po, own_kw=own, day=7 <= (t2 % 86400 // 3600) < 22,
+                                                hour=t2 % 86400 // 3600, dhw=0.0))
+                corr, _n = check.correction(log, house, pump, ts)
+                slow = check.slow_correction(log, house, pump, ts) if SLOW else 0.0
+                hours = [replace(x, extra_kw=check.fade(corr, j) + slow) for j, x in enumerate(hours)]
+                p = planner.plan_ot(house, pump, s_ot, hours, T, E, q_prev, 24)
+                level = p.first.level
+                level_next = p.hours[1].level if len(p.hours) > 1 else None
+                out["levels"].append(level)
+            heat = elec = 0.0
+            flows = []
+            for i in range(3600 // OT_STEP_S):
+                now = ts + i * OT_STEP_S
+                if curve:
+                    # the master's own heating curve: flow for the heat that holds comfort, plus room influence 2; the room
+                    # switches it (on below the target, off above target + 0.3)
+                    need = planner.hold_kw(true_house, planner.HourIn(t_out=t, wind=wind, rad=0.0, p_grid=0, p_own=0, hour=h), s.comfort)
+                    target = s.comfort if day else s.night_min
+                    demand = T < target or (demand and T < target + 0.3)
+                    f = ot.flow_for(max(need, 0.5), s.comfort, k_true * OT_K_BIAS, n) + 1.0 + 2.0 * (target - T) if demand else 0.0
+                    f = round(max(0.0, min(40.0, f)) * 2) / 2
+                else:
+                    d = ot.decide(now, level, T, s.day_min if day else s.night_min, mem, cs, True, measured_kw=pump_t.reported if pump_t.running else None,
+                                  measured_flow=made[1], running=pump_t.running, pump_max_flow=40.0,
+                                  next_level=level_next)
+                    f = d.flow
+                    mem.last_write = now
+                q, e, fl = pump_t.step(now, f, T, t, OT_STEP_S)
+                made = (q, fl)
+                if was and not pump_t.running:
+                    stops.append([now, None, f > 0])
+                elif pump_t.running and not was and stops and stops[-1][1] is None:
+                    stops[-1][1] = now
+                was = pump_t.running
+                if pump_t.running and q > 0:
+                    o = otlearn.sample(now, q, e * 3600 / OT_STEP_S, fl, T, t, (now - pump_t.on_at) / 60, f)
+                    if o:
+                        obs.append(o)
+                heat += q * OT_STEP_S / 3600
+                elec += e
+                flows.append(f)
+            pg, po, own = site(ts, rad, price[ts], price)
+            hin = planner.HourIn(t_out=t, wind=wind, rad=rad, p_grid=pg, p_own=po, own_kw=own, day=day, hour=h, extra_kw=gains[ts])
+            T1, E1, *_ = sim_ot.hour(T, E, heat, hin, max(heat, 0.1))
+            pg_t, po_t, own_t = site(ts, rad, price[ts], price)
+            e_own = min(elec, own_t)                       # own solar first (kW over the hour = kWh)
+            c = e_own * po_t + (elec - e_own) * pg_t
+            log.append({"ts": ts, "T": T, "E": E, "sp_t": heat, "t_out": t, "wind": wind, "rad": rad, "dhw": 0.0, "q": heat, "hour": h,
+                        "ot": True})
+            log = log[-30:]
+            q_prev = made[0] if pump_t.running else 0.0
+            out["trace"].append((h, round(price[ts], 3), level, round(T1, 2), round(heat, 2), round(elec, 2), round(c, 3), round(t, 1)))
+            out["flows"].append(max(flows))
+            out["cost"] += c
+            out["kwh"] += elec
+            out["max_sp"] = max(out["max_sp"], max(flows))
+            if day:
+                out["deg_below"] += max(0.0, s.comfort - T1)
+            if T1 < (s.day_min if day else s.night_min) - 0.2:
+                out["hours_below_min"] += 1
+            out["low"] = min(out["low"], T1)
+            T, E = T1, E1
+        out["starts"] = pump_t.starts
+        out["boost_min"] = round(pump_t.boost_s / 60)
+        out["defrosts"] = pump_t.defrosts
         out["end"] = (T, E)
         return out
 
@@ -364,7 +595,13 @@ def run(name: str, days: int = 7, seed: int = 1) -> dict:
     r["cost_level"] = r["cost"] - heat * p_mean / true_hp.cop(mean_out, 3.0)
     b["cost_level"] = b["cost"]
     r["fixed_sp"] = b["fixed_sp"] = fixed_sp
-    return {"name": name, "title": sc.name, "roost": r, "steady": b, "house_note": house_note, "pump_note": pump_note,
+    extra = {}
+    if OT_ON:
+        for key, pol in (("ot", run_ot(False)), ("curve", run_ot(True))):
+            heat = (pol["end"][0] - b["end"][0]) * true_house.C + (pol["end"][1] - b["end"][1])
+            pol["cost_level"] = pol["cost"] - heat * p_mean / true_hp.cop(mean_out, 3.0)
+            extra[key] = pol
+    return {"name": name, "title": sc.name, "roost": r, "steady": b, **extra, "house_note": house_note, "pump_note": pump_note,
             "learned": {"H": round(house.H, 3), "C": round(house.C, 1), "lag": round(house.lag, 2), "k": pump.k, "follow": pump.follow,
                         "offset": pump.offset, "a": pump.a}}
 
@@ -378,6 +615,19 @@ def table(results: list[dict]) -> str:
         lines.append(f"{x['name']:10} {r['cost_level']:7.2f} {b['cost_level']:7.2f} {sav:5.1f}% {r['kwh']:6.1f} {b['kwh']:6.1f} {r['deg_below']:9.1f} "
                      f"{b['deg_below']:5.1f} {r['hours_below_min']:5d} {r['low']:5.1f} {b['low']:5.1f} {r['changes']:4d} {r['starts']:6d} {r['max_sp']:5.1f} "
                      f"{(str(r['room_below']) + '/' + str(b['room_below'])) if x['name'] == 'bedroom' else '':>5}")
+    if any("ot" in x for x in results):
+        lines.append("")
+        lines.append(f"{'scenario':10} {'thermo R':>8} {'OT R':>7} {'curve':>7} {'OT vs R':>7} {'OT vs S':>7} {'kWh OT':>6} "
+                     f"{'°h<c R':>6} {'OT':>5} {'curve':>5} {'h<min':>5} {'low OT':>6} {'starts R/OT/curve':>17} {'maxflow':>7} {'boost':>5}")
+        for x in results:
+            if "ot" not in x:
+                continue
+            r, o, c, b = x["roost"], x["ot"], x["curve"], x["steady"]
+            vs_r = (r["cost_level"] - o["cost_level"]) / r["cost_level"] * 100 if r["cost_level"] else 0
+            vs_s = (b["cost_level"] - o["cost_level"]) / b["cost_level"] * 100 if b["cost_level"] else 0
+            lines.append(f"{x['name']:10} {r['cost_level']:8.2f} {o['cost_level']:7.2f} {c['cost_level']:7.2f} {vs_r:6.1f}% {vs_s:6.1f}% "
+                         f"{o['kwh']:6.1f} {r['deg_below']:6.1f} {o['deg_below']:5.1f} {c['deg_below']:5.1f} {o['hours_below_min']:5d} "
+                         f"{o['low']:6.1f} {str(r['starts']) + '/' + str(o['starts']) + '/' + str(c['starts']):>17} {o['max_sp']:7.1f} {o.get('boost_min', 0):5d}")
     return "\n".join(lines)
 
 
@@ -389,4 +639,6 @@ if __name__ == "__main__":
         results = list(ex.map(run, names, [days] * len(names), [seed] * len(names)))
     for x in results:
         print(f"{x['name']}: {x['title']}\n   learned {x['learned']}\n   house: {x['house_note']} | pump: {x['pump_note'][:160]}")
+        if "ot" in x:
+            print(f"   OpenTherm learned: {x['ot'].get('learned')}")
     print(table(results))

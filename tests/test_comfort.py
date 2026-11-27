@@ -84,7 +84,16 @@ def test_settings_from_the_card_follow_the_one_changed():
     f = comfort.adjust_settings({**c, "day_min": 20.5}, {"day_min"})
     assert f["day_min"] == 20.5 and f["comfort"] == 20.5                       # comfort follows the minimum up
     f = comfort.adjust_settings({**c, "comfort": 18.5}, {"comfort"})
-    assert f["comfort"] == 18.5 and f["day_min"] == 18.5 and f["lowest_setpoint"] == 18.5    # the minimum and lowest follow down
+    assert f["comfort"] == 18.5 and f["day_min"] == 18.0 and f["lowest_setpoint"] == 18.5    # the floor and lowest follow down
+    assert f["night_min"] == 18.0                                          # eco is not above comfort (18 <= 18.5): kept
+    f = comfort.adjust_settings({**c, "comfort": 17.5}, {"comfort"})
+    assert f["night_min"] == 17.5 and f["day_min"] == 17.0                 # eco and the floor follow comfort down
+    old = {**c, "night_min": 20.5}                                          # eco above comfort, from before the range
+    assert comfort.adjust_settings({**old, "store_max": 23.0}, {"store_max"})["night_min"] == 20.5   # kept as it was
+    f = comfort.adjust_settings({**c, "comfort": 20.5, "night_min": 20.0, "store_max": 19.5}, {"store_max"})
+    assert f["comfort"] == 19.5 and f["night_min"] == 19.5                 # comfort pulled down by storing: eco follows
+    f = comfort.adjust_settings({**c, "night_min": 21.0}, {"night_min"})
+    assert f["night_min"] == 21.0 and f["comfort"] == 21.0 and f["store_max"] == 22.5     # comfort follows eco up
     f = comfort.adjust_settings({**c, "store_max": 19.5}, {"store_max"})
     assert f["store_max"] == 19.5 and f["comfort"] == 19.5
     f = comfort.adjust_settings({**c, "lowest_setpoint": 21.0}, {"lowest_setpoint"})
