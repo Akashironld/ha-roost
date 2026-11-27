@@ -17,7 +17,7 @@ Plans your thermostat — or the flow temperature itself, over OpenTherm — 24 
 >
 > 🧪 **Testing the beta?** What to expect and what to report: [docs/TESTERS.md](docs/TESTERS.md).
 
-<p align="center"><img src="assets/card-overview.png" width="520" alt="The Roost card: the plan for the next 24 hours, the expected room temperature, the tariff per hour and why"></p>
+<p align="center"><img src="assets/card-overview.png" width="520" alt="The Roost card: the flow it asks, the plan for the next 24 hours, the expected room temperature, the tariff per hour and why"></p>
 
 ## What it does
 
@@ -90,12 +90,12 @@ Plans your thermostat — or the flow temperature itself, over OpenTherm — 24 
 
 | | |
 |:---:|:---:|
-| <img src="assets/card-overview.png" width="400" alt="Overview"><br>**Overview** — what Roost does now and why, the plan for the next 24 hours with the tariff, and the next change | <img src="assets/card-table.png" width="400" alt="Table"><br>**Table** — the plan per hour with the reason, and the last 7 days: planned and set, room measured and expected, price, electricity |
-| <img src="assets/card-curve.png" width="400" alt="Curve"><br>**Curve** — the heating curve your house needs as the five points of the Weheat app, beside every hour the heat pump ran | <img src="assets/card-lookback.png" width="400" alt="Look back"><br>**Look back** — what was planned beside what happened, how well the room was predicted 6 hours ahead, and a log of every change |
+| <img src="assets/card-overview.png" width="400" alt="Overview"><br>**Overview** — what Roost does now and why: the flow it asks and what the heat pump makes (with its COP now), the plan for the next 24 hours with the tariff, expected defrosts and the next change | <img src="assets/card-table.png" width="400" alt="Table"><br>**Table** — the plan per hour with the reason, and the last 7 days: planned and set, room measured and expected, price, electricity, where it came from |
+| <img src="assets/card-lookback.png" width="400" alt="Look back"><br>**Look back** — what was planned beside what happened, how well the room was predicted 6 hours ahead, the heat made per hour and a log of every change | <img src="assets/card-energy.png" width="400" alt="Energy"><br>**Energy** — per hour, day, week or month: heat, electricity, COP, performance against what Roost learned of this heat pump, defrosts, own sun and cost |
+| <img src="assets/card-curve.png" width="400" alt="Heating curve"><br>**Heating curve** — the curve your house needs as the five points of the Weheat app, beside every hour the heat pump ran | |
 
-<sub>Overview, table and look back: Roost's own planner and control on two simulated winter days with dynamic prices
-(an example, not a promise); the curve: a real house. Screenshots of v0.7: since v0.8 the card also has a status line,
-the heat pump's runs and the savings calendar.</sub>
+<sub>Screenshots of v0.9.0 on the author's own house (a Weheat Blackbird P80 steered over OpenTherm by a THRM ONE,
+floor heating and fan coils, dynamic prices), late November 2026: real numbers, an example and not a promise.</sub>
 
 ## Quick start
 
