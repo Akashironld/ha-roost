@@ -4,6 +4,9 @@ This guide takes you from nothing to Roost steering your heat pump, step by step
 way. It assumes you know your way around Home Assistant (adding integrations, editing a dashboard) but nothing about
 Roost.
 
+> Roost changes how your heating runs. It comes without warranty and you use it at your own risk: see the
+> [disclaimer](../README.md#disclaimer).
+
 **Contents**
 
 1. [What Roost does, in one minute](#1-what-roost-does-in-one-minute)
