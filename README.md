@@ -5,7 +5,7 @@
 Plans your thermostat — or the flow temperature itself, over OpenTherm — 24 hours ahead on price, weather and the heat your house stores, and learns your house by itself.</p>
 
 <p align="center">
-<a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=Akashironld&repository=ha-roost&category=integration"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open in HACS" height="36"></a>
+<a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=Akashironld&repository=ha-roost&category=integration"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open in Home Assistant" height="36"></a>
 <a href="https://ko-fi.com/akashironl/?hidefeed=true&widget=true&embed=true"><img src="https://storage.ko-fi.com/cdn/kofi2.png?v=3" alt="Buy me a coffee on Ko-fi" height="36"></a>
 </p>
 
@@ -99,11 +99,13 @@ floor heating and fan coils, dynamic prices), late November 2026: real numbers, 
 
 ## Quick start
 
-1. **HACS**: click the button below (or HACS → ⋮ → *Custom repositories* → add this repository as an
+1. **Install**: click the button below. It opens the repository in the **Marketplace** (Home Assistant 2026.11 and
+   newer) or in **HACS** on older versions (or add it by hand: ⋮ → *Custom repositories* → add this repository as an
    *Integration*) → open **Roost** → ⋮ → *Redownload* → turn on **Show beta versions** (the beta versions are
-   pre-releases) → download → restart Home Assistant.
+   pre-releases) → download. From Home Assistant 2026.11 no restart is needed; with HACS on an older version, restart
+   Home Assistant. An **update** still needs a restart; Home Assistant asks for it in *Settings → System → Repairs*.
 
-   [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Akashironld&repository=ha-roost&category=integration)
+   [![Open in Home Assistant](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Akashironld&repository=ha-roost&category=integration)
 2. **Settings → Devices & services → Add integration → Roost**
    ([![Add the integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=roost)). Pick your Weheat heat pump and thermostat; Roost fills in
    what it finds (room sensor, price sensor, solar and battery, your comfort temperatures) — check it and submit.
